@@ -1,0 +1,23 @@
+﻿# Dependencies
+node_modules/
+package-lock.json
+
+# Environment
+.env
+
+# Logs
+logs/
+*.log
+
+# Uploads (fotos de ponto)
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

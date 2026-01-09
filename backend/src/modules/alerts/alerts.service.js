@@ -1,0 +1,148 @@
+﻿const db = require('../../config/database');
+const logger = require('../../utils/logger');
+
+class AlertsService {
+
+  async getAlerts(filters = {}) {
+    try {
+      let query = `
+        SELECT a.*, u.nome as user_name, u.matricula
+        FROM alerts a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE 1=1
+      `;
+
+      const params = [];
+      let paramIndex = 1;
+
+      if (filters.userId) {
+        query += ` AND a.user_id = $`;
+        params.push(filters.userId);
+        paramIndex++;
+      }
+
+      if (filters.status) {
+        query += ` AND a.status = $`;
+        params.push(filters.status);
+        paramIndex++;
+      }
+
+      if (filters.severity) {
+        query += ` AND a.severity = $`;
+        params.push(filters.severity);
+        paramIndex++;
+      }
+
+      if (filters.alertType) {
+        query += ` AND a.alert_type = $`;
+        params.push(filters.alertType);
+        paramIndex++;
+      }
+
+      query += ` ORDER BY a.created_at DESC LIMIT 100`;
+
+      const result = await db.query(query, params);
+      return result.rows;
+
+    } catch (error) {
+      logger.error('Erro ao buscar alertas', { error: error.message });
+      throw error;
+    }
+  }
+
+  async getAlertById(alertId) {
+    try {
+      const result = await db.query(`
+        SELECT a.*, 
+               u.nome as user_name, u.matricula, u.email,
+               r.nome as resolved_by_name
+        FROM alerts a
+        LEFT JOIN users u ON a.user_id = u.id
+        LEFT JOIN users r ON a.resolved_by = r.id
+        WHERE a.id = $1
+      `, [alertId]);
+
+      if (result.rows.length === 0) {
+        throw new Error('Alerta não encontrado');
+      }
+
+      return result.rows[0];
+
+    } catch (error) {
+      logger.error('Erro ao buscar alerta', { error: error.message });
+      throw error;
+    }
+  }
+
+  async markAsRead(alertId) {
+    try {
+      await db.query(`
+        UPDATE alerts SET status = 'read' WHERE id = $1
+      `, [alertId]);
+
+      logger.info('Alerta marcado como lido', { alertId });
+
+    } catch (error) {
+      logger.error('Erro ao marcar alerta como lido', { error: error.message });
+      throw error;
+    }
+  }
+
+  async resolveAlert(alertId, userId, notes) {
+    try {
+      await db.query(`
+        UPDATE alerts 
+        SET status = 'resolved', 
+            resolved_by = $1, 
+            resolved_at = NOW(), 
+            resolution_notes = $2
+        WHERE id = $3
+      `, [userId, notes, alertId]);
+
+      logger.success('Alerta resolvido', { alertId, userId });
+
+    } catch (error) {
+      logger.error('Erro ao resolver alerta', { error: error.message });
+      throw error;
+    }
+  }
+
+  async dismissAlert(alertId) {
+    try {
+      await db.query(`
+        UPDATE alerts SET status = 'dismissed' WHERE id = $1
+      `, [alertId]);
+
+      logger.info('Alerta descartado', { alertId });
+
+    } catch (error) {
+      logger.error('Erro ao descartar alerta', { error: error.message });
+      throw error;
+    }
+  }
+
+  async getStatistics() {
+    try {
+      const result = await db.query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE status = 'unread') as unread,
+          COUNT(*) FILTER (WHERE status = 'read') as read,
+          COUNT(*) FILTER (WHERE status = 'resolved') as resolved,
+          COUNT(*) FILTER (WHERE severity = 'critical') as critical,
+          COUNT(*) FILTER (WHERE severity = 'error') as errors,
+          COUNT(*) FILTER (WHERE severity = 'warning') as warnings,
+          COUNT(*) as total
+        FROM alerts
+        WHERE created_at > NOW() - INTERVAL '30 days'
+      `);
+
+      return result.rows[0];
+
+    } catch (error) {
+      logger.error('Erro ao buscar estatísticas de alertas', { error: error.message });
+      throw error;
+    }
+  }
+}
+
+module.exports = new AlertsService();
