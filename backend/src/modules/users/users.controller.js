@@ -79,21 +79,112 @@ class UsersController {
     }
   }
 
-  async update(req, res, next) {
-    try {
-      const { id } = req.params;
+  // PROCURE a função update e SUBSTITUA por esta versão:
 
-      const user = await usersService.updateUser(id, req.body, req.userId);
+async update(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { 
+      nome, 
+      email, 
+      cargo, 
+      departamento, 
+      status,
+      work_hours_start,
+      work_hours_end,
+      expected_daily_hours
+    } = req.body;
 
-      return res.json({
-        success: true,
-        data: user
-      });
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
 
-    } catch (error) {
-      next(error);
+    if (nome !== undefined) {
+      updates.push(`nome = $${paramCount}`);
+      values.push(nome);
+      paramCount++;
     }
+
+    if (email !== undefined) {
+      updates.push(`email = $${paramCount}`);
+      values.push(email);
+      paramCount++;
+    }
+
+    if (cargo !== undefined) {
+      updates.push(`cargo = $${paramCount}`);
+      values.push(cargo);
+      paramCount++;
+    }
+
+    if (departamento !== undefined) {
+      updates.push(`departamento = $${paramCount}`);
+      values.push(departamento);
+      paramCount++;
+    }
+
+    if (status !== undefined) {
+      updates.push(`status = $${paramCount}`);
+      values.push(status);
+      paramCount++;
+    }
+
+    if (work_hours_start !== undefined) {
+      updates.push(`work_hours_start = $${paramCount}`);
+      values.push(work_hours_start);
+      paramCount++;
+    }
+
+    if (work_hours_end !== undefined) {
+      updates.push(`work_hours_end = $${paramCount}`);
+      values.push(work_hours_end);
+      paramCount++;
+    }
+
+    if (expected_daily_hours !== undefined) {
+      updates.push(`expected_daily_hours = $${paramCount}`);
+      values.push(expected_daily_hours);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Nenhum campo para atualizar'
+      });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const query = `
+      UPDATE users 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING id, matricula, nome, email, cargo, departamento, status, 
+                work_hours_start, work_hours_end, expected_daily_hours
+    `;
+
+    const result = await db.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Usuário não encontrado'
+      });
+    }
+
+    logger.success('Usuário atualizado', { user_id: id });
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    next(error);
   }
+}
 
   async assignRole(req, res, next) {
     try {

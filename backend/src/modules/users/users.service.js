@@ -108,7 +108,7 @@ class UsersService {
     try {
       const result = await db.query(`
         SELECT u.id, u.matricula, u.cpf, u.nome, u.email, u.cargo, u.departamento, 
-               u.foto_perfil, u.status, u.data_admissao, u.data_demissao, u.created_at, u.updated_at,
+               u.status, u.data_admissao, u.data_demissao, u.created_at, u.updated_at,
                ARRAY_AGG(r.nome) as roles
         FROM users u
         LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -132,7 +132,7 @@ class UsersService {
   async getUserByMatricula(matricula) {
     try {
       const result = await db.query(`
-        SELECT u.id, u.matricula, u.nome, u.email, u.cargo, u.foto_perfil, u.status,
+        SELECT u.id, u.matricula, u.nome, u.email, u.cargo, u.status,
                ARRAY_AGG(r.nome) as roles
         FROM users u
         LEFT JOIN user_roles ur ON u.id = ur.user_id

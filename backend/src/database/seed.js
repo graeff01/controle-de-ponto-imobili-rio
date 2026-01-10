@@ -1,33 +1,32 @@
-﻿const fs = require('fs');
-const path = require('path');
-const db = require('../config/database');
-const logger = require('../utils/logger');
+﻿import fs from 'fs';
+import { Pool } from 'pg';
+import dotenv from 'dotenv';
 
-async function runSeeds() {
+dotenv.config();
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const sqlFile = fs.readFileSync('./src/database/seeds/003_insert_admin.sql', 'utf8');
+
+// Quebra o SQL em múltiplas queries pelo ';'
+const queries = sqlFile
+  .split(';')
+  .map(q => q.trim())
+  .filter(q => q.length > 0);
+
+async function runSeed() {
   try {
-    logger.info('🌱 Iniciando seeds...');
-
-    const seedsDir = path.join(__dirname, 'seeds');
-    const files = fs.readdirSync(seedsDir).sort();
-
-    for (const file of files) {
-      if (file.endsWith('.sql')) {
-        logger.info(`Executando seed: `);
-        
-        const sql = fs.readFileSync(path.join(seedsDir, file), 'utf8');
-        await db.query(sql);
-        
-        logger.success(`✅ Seed  executado com sucesso`);
-      }
+    for (const query of queries) {
+      await pool.query(query);
     }
-
-    logger.success('✅ Todos os seeds foram executados!');
-    process.exit(0);
-
-  } catch (error) {
-    logger.error('❌ Erro ao executar seeds', { error: error.message });
+    console.log('Seeds executadas com sucesso!');
+    await pool.end();
+  } catch (err) {
+    console.error('Erro na seed:', err);
     process.exit(1);
   }
 }
 
-runSeeds();
+runSeed();

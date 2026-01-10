@@ -1,19 +1,26 @@
 ﻿const { Pool } = require('pg');
-require('dotenv').config();
+const logger = require('../utils/logger');
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  connectionString: process.env.DATABASE_URL
 });
 
-pool.on('connect', async (client) => {
-  const res = await client.query(
-    'SELECT current_user, current_database(), current_schema();'
-  );
-  console.log('🟢 Conectado como:', res.rows[0]);
+pool.on('connect', () => {
+  logger.success('🟢 Conectado ao PostgreSQL (Railway)');
+});
+
+pool.on('error', (err) => {
+  logger.error('❌ Erro no pool do PostgreSQL', { error: err.message });
+});
+
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    logger.error('❌ Erro ao conectar no Railway', { error: err.message });
+  } else {
+    logger.success('🟢 Conectado!', {
+      timestamp: res.rows[0].now
+    });
+  }
 });
 
 module.exports = pool;

@@ -62,12 +62,16 @@ app.get('/health', (req, res) => {
 // ============================================
 // ROTAS DA API
 // ============================================
+app.use('/api/tablet', require('./modules/tablet/tablet.routes'));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/time-records', timeRecordsRoutes);
 app.use('/api/adjustments', adjustmentsRoutes);
 app.use('/api/alerts', alertsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/justifications', require('./modules/justifications/justifications.routes'));
+app.use('/api/hours-bank', require('./modules/hours-bank/hours-bank.routes'));
+app.use('/api/audit', require('./modules/audit/audit.routes'));
 
 // ============================================
 // ROTA 404

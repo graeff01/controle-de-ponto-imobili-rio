@@ -1,4 +1,5 @@
-﻿const fs = require('fs');
+﻿require('dotenv').config();
+const fs = require('fs');
 const path = require('path');
 const db = require('../config/database');
 const logger = require('../utils/logger');
@@ -12,12 +13,12 @@ async function runMigrations() {
 
     for (const file of files) {
       if (file.endsWith('.sql')) {
-        logger.info(`Executando migration: `);
+        logger.info('Executando migration: ' + file);
         
         const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
         await db.query(sql);
         
-        logger.success(`✅ Migration  executada com sucesso`);
+        logger.success('✅ Migration ' + file + ' executada com sucesso');
       }
     }
 

@@ -5,54 +5,53 @@ const dateHelper = require('../../utils/dateHelper');
 class ReportsService {
 
   async getDashboardStats() {
-    try {
-      const today = new Date();
+  try {
+    // Presentes hoje (quem registrou entrada)
+    const presentesResult = await db.query(`
+      SELECT COUNT(DISTINCT user_id) as total
+      FROM time_records
+      WHERE DATE(timestamp) = CURRENT_DATE
+      AND record_type = 'entrada'
+    `);
 
-      // Estatísticas de hoje
-      const todayStats = await db.query(`
-        SELECT 
-          COUNT(DISTINCT user_id) as presentes,
-          COUNT(DISTINCT user_id) FILTER (
-            WHERE DATE(timestamp) = CURRENT_DATE 
-            AND record_type = 'entrada'
-            AND user_id NOT IN (
-              SELECT user_id FROM time_records 
-              WHERE DATE(timestamp) = CURRENT_DATE 
-              AND record_type = 'saida_final'
-            )
-          ) as sem_saida
-        FROM time_records
-        WHERE DATE(timestamp) = CURRENT_DATE
-      `);
+    // Sem saída (quem entrou mas não saiu)
+    const semSaidaResult = await db.query(`
+      SELECT COUNT(DISTINCT user_id) as total
+      FROM time_records
+      WHERE DATE(timestamp) = CURRENT_DATE
+      AND record_type = 'entrada'
+      AND user_id NOT IN (
+        SELECT user_id FROM time_records 
+        WHERE DATE(timestamp) = CURRENT_DATE 
+        AND record_type = 'saida_final'
+      )
+    `);
 
-      // Total de usuários ativos
-      const totalUsersResult = await db.query(`
-        SELECT COUNT(*) as total FROM users WHERE status = 'ativo'
-      `);
+    // Total de usuários ativos
+    const totalUsersResult = await db.query(`
+      SELECT COUNT(*) as total FROM users WHERE status = 'ativo'
+    `);
 
-      // Alertas não lidos
-      const alertsResult = await db.query(`
-        SELECT COUNT(*) as total FROM alerts WHERE status = 'unread'
-      `);
+    // Alertas (tabela não existe ainda, retornar 0)
+    const alertas = 0;
 
-      // Ausências hoje
-      const totalUsers = parseInt(totalUsersResult.rows[0].total);
-      const presentes = parseInt(todayStats.rows[0].presentes);
-      const ausencias = totalUsers - presentes;
+    const totalUsers = parseInt(totalUsersResult.rows[0].total);
+    const presentes = parseInt(presentesResult.rows[0].total);
+    const ausencias = totalUsers - presentes;
 
-      return {
-        presentes,
-        ausencias,
-        sem_saida: parseInt(todayStats.rows[0].sem_saida),
-        alertas: parseInt(alertsResult.rows[0].total),
-        total_funcionarios: totalUsers
-      };
+    return {
+      presentes,
+      ausencias,
+      sem_saida: parseInt(semSaidaResult.rows[0].total),
+      alertas,
+      total_funcionarios: totalUsers
+    };
 
-    } catch (error) {
-      logger.error('Erro ao buscar estatísticas do dashboard', { error: error.message });
-      throw error;
-    }
+  } catch (error) {
+    logger.error('Erro ao buscar estatísticas do dashboard', { error: error.message });
+    throw error;
   }
+}
 
   async getWeeklyReport(userId = null) {
     try {

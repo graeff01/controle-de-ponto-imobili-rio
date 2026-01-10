@@ -1,5 +1,6 @@
 ﻿const authService = require('./auth.service');
 const logger = require('../../utils/logger');
+const crypto = require('crypto');
 
 class AuthController {
 
@@ -128,6 +129,136 @@ class AuthController {
       next(error);
     }
   }
+  // ADICIONAR NO FINAL DA CLASSE AuthController (antes do module.exports)
+
+async forgotPassword(req, res, next) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email é obrigatório'
+      });
+    }
+
+    // Buscar usuário
+    const result = await db.query(
+      'SELECT id, nome, email FROM users WHERE email = $1 AND status = $2',
+      [email, 'ativo']
+    );
+
+    if (result.rows.length === 0) {
+      // Por segurança, sempre retorna sucesso mesmo se email não existir
+      return res.json({
+        success: true,
+        message: 'Se o email existir, você receberá instruções para redefinir sua senha'
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Gerar token de recuperação (válido por 1 hora)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hora
+
+    // Salvar token no banco
+    await db.query(`
+      UPDATE users 
+      SET reset_password_token = $1, reset_password_expires = $2
+      WHERE id = $3
+    `, [resetTokenHash, resetTokenExpiry, user.id]);
+
+    // Link de recuperação
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    logger.info('Token de recuperação gerado', { 
+      user_id: user.id,
+      resetUrl 
+    });
+
+    // TODO: Enviar email (por enquanto retorna o link)
+    // Por segurança em produção, sempre enviar email
+    
+    res.json({
+      success: true,
+      message: 'Link de recuperação enviado para o email',
+      // REMOVER EM PRODUÇÃO - só para desenvolvimento
+      resetUrl: process.env.NODE_ENV === 'development' ? resetUrl : undefined
+    });
+
+  } catch (error) {
+    next(error);
+  }
 }
+
+async resetPassword(req, res, next) {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token e nova senha são obrigatórios'
+      });
+    }
+
+    // Validar senha
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Senha deve ter no mínimo 6 caracteres'
+      });
+    }
+
+    // Hash do token para comparar
+    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Buscar usuário com token válido
+    const result = await db.query(`
+      SELECT id, nome, email 
+      FROM users 
+      WHERE reset_password_token = $1 
+      AND reset_password_expires > NOW()
+      AND status = 'ativo'
+    `, [resetTokenHash]);
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token inválido ou expirado'
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Hash da nova senha
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Atualizar senha e limpar token
+    await db.query(`
+      UPDATE users 
+      SET password_hash = $1,
+          reset_password_token = NULL,
+          reset_password_expires = NULL,
+          updated_at = NOW()
+      WHERE id = $2
+    `, [passwordHash, user.id]);
+
+    logger.success('Senha redefinida', { user_id: user.id });
+
+    res.json({
+      success: true,
+      message: 'Senha redefinida com sucesso'
+    });
+
+  } catch (error) {
+    next(error);
+  }
+}
+}
+
+
 
 module.exports = new AuthController();

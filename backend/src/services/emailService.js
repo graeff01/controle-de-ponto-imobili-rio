@@ -7,6 +7,27 @@ class EmailService {
 
   async enviarEmail(to, subject, html, emailType, userId = null, relatedId = null) {
     try {
+      // Verificar se email está habilitado
+      if (!resend) {
+        logger.warn('📧 Email não enviado (Resend não configurado)', { 
+          to, 
+          subject 
+        });
+        
+        // Registra log mesmo sem enviar
+        try {
+          await db.query(`
+            INSERT INTO email_logs 
+            (recipient_email, subject, email_type, status, error_message, user_id, related_id, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          `, [to, subject, emailType, 'skipped', 'Resend não configurado', userId, relatedId]);
+        } catch (err) {
+          // Ignora erro de log
+        }
+        
+        return { success: false, message: 'Email desabilitado' };
+      }
+
       const { data, error } = await resend.emails.send({
         from: process.env.EMAIL_FROM || 'Sistema de Ponto <ponto@imobiliaria.com>',
         to: to,
@@ -55,13 +76,13 @@ class EmailService {
             <h1>⚠️ Jornada Incompleta</h1>
           </div>
           <div class="content">
-            <p>Olá <strong></strong>,</p>
+            <p>Olá <strong>${usuario.nome}</strong>,</p>
             
-            <p>Identificamos que sua jornada do dia <strong></strong> está incompleta.</p>
+            <p>Identificamos que sua jornada do dia <strong>${dateHelper.formatDateBR(data)}</strong> está incompleta.</p>
             
             <p>Por favor, entre em contato com seu gestor para regularizar a situação.</p>
             
-            <p><a href="" class="button">Acessar Sistema</a></p>
+            <p><a href="${process.env.FRONTEND_URL}" class="button">Acessar Sistema</a></p>
           </div>
           <div class="footer">
             <p>Sistema de Ponto - Imobiliária</p>
@@ -74,7 +95,7 @@ class EmailService {
 
     return await this.enviarEmail(
       usuario.email,
-      `⚠️ Jornada incompleta - `,
+      `⚠️ Jornada incompleta - ${dateHelper.formatDateBR(data)}`,
       html,
       'jornada_incompleta',
       usuario.id
@@ -97,19 +118,19 @@ class EmailService {
           body { font-family: Arial, sans-serif; }
           .alert-box { 
             padding: 20px; 
-            border-left: 5px solid ; 
+            border-left: 5px solid ${severityColors[alerta.severity]}; 
             background: #f7fafc; 
             margin: 20px 0;
           }
-          .alert-title { color: ; margin: 0 0 10px 0; }
+          .alert-title { color: ${severityColors[alerta.severity]}; margin: 0 0 10px 0; }
         </style>
       </head>
       <body>
         <div class="alert-box">
-          <h2 class="alert-title"></h2>
-          <p></p>
-          <p><strong>Horário:</strong> </p>
-          <p><a href="/alerts/">Ver detalhes no sistema</a></p>
+          <h2 class="alert-title">${alerta.title}</h2>
+          <p>${alerta.message}</p>
+          <p><strong>Horário:</strong> ${dateHelper.formatDateTimeBR(alerta.created_at)}</p>
+          <p><a href="${process.env.FRONTEND_URL}/alerts/${alerta.id}">Ver detalhes no sistema</a></p>
         </div>
       </body>
       </html>
@@ -117,7 +138,7 @@ class EmailService {
 
     return await this.enviarEmail(
       gestorEmail,
-      `🚨 `,
+      `🚨 ${alerta.title}`,
       html,
       'alert',
       alerta.user_id,
@@ -132,11 +153,11 @@ class EmailService {
       <body style="font-family: Arial, sans-serif;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #48bb78;">✅ Ponto Registrado</h2>
-          <p>Olá <strong></strong>,</p>
+          <p>Olá <strong>${usuario.nome}</strong>,</p>
           <p>Seu ponto foi registrado com sucesso:</p>
           <ul>
-            <li><strong>Tipo:</strong> </li>
-            <li><strong>Horário:</strong> </li>
+            <li><strong>Tipo:</strong> ${registro.record_type}</li>
+            <li><strong>Horário:</strong> ${dateHelper.formatDateTimeBR(registro.timestamp)}</li>
           </ul>
         </div>
       </body>
