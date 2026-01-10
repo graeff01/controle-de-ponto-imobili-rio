@@ -1,4 +1,6 @@
-﻿require('dotenv').config();
+﻿if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -20,7 +22,6 @@ const reportsRoutes = require('./modules/reports/reports.routes');
 
 // Inicializar Express
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 // ============================================
 // MIDDLEWARES GLOBAIS
@@ -105,22 +106,14 @@ const startServer = async () => {
       logger.info('⚠️ Jobs agendados desabilitados em desenvolvimento');
     }
 
-    // Inicia servidor
-    app.listen(PORT, () => {
-      logger.success(`
-╔════════════════════════════════════════════════════════╗
-║                                                        ║
-║        🚀 SISTEMA DE PONTO - BACKEND RODANDO 🚀       ║
-║                                                        ║
-║  Porta:                                           ║
-║  Ambiente:                               ║
-║  URL: http://localhost:                          ║
-║                                                        ║
-║  Health Check: http://localhost:/health         ║
-║                                                        ║
-╚════════════════════════════════════════════════════════╝
-      `);
-    });
+app.listen(
+  Number(process.env.PORT) || 5000,
+  '0.0.0.0',
+  () => {
+    logger.success(`Servidor rodando na porta ${process.env.PORT || 5000}`);
+  }
+);
+
 
   } catch (error) {
     logger.error('❌ Erro ao iniciar servidor', { error: error.message });
