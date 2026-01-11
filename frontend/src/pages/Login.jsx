@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { LogIn, Clock, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Clock, AlertCircle, Eye, EyeOff, Building2 } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -28,40 +28,29 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-purple-700 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex">
       
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-      </div>
-
-      {/* Login Card */}
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.3 }}
-        className="relative z-10 w-full max-w-md"
-      >
-        
-        {/* Card */}
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+      {/* Left Side - Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
+        >
           
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-8 text-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl mx-auto mb-4 flex items-center justify-center"
-            >
-              <Clock className="text-white" size={40} />
-            </motion.div>
-            <h1 className="text-3xl font-bold text-white mb-2">Painel do Gestor</h1>
-            <p className="text-blue-100">Sistema de Controle de Ponto</p>
+          {/* Logo/Header */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-slate-900 rounded-xl mx-auto mb-4 flex items-center justify-center">
+              <Clock className="text-white" size={32} />
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Sistema de Ponto</h1>
+            <p className="text-slate-600">Acesso ao Painel Administrativo</p>
           </div>
 
-          {/* Form */}
-          <div className="p-8">
+          {/* Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            
             <form onSubmit={handleSubmit} className="space-y-6">
               
               {/* Error Message */}
@@ -69,9 +58,9 @@ export default function Login() {
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex items-start gap-3"
+                  className="bg-red-50 border border-red-200 p-4 rounded-lg flex items-start gap-3"
                 >
-                  <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
+                  <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
                   <p className="text-sm text-red-700">{error}</p>
                 </motion.div>
               )}
@@ -85,7 +74,7 @@ export default function Login() {
                   type="text"
                   value={formData.matricula}
                   onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all text-slate-900"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all text-slate-900 bg-white"
                   placeholder="Digite sua matrícula"
                   required
                   autoFocus
@@ -102,14 +91,14 @@ export default function Login() {
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all text-slate-900 pr-12"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all text-slate-900 bg-white pr-12"
                     placeholder="Digite sua senha"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
                   >
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
@@ -117,16 +106,14 @@ export default function Login() {
               </div>
 
               {/* Botão Entrar */}
-              <motion.button
+              <button
                 type="submit"
                 disabled={loading}
-                whileHover={{ scale: loading ? 1 : 1.02 }}
-                whileTap={{ scale: loading ? 1 : 0.98 }}
                 className={`
-                  w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2
+                  w-full py-3.5 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2
                   ${loading
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-xl hover:shadow-blue-500/50'
+                    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm hover:shadow-md'
                   }
                 `}
               >
@@ -137,40 +124,72 @@ export default function Login() {
                   </>
                 ) : (
                   <>
-                    <LogIn size={20} />
-                    Entrar
+                    <LogIn size={18} />
+                    Entrar no Sistema
                   </>
                 )}
-              </motion.button>
+              </button>
 
               {/* Links */}
-              <div className="space-y-3 text-center">
+              <div className="space-y-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => navigate('/forgot-password')}
-                  className="text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors"
+                  className="w-full text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors"
                 >
                   Esqueceu sua senha?
                 </button>
-                <div className="pt-4 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/')}
-                    className="text-slate-600 hover:text-slate-800 font-medium text-sm transition-colors"
-                  >
-                    ← Voltar para registro de ponto
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="w-full text-slate-500 hover:text-slate-700 text-sm transition-colors"
+                >
+                  ← Voltar para registro de ponto
+                </button>
               </div>
             </form>
           </div>
+
+          {/* Footer */}
+          <p className="text-center text-slate-500 text-xs mt-6">
+            © 2025 Sistema de Controle de Ponto. Todos os direitos reservados.
+          </p>
+        </motion.div>
+      </div>
+
+      {/* Right Side - Brand/Info */}
+      <div className="hidden lg:flex lg:w-1/2 bg-slate-900 items-center justify-center p-12 relative overflow-hidden">
+        
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-white/80 text-sm mt-6">
-          Sistema de Controle de Ponto · 2025
-        </p>
-      </motion.div>
+        <div className="relative z-10 text-center max-w-lg">
+          <Building2 className="text-white mx-auto mb-6" size={64} />
+          <h2 className="text-4xl font-bold text-white mb-4">
+            Gestão de Ponto Profissional
+          </h2>
+          <p className="text-slate-300 text-lg leading-relaxed mb-8">
+            Controle completo de jornada de trabalho com tecnologia moderna e segura.
+          </p>
+          <div className="grid grid-cols-3 gap-6 text-center">
+            <div>
+              <div className="text-3xl font-bold text-white mb-1">100%</div>
+              <div className="text-slate-400 text-sm">Digital</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-white mb-1">24/7</div>
+              <div className="text-slate-400 text-sm">Disponível</div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-white mb-1">Seguro</div>
+              <div className="text-slate-400 text-sm">Criptografado</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
