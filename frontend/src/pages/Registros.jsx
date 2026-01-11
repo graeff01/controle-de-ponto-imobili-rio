@@ -13,7 +13,6 @@ export default function Registros() {
   const [registros, setRegistros] = useState([]);
   const [registrosFiltrados, setRegistrosFiltrados] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [fotoModal, setFotoModal] = useState(null);
   
   const [filtroData, setFiltroData] = useState('hoje');
   const [dataInicio, setDataInicio] = useState('');
@@ -41,6 +40,30 @@ export default function Registros() {
       setLoading(false);
     }
   };
+  
+  const [fotoModal, setFotoModal] = useState(null);
+const [loadingFoto, setLoadingFoto] = useState(false);
+
+const verFoto = async (registro) => {
+  try {
+    setLoadingFoto(true);
+
+    const response = await api.get(
+      `/time-records/${registro.id}/photo`,
+      { responseType: 'blob' }
+    );
+
+    const imageUrl = URL.createObjectURL(response.data);
+    setFotoModal(imageUrl);
+
+  } catch (err) {
+    console.error(err);
+    alert('Erro ao carregar foto');
+  } finally {
+    setLoadingFoto(false);
+  }
+};
+
 
   const aplicarFiltros = () => {
     let filtered = [...registros];
@@ -105,14 +128,6 @@ export default function Registros() {
     XLSX.writeFile(wb, `registros_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // ✅ FUNÇÃO QUE ESTAVA FALTANDO!
-  const verFoto = (registro) => {
-    if (registro.photo_data) {
-      setFotoModal(`data:image/jpeg;base64,${registro.photo_data}`);
-    } else {
-      alert('Este registro não possui foto');
-    }
-  };
 
   const getTipoLabel = (tipo) => {
     const tipos = {

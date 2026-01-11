@@ -184,7 +184,7 @@ async getRecordsByDate(date) {
         tr.user_id,
         tr.record_type,
         tr.timestamp,
-        tr.photo_data,  -- ← REMOVER O ENCODE!
+        tr.photo_data,
         tr.is_manual,
         tr.manual_reason,
         tr.ip_address,
@@ -198,7 +198,18 @@ async getRecordsByDate(date) {
       ORDER BY tr.timestamp ASC
     `, [date]);
 
-    return result.rows;
+    // ✅ CONVERTER BUFFER PARA STRING BASE64
+    const rows = result.rows.map(row => {
+      if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
+        return {
+          ...row,
+          photo_data: row.photo_data.toString('utf-8')
+        };
+      }
+      return row;
+    });
+
+    return rows;
 
   } catch (error) {
     logger.error('Erro ao buscar registros por data', { error: error.message });
@@ -207,12 +218,49 @@ async getRecordsByDate(date) {
 }
 
   async getTodayRecords() {
-    try {
-      return await this.getRecordsByDate(new Date());
-    } catch (error) {
-      throw error;
-    }
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const result = await db.query(`
+      SELECT 
+        tr.id,
+        tr.user_id,
+        tr.record_type,
+        tr.timestamp,
+        tr.photo_data,
+        tr.is_manual,
+        tr.manual_reason,
+        tr.ip_address,
+        tr.created_at,
+        u.nome,
+        u.matricula,
+        u.cargo
+      FROM time_records tr
+      JOIN users u ON tr.user_id = u.id
+      WHERE DATE(tr.timestamp) = $1
+      ORDER BY tr.timestamp ASC
+    `, [today]);
+
+    // ✅ CONVERTER BUFFER PARA STRING BASE64
+    const rows = result.rows.map(row => {
+      if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
+        return {
+          ...row,
+          photo_data: row.photo_data.toString('utf-8')
+        };
+      }
+      return row;
+    });
+
+    logger.info('Registros de hoje carregados', { count: rows.length });
+    
+    return rows;
+
+  } catch (error) {
+    logger.error('Erro ao buscar registros de hoje', { error: error.message });
+    throw error;
   }
+}
 
   async getDailyJourney(userId, date) {
     try {

@@ -1,7 +1,7 @@
 ﻿const timeRecordsService = require('./timeRecords.service');
 const validators = require('../../utils/validators');
 const logger = require('../../utils/logger');
-const photoService = require('../../services/photoService');
+const db = require('../../config/database');
 
 class TimeRecordsController {
 
@@ -118,45 +118,6 @@ async atualizarBancoHoras(userId, date) {
     logger.error('Erro ao atualizar banco de horas', { error: error.message });
   }
 }
-
-  async create(req, res, next) {
-    try {
-      const { user_id, record_type } = req.body;
-      const photoFile = req.file;
-
-      // Validação básica
-      const { error } = validators.timeRecordSchema.validate({ user_id, record_type });
-      if (error) {
-        return res.status(400).json({
-          error: 'Dados inválidos',
-          details: error.details.map(d => d.message)
-        });
-      }
-
-      // Verifica se a foto foi enviada
-      if (!photoFile) {
-        return res.status(400).json({
-          error: 'Foto é obrigatória para registro de ponto'
-        });
-      }
-
-      const record = await timeRecordsService.createRecord(
-        user_id, 
-        record_type, 
-        photoFile, 
-        req
-      );
-
-      return res.status(201).json({
-        success: true,
-        data: record,
-        message: 'Ponto registrado com sucesso'
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
 
   async createManual(req, res, next) {
     try {
@@ -366,32 +327,23 @@ async getTodayRecords(req, res) {
   }
 
   async getRecordPhoto(req, res, next) {
-    try {
-      const { recordId } = req.params;
+  try {
+    const { recordId } = req.params;
 
-      const photoData = await timeRecordsService.getRecordPhoto(recordId);
+    const photoBuffer = await timeRecordsService.getRecordPhoto(recordId);
 
-      if (!photoData) {
-        return res.status(404).json({
-          error: 'Foto não encontrada'
-        });
-      }
-
-      // Converte para base64
-      const base64Photo = await photoService.getPhotoBase64(photoData);
-
-      return res.json({
-        success: true,
-        data: {
-          photo: base64Photo,
-          contentType: 'image/jpeg'
-        }
-      });
-
-    } catch (error) {
-      next(error);
+    if (!photoBuffer) {
+      return res.status(404).send('Foto não encontrada');
     }
+
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.send(photoBuffer);
+
+  } catch (error) {
+    next(error);
   }
+}
+
 
   async checkInconsistencies(req, res, next) {
     try {
