@@ -105,6 +105,14 @@ export default function Registros() {
     XLSX.writeFile(wb, `registros_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  // ✅ FUNÇÃO QUE ESTAVA FALTANDO!
+  const verFoto = (registro) => {
+    if (registro.photo_data) {
+      setFotoModal(`data:image/jpeg;base64,${registro.photo_data}`);
+    } else {
+      alert('Este registro não possui foto');
+    }
+  };
 
   const getTipoLabel = (tipo) => {
     const tipos = {
@@ -338,45 +346,42 @@ export default function Registros() {
       {/* Modal de Foto */}
       <AnimatePresence>
         {fotoModal && (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-    onClick={() => setFotoModal(null)}
-  >
-    <motion.div
-      initial={{ scale: 0.9 }}
-      animate={{ scale: 1 }}
-      className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xl font-bold text-gray-800">Foto do Registro</h3>
-        <button
-          onClick={() => setFotoModal(null)}
-          className="text-gray-500 hover:text-gray-700 text-2xl"
-        >
-          ×
-        </button>
-      </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setFotoModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Foto do Registro</h3>
+                <button
+                  onClick={() => setFotoModal(null)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
 
-      <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center min-h-[400px]">
-        <img
-          src={fotoModal}
-          alt="Foto do registro"
-          className="max-w-full max-h-[500px] rounded-lg"
-          onError={(e) => {
-            console.error('❌ Erro ao carregar imagem:', e);
-            console.log('📸 URL da imagem:', fotoModal.substring(0, 100));
-            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5FcnJvIGFvIGNhcnJlZ2FyIGltYWdlbTwvdGV4dD48L3N2Zz4=';
-          }}
-          onLoad={() => console.log('✅ Imagem carregada com sucesso!')}
-        />
-      </div>
-    </motion.div>
-  </motion.div>
-)}
+              <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center min-h-[400px]">
+                <img
+                  src={fotoModal}
+                  alt="Foto do registro"
+                  className="max-w-full max-h-[500px] rounded-lg"
+                  onError={(e) => {
+                    e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5FcnJvIGFvIGNhcnJlZ2FyIGltYWdlbTwvdGV4dD48L3N2Zz4=';
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </Layout>
   );
