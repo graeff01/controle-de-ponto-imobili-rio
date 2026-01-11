@@ -154,23 +154,29 @@ class TabletController {
         }
       }
 
-      // Processar foto base64 (se houver)
-      let photoData = null;
-      if (photo) {
-        try {
-          const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
-          photoData = base64Data;
-        } catch (err) {
-          logger.error('Erro ao processar foto', { error: err.message });
-        }
-      }
+// Processar foto base64 (se houver)
+let photoData = null;
+if (photo) {
+  try {
+    const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
+    photoData = base64Data;
+    
+    // ← ADICIONE ESTE LOG:
+    logger.info('📸 Foto processada', { 
+      photoLength: base64Data.length,
+      preview: base64Data.substring(0, 50) 
+    });
+  } catch (err) {
+    logger.error('Erro ao processar foto', { error: err.message });
+  }
+}
 
-      // Inserir registro
-      const result = await db.query(`
-        INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
-        VALUES ($1, $2, NOW(), $3, NOW())
-        RETURNING id, user_id, record_type, timestamp
-      `, [user.id, record_type, photoData]);
+// Inserir registro
+const result = await db.query(`
+  INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
+  VALUES ($1, $2, NOW(), $3, NOW())
+  RETURNING id, user_id, record_type, timestamp, photo_data
+`, [user.id, record_type, photoData]);
 
       logger.success('Ponto registrado via tablet', {
         matricula,

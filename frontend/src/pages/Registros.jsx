@@ -105,13 +105,17 @@ export default function Registros() {
     XLSX.writeFile(wb, `registros_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const verFoto = (registro) => {
-    if (registro.photo_data) {
-      setFotoModal(`data:image/jpeg;base64,${registro.photo_data}`);
-    } else {
-      alert('Este registro não possui foto');
-    }
-  };
+const verFoto = (registro) => {
+  console.log('🔍 DEBUG - Registro completo:', registro);
+  console.log('🔍 DEBUG - photo_data:', registro.photo_data);
+  console.log('🔍 DEBUG - photo_data length:', registro.photo_data?.length);
+  
+  if (registro.photo_data) {
+    setFotoModal(`data:image/jpeg;base64,${registro.photo_data}`);
+  } else {
+    alert('Este registro não possui foto');
+  }
+};
 
   const getTipoLabel = (tipo) => {
     const tipos = {

@@ -264,19 +264,24 @@ async atualizarBancoHoras(userId, date) {
     }
   }
 
-  async getTodayRecords(req, res, next) {
-    try {
-      const records = await timeRecordsService.getTodayRecords();
-
-      return res.json({
-        success: true,
-        data: records
-      });
-
-    } catch (error) {
-      next(error);
+async getTodayRecords(req, res) {
+  try {
+    const response = await timeRecordsService.getTodayRecords();
+    
+    // ← ADICIONE ESTE LOG:
+    console.log('📊 Registros encontrados:', response.length);
+    if (response.length > 0) {
+      console.log('📸 Primeiro registro tem foto?', !!response[0].photo_data);
     }
+    
+    res.json({
+      success: true,
+      data: response
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
+}
 
   async getDailyJourney(req, res, next) {
     try {
