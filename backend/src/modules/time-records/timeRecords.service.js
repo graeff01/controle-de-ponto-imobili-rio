@@ -176,23 +176,35 @@ class TimeRecordsService {
     }
   }
 
-  async getRecordsByDate(date) {
-    try {
-      const result = await db.query(`
-        SELECT tr.*, u.nome, u.matricula, u.cargo
-        FROM time_records tr
-        JOIN users u ON tr.user_id = u.id
-        WHERE DATE(tr.timestamp) = $1
-        ORDER BY tr.timestamp ASC
-      `, [date]);
+async getRecordsByDate(date) {
+  try {
+    const result = await db.query(`
+      SELECT 
+        tr.id,
+        tr.user_id,
+        tr.record_type,
+        tr.timestamp,
+        tr.photo_data,
+        tr.is_manual,
+        tr.manual_reason,
+        tr.ip_address,
+        tr.created_at,
+        u.nome,
+        u.matricula,
+        u.cargo
+      FROM time_records tr
+      JOIN users u ON tr.user_id = u.id
+      WHERE DATE(tr.timestamp) = $1
+      ORDER BY tr.timestamp ASC
+    `, [date]);
 
-      return result.rows;
+    return result.rows;
 
-    } catch (error) {
-      logger.error('Erro ao buscar registros por data', { error: error.message });
-      throw error;
-    }
+  } catch (error) {
+    logger.error('Erro ao buscar registros por data', { error: error.message });
+    throw error;
   }
+}
 
   async getTodayRecords() {
     try {

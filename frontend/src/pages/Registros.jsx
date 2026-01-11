@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, Download, Eye, Filter, X, Calendar, User, Clock as ClockIcon } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
@@ -105,25 +105,13 @@ export default function Registros() {
     XLSX.writeFile(wb, `registros_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-const verFoto = async (registro) => {
-  try {
+  const verFoto = (registro) => {
     if (registro.photo_data) {
-      // Se já tem a foto em base64
-      setFotoSelecionada(`data:image/jpeg;base64,${registro.photo_data}`);
+      setFotoModal(`data:image/jpeg;base64,${registro.photo_data}`);
     } else {
-      // Buscar foto do backend
-      const response = await api.get(`/time-records/${registro.id}/photo`);
-      if (response.data.photo) {
-        setFotoSelecionada(`data:image/jpeg;base64,${response.data.photo}`);
-      } else {
-        alert('Foto não disponível');
-      }
+      alert('Este registro não possui foto');
     }
-  } catch (err) {
-    console.error('Erro ao carregar foto:', err);
-    alert('Erro ao carregar foto');
-  }
-};
+  };
 
   const getTipoLabel = (tipo) => {
     const tipos = {
@@ -167,7 +155,7 @@ const verFoto = async (registro) => {
           className={`
             px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2
             ${mostrarFiltros 
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+              ? 'bg-slate-900 text-white' 
               : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
             }
           `}
@@ -198,70 +186,72 @@ const verFoto = async (registro) => {
       </div>
 
       {/* Filtros */}
-      {mostrarFiltros && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-        >
-          <Card className="p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Período</label>
-                <select
-                  value={filtroData}
-                  onChange={(e) => setFiltroData(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                >
-                  <option value="hoje">Hoje</option>
-                  <option value="ontem">Ontem</option>
-                  <option value="semana">Última Semana</option>
-                  <option value="customizado">Personalizado</option>
-                </select>
+      <AnimatePresence>
+        {mostrarFiltros && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <Card className="p-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Período</label>
+                  <select
+                    value={filtroData}
+                    onChange={(e) => setFiltroData(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 outline-none transition-all"
+                  >
+                    <option value="hoje">Hoje</option>
+                    <option value="ontem">Ontem</option>
+                    <option value="semana">Última Semana</option>
+                    <option value="customizado">Personalizado</option>
+                  </select>
+                </div>
+
+                {filtroData === 'customizado' && (
+                  <>
+                    <Input
+                      label="Data Início"
+                      type="date"
+                      value={dataInicio}
+                      onChange={(e) => setDataInicio(e.target.value)}
+                    />
+                    <Input
+                      label="Data Fim"
+                      type="date"
+                      value={dataFim}
+                      onChange={(e) => setDataFim(e.target.value)}
+                    />
+                  </>
+                )}
+
+                <Input
+                  label="Buscar (Nome/Matrícula)"
+                  value={filtroNome}
+                  onChange={(e) => setFiltroNome(e.target.value)}
+                  placeholder="Digite para buscar..."
+                />
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tipo</label>
+                  <select
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 outline-none transition-all"
+                  >
+                    <option value="todos">Todos</option>
+                    <option value="entrada">Entrada</option>
+                    <option value="saida_intervalo">Saída Intervalo</option>
+                    <option value="retorno_intervalo">Retorno Intervalo</option>
+                    <option value="saida_final">Saída Final</option>
+                  </select>
+                </div>
               </div>
-
-              {filtroData === 'customizado' && (
-                <>
-                  <Input
-                    label="Data Início"
-                    type="date"
-                    value={dataInicio}
-                    onChange={(e) => setDataInicio(e.target.value)}
-                  />
-                  <Input
-                    label="Data Fim"
-                    type="date"
-                    value={dataFim}
-                    onChange={(e) => setDataFim(e.target.value)}
-                  />
-                </>
-              )}
-
-              <Input
-                label="Buscar (Nome/Matrícula)"
-                value={filtroNome}
-                onChange={(e) => setFiltroNome(e.target.value)}
-                placeholder="Digite para buscar..."
-              />
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Tipo</label>
-                <select
-                  value={filtroTipo}
-                  onChange={(e) => setFiltroTipo(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                >
-                  <option value="todos">Todos</option>
-                  <option value="entrada">Entrada</option>
-                  <option value="saida_intervalo">Saída Intervalo</option>
-                  <option value="retorno_intervalo">Retorno Intervalo</option>
-                  <option value="saida_final">Saída Final</option>
-                </select>
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-      )}
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Registros */}
       {loading ? (
@@ -270,7 +260,7 @@ const verFoto = async (registro) => {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
+              className="w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full"
             />
           </div>
         </Card>
@@ -313,7 +303,7 @@ const verFoto = async (registro) => {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-white font-semibold">
                           {registro.nome.charAt(0)}
                         </div>
                         <div>
@@ -337,11 +327,11 @@ const verFoto = async (registro) => {
                     </td>
                     <td className="px-6 py-4">
                       <button
-                        onClick={() => verFoto(registro.id)}
-                        className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+                        onClick={() => verFoto(registro)}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
                         title="Ver foto"
                       >
-                        <Eye size={18} className="text-slate-400 group-hover:text-blue-600" />
+                        <Eye size={18} className="text-slate-400 group-hover:text-slate-900" />
                       </button>
                     </td>
                   </motion.tr>
@@ -353,33 +343,45 @@ const verFoto = async (registro) => {
       )}
 
       {/* Modal de Foto */}
-      {fotoModal && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-          onClick={() => setFotoModal(null)}
-        >
+      <AnimatePresence>
+        {fotoModal && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl p-6 max-w-2xl w-full"
-            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setFotoModal(null)}
           >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-slate-900">Foto do Registro</h3>
-              <button
-                onClick={() => setFotoModal(null)}
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            <img src={fotoModal} alt="Registro" className="w-full rounded-xl" />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 max-w-2xl w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-slate-900">Foto do Registro</h3>
+                <button
+                  onClick={() => setFotoModal(null)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X size={24} className="text-slate-600" />
+                </button>
+              </div>
+              <div className="rounded-xl overflow-hidden border border-slate-200">
+                <img 
+                  src={fotoModal} 
+                  alt="Registro" 
+                  className="w-full h-auto"
+                  onError={(e) => {
+                    e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="%23f1f5f9"/><text x="50%" y="50%" text-anchor="middle" fill="%2364748b" font-size="16">Erro ao carregar imagem</text></svg>';
+                  }}
+                />
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }
