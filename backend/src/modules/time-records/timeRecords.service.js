@@ -184,7 +184,7 @@ async getRecordsByDate(date) {
         tr.user_id,
         tr.record_type,
         tr.timestamp,
-        ENCODE(tr.photo_data::bytea, 'base64') as photo_data,  -- ← CONVERTER AQUI
+        tr.photo_data,  -- ← REMOVER O ENCODE!
         tr.is_manual,
         tr.manual_reason,
         tr.ip_address,
