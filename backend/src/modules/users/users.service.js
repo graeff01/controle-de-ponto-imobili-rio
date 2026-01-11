@@ -1,4 +1,4 @@
-﻿const bcrypt = require('bcryptjs');
+﻿const bcrypt = require('bcrypt');
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
 const auditService = require('../../services/auditService');
