@@ -105,17 +105,25 @@ export default function Registros() {
     XLSX.writeFile(wb, `registros_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const verFoto = async (recordId) => {
-    try {
-      const response = await api.get(`/time-records/photo/${recordId}`, {
-        responseType: 'blob'
-      });
-      const url = URL.createObjectURL(response.data);
-      setFotoModal(url);
-    } catch (err) {
-      alert('Foto não disponível');
+const verFoto = async (registro) => {
+  try {
+    if (registro.photo_data) {
+      // Se já tem a foto em base64
+      setFotoSelecionada(`data:image/jpeg;base64,${registro.photo_data}`);
+    } else {
+      // Buscar foto do backend
+      const response = await api.get(`/time-records/${registro.id}/photo`);
+      if (response.data.photo) {
+        setFotoSelecionada(`data:image/jpeg;base64,${response.data.photo}`);
+      } else {
+        alert('Foto não disponível');
+      }
     }
-  };
+  } catch (err) {
+    console.error('Erro ao carregar foto:', err);
+    alert('Erro ao carregar foto');
+  }
+};
 
   const getTipoLabel = (tipo) => {
     const tipos = {

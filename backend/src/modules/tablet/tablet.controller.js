@@ -38,76 +38,7 @@ class TabletController {
     }
   }
 
-  // Registrar ponto (SEM autenticação - valida matrícula internamente)
-  async registerRecord(req, res) {
-    try {
-      const { user_id, record_type } = req.body;
-      const photo = req.file;
-
-      // Validar campos obrigatórios
-      if (!user_id || !record_type) {
-        return res.status(400).json({
-          success: false,
-          error: 'user_id e record_type são obrigatórios'
-        });
-      }
-
-      // Validar tipo de registro
-      const validTypes = ['entrada', 'saida_intervalo', 'retorno_intervalo', 'saida_final'];
-      if (!validTypes.includes(record_type)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Tipo de registro inválido'
-        });
-      }
-
-      // Verificar se usuário existe e está ativo
-      const userCheck = await db.query(
-        'SELECT id, nome, status FROM users WHERE id = $1',
-        [user_id]
-      );
-
-      if (userCheck.rows.length === 0 || userCheck.rows[0].status !== 'ativo') {
-        return res.status(404).json({
-          success: false,
-          error: 'Usuário não encontrado ou inativo'
-        });
-      }
-
-      // Processar foto (se houver)
-      let photoData = null;
-      if (photo) {
-        photoData = await photoService.processAndSavePhoto(photo.buffer);
-      }
-
-      // Inserir registro
-      const result = await db.query(`
-        INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
-        VALUES ($1, $2, NOW(), $3, NOW())
-        RETURNING id, user_id, record_type, timestamp
-      `, [user_id, record_type, photoData]);
-
-      logger.success('Ponto registrado via tablet', {
-        user_id,
-        record_type,
-        record_id: result.rows[0].id
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Ponto registrado com sucesso',
-        data: result.rows[0]
-      });
-
-    } catch (error) {
-      logger.error('Erro ao registrar ponto via tablet', { error: error.message });
-      res.status(500).json({
-        success: false,
-        error: 'Erro ao registrar ponto'
-      });
-    }
-  }
-  // Registrar ponto com MATRÍCULA (em vez de user_id)
+  // Registrar ponto com MATRÍCULA (VERSÃO COMPLETA COM VALIDAÇÕES)
   async register(req, res) {
     try {
       const { matricula, record_type, photo } = req.body;
@@ -151,11 +82,82 @@ class TabletController {
         });
       }
 
+      // ============================================
+      // VALIDAÇÃO DE INTERVALO MÍNIMO (1 HORA)
+      // ============================================
+      if (record_type === 'retorno_intervalo') {
+        const lastIntervalExit = await db.query(`
+          SELECT timestamp
+          FROM time_records
+          WHERE user_id = $1
+            AND record_type = 'saida_intervalo'
+            AND DATE(timestamp) = CURRENT_DATE
+          ORDER BY timestamp DESC
+          LIMIT 1
+        `, [user.id]);
+
+        if (lastIntervalExit.rows.length > 0) {
+          const saidaIntervalo = new Date(lastIntervalExit.rows[0].timestamp);
+          const agora = new Date();
+          const diferencaMinutos = (agora - saidaIntervalo) / 1000 / 60;
+
+          if (diferencaMinutos < 60) {
+            const tempoRestante = Math.ceil(60 - diferencaMinutos);
+            return res.status(400).json({
+              success: false,
+              error: `Intervalo mínimo é de 1 hora. Você ainda precisa aguardar ${tempoRestante} minuto(s).`,
+              minutes_remaining: tempoRestante
+            });
+          }
+        }
+      }
+
+      // ============================================
+      // VALIDAÇÃO: NÃO PODE BATER ENTRADA 2X
+      // ============================================
+      if (record_type === 'entrada') {
+        const jaTemEntrada = await db.query(`
+          SELECT id
+          FROM time_records
+          WHERE user_id = $1
+            AND record_type = 'entrada'
+            AND DATE(timestamp) = CURRENT_DATE
+          LIMIT 1
+        `, [user.id]);
+
+        if (jaTemEntrada.rows.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Você já registrou entrada hoje. Selecione outro tipo de registro.'
+          });
+        }
+      }
+
+      // ============================================
+      // VALIDAÇÃO: NÃO PODE BATER SAÍDA FINAL SEM ENTRADA
+      // ============================================
+      if (record_type === 'saida_final') {
+        const temEntrada = await db.query(`
+          SELECT id
+          FROM time_records
+          WHERE user_id = $1
+            AND record_type = 'entrada'
+            AND DATE(timestamp) = CURRENT_DATE
+          LIMIT 1
+        `, [user.id]);
+
+        if (temEntrada.rows.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Você precisa registrar entrada antes de registrar saída final.'
+          });
+        }
+      }
+
       // Processar foto base64 (se houver)
       let photoData = null;
       if (photo) {
         try {
-          // Remove o prefixo data:image/...;base64,
           const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
           photoData = base64Data;
         } catch (err) {
@@ -179,7 +181,7 @@ class TabletController {
 
       res.status(201).json({
         success: true,
-        message: 'Ponto registrado com sucesso',
+        message: 'Ponto registrado com sucesso!',
         data: {
           id: result.rows[0].id,
           user_name: user.nome,
@@ -196,8 +198,71 @@ class TabletController {
       });
     }
   }
+
+  // Registrar ponto com user_id (MANTIDO PARA COMPATIBILIDADE)
+  async registerRecord(req, res) {
+    try {
+      const { user_id, record_type } = req.body;
+      const photo = req.file;
+
+      if (!user_id || !record_type) {
+        return res.status(400).json({
+          success: false,
+          error: 'user_id e record_type são obrigatórios'
+        });
+      }
+
+      const validTypes = ['entrada', 'saida_intervalo', 'retorno_intervalo', 'saida_final'];
+      if (!validTypes.includes(record_type)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Tipo de registro inválido'
+        });
+      }
+
+      const userCheck = await db.query(
+        'SELECT id, nome, status FROM users WHERE id = $1',
+        [user_id]
+      );
+
+      if (userCheck.rows.length === 0 || userCheck.rows[0].status !== 'ativo') {
+        return res.status(404).json({
+          success: false,
+          error: 'Usuário não encontrado ou inativo'
+        });
+      }
+
+      let photoData = null;
+      if (photo) {
+        photoData = await photoService.processAndSavePhoto(photo.buffer);
+      }
+
+      const result = await db.query(`
+        INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
+        VALUES ($1, $2, NOW(), $3, NOW())
+        RETURNING id, user_id, record_type, timestamp
+      `, [user_id, record_type, photoData]);
+
+      logger.success('Ponto registrado via tablet', {
+        user_id,
+        record_type,
+        record_id: result.rows[0].id
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Ponto registrado com sucesso',
+        data: result.rows[0]
+      });
+
+    } catch (error) {
+      logger.error('Erro ao registrar ponto via tablet', { error: error.message });
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao registrar ponto'
+      });
+    }
+  }
 }
-
-
 
 module.exports = new TabletController();
