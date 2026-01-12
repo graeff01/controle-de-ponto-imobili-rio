@@ -6,6 +6,9 @@ const authMiddleware = require('../../middleware/auth');
 // ✅ Rota para buscar próxima matrícula (ANTES das outras rotas)
 router.get('/next-matricula', authMiddleware, usersController.getNextMatricula);
 
+// ✅ Rota para buscar próxima matrícula de corretor
+router.get('/next-matricula-broker', authMiddleware, usersController.getNextBrokerMatricula);
+
 // ✅ Buscar por matrícula (específica)
 router.get('/matricula/:matricula', usersController.getByMatricula);
 

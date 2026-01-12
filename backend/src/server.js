@@ -73,6 +73,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/justifications', require('./modules/justifications/justifications.routes'));
 app.use('/api/hours-bank', require('./modules/hours-bank/hours-bank.routes'));
 app.use('/api/audit', require('./modules/audit/audit.routes'));
+app.use('/api/duty-shifts', require('./modules/duty-shifts/dutyShifts.routes'));
 
 // ============================================
 // ROTA 404

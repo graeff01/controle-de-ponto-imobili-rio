@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Download, TrendingUp } from 'lucide-react';
+import { Download, Calendar, User, Users, Briefcase, FileText } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
-import Badge from '../components/ui/Badge';
-import Button from '../components/common/Button';
 import api from '../services/api';
 import * as XLSX from 'xlsx';
 
 export default function RelatorioMensal() {
+  const [tipoRelatorio, setTipoRelatorio] = useState('individual'); // individual, clt, plantonistas
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioSelecionado, setUsuarioSelecionado] = useState('');
   const [mes, setMes] = useState(new Date().getMonth() + 1);
@@ -24,22 +23,30 @@ export default function RelatorioMensal() {
     try {
       const response = await api.get('/users');
       setUsuarios(response.data.data);
+      if (response.data.data.length > 0) {
+        setUsuarioSelecionado(response.data.data[0].id);
+      }
     } catch (err) {
       console.error('Erro ao carregar usuários:', err);
     }
   };
 
   const gerarRelatorio = async () => {
-    if (!usuarioSelecionado) {
-      alert('Selecione um funcionário');
-      return;
-    }
-
     setLoading(true);
     try {
-      const response = await api.get(`/reports/monthly/${usuarioSelecionado}/${ano}/${mes}`);
+      let response;
+      
+      if (tipoRelatorio === 'individual') {
+        response = await api.get(`/reports/monthly/individual/${usuarioSelecionado}/${ano}/${mes}`);
+      } else if (tipoRelatorio === 'clt') {
+        response = await api.get(`/reports/monthly/clt/${ano}/${mes}`);
+      } else {
+        response = await api.get(`/reports/monthly/plantonistas/${ano}/${mes}`);
+      }
+      
       setRelatorio(response.data.data);
     } catch (err) {
+      console.error('Erro ao gerar relatório:', err);
       alert('Erro ao gerar relatório');
     } finally {
       setLoading(false);
@@ -49,170 +56,273 @@ export default function RelatorioMensal() {
   const exportarExcel = () => {
     if (!relatorio) return;
 
-    const dados = relatorio.detalhes.map(d => ({
-      'Data': new Date(d.date).toLocaleDateString('pt-BR'),
-      'Entrada': d.entrada ? new Date(d.entrada).toLocaleTimeString('pt-BR') : '-',
-      'Saída Intervalo': d.saida_intervalo ? new Date(d.saida_intervalo).toLocaleTimeString('pt-BR') : '-',
-      'Retorno Intervalo': d.retorno_intervalo ? new Date(d.retorno_intervalo).toLocaleTimeString('pt-BR') : '-',
-      'Saída Final': d.saida_final ? new Date(d.saida_final).toLocaleTimeString('pt-BR') : '-',
-      'Horas': d.hours_worked || '0',
-      'Status': d.status_dia
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(dados);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
-    XLSX.writeFile(wb, `relatorio_${mes}_${ano}.xlsx`);
+
+    if (tipoRelatorio === 'individual') {
+      // Relatório Individual
+      const dados = relatorio.registros.map(r => ({
+        Data: new Date(r.data).toLocaleDateString('pt-BR'),
+        Entrada: r.entrada ? new Date(r.entrada).toLocaleTimeString('pt-BR') : '-',
+        'Saída Intervalo': r.saida_intervalo ? new Date(r.saida_intervalo).toLocaleTimeString('pt-BR') : '-',
+        'Retorno Intervalo': r.retorno_intervalo ? new Date(r.retorno_intervalo).toLocaleTimeString('pt-BR') : '-',
+        'Saída Final': r.saida_final ? new Date(r.saida_final).toLocaleTimeString('pt-BR') : '-',
+        Presença: r.check_in ? new Date(r.check_in).toLocaleTimeString('pt-BR') : '-'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dados);
+      XLSX.utils.book_append_sheet(wb, ws, relatorio.usuario.nome);
+
+    } else if (tipoRelatorio === 'clt') {
+      // Relatório CLT
+      relatorio.funcionarios.forEach(func => {
+        const dados = func.detalhes.map(d => ({
+          Data: new Date(d.data).toLocaleDateString('pt-BR'),
+          Entrada: d.entrada ? new Date(d.entrada).toLocaleTimeString('pt-BR') : '-',
+          'Saída Final': d.saida_final ? new Date(d.saida_final).toLocaleTimeString('pt-BR') : '-',
+          Status: d.completo ? 'Completo' : 'Incompleto'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dados);
+        XLSX.utils.book_append_sheet(wb, ws, func.funcionario.nome.substring(0, 30));
+      });
+
+    } else {
+      // Relatório Plantonistas
+      relatorio.plantonistas.forEach(plant => {
+        const dados = plant.detalhes.map(d => ({
+          Data: new Date(d.data).toLocaleDateString('pt-BR'),
+          Horário: new Date(d.horario).toLocaleTimeString('pt-BR')
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dados);
+        XLSX.utils.book_append_sheet(wb, ws, plant.plantonista.nome.substring(0, 30));
+      });
+    }
+
+    const nomeArquivo = `relatorio_${tipoRelatorio}_${mes}_${ano}.xlsx`;
+    XLSX.writeFile(wb, nomeArquivo);
   };
 
-  const usuario = usuarios.find(u => u.id === usuarioSelecionado);
+  const meses = [
+    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+  ];
+
+  const anos = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
     <Layout title="Relatório Mensal" subtitle="Análise completa de horas e registros">
       
       <Card className="p-6 mb-6">
-        <h3 className="text-lg font-bold text-slate-900 mb-4">Selecionar Período</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Funcionário</label>
-            <select
-              value={usuarioSelecionado}
-              onChange={(e) => setUsuarioSelecionado(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+        <h3 className="text-xl font-bold text-slate-900 mb-6">Selecionar Período</h3>
+        
+        {/* Tipo de Relatório */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-slate-700 mb-3">
+            Tipo de Relatório
+          </label>
+          <div className="grid grid-cols-3 gap-4">
+            <button
+              onClick={() => setTipoRelatorio('individual')}
+              className={`
+                p-4 rounded-xl border-2 transition-all
+                flex items-center gap-3
+                ${tipoRelatorio === 'individual'
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                }
+              `}
             >
-              <option value="">Selecione...</option>
-              {usuarios.map(u => (
-                <option key={u.id} value={u.id}>{u.nome} - {u.matricula}</option>
-              ))}
-            </select>
-          </div>
+              <User size={20} />
+              <div className="text-left">
+                <p className="font-semibold">Individual</p>
+                <p className="text-xs opacity-75">Um funcionário</p>
+              </div>
+            </button>
 
+            <button
+              onClick={() => setTipoRelatorio('clt')}
+              className={`
+                p-4 rounded-xl border-2 transition-all
+                flex items-center gap-3
+                ${tipoRelatorio === 'clt'
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                }
+              `}
+            >
+              <Users size={20} />
+              <div className="text-left">
+                <p className="font-semibold">Todos CLT</p>
+                <p className="text-xs opacity-75">Funcionários</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setTipoRelatorio('plantonistas')}
+              className={`
+                p-4 rounded-xl border-2 transition-all
+                flex items-center gap-3
+                ${tipoRelatorio === 'plantonistas'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                }
+              `}
+            >
+              <Briefcase size={20} />
+              <div className="text-left">
+                <p className="font-semibold">📋 Plantonistas</p>
+                <p className="text-xs opacity-75">Corretores PJ</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Funcionário (só aparece se Individual) */}
+          {tipoRelatorio === 'individual' && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Funcionário
+              </label>
+              <select
+                value={usuarioSelecionado}
+                onChange={(e) => setUsuarioSelecionado(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 outline-none transition-all"
+              >
+                {usuarios.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.nome} - {user.matricula}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Mês */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Mês</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Mês
+            </label>
             <select
               value={mes}
               onChange={(e) => setMes(parseInt(e.target.value))}
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+              className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 outline-none transition-all capitalize"
             >
-              {[...Array(12)].map((_, i) => (
-                <option key={i} value={i + 1}>
-                  {new Date(2000, i).toLocaleDateString('pt-BR', { month: 'long' })}
-                </option>
+              {meses.map((m, idx) => (
+                <option key={idx} value={idx + 1} className="capitalize">{m}</option>
               ))}
             </select>
           </div>
 
+          {/* Ano */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Ano</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Ano
+            </label>
             <select
               value={ano}
               onChange={(e) => setAno(parseInt(e.target.value))}
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+              className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 outline-none transition-all"
             >
-              {[2024, 2025, 2026].map(y => (
-                <option key={y} value={y}>{y}</option>
+              {anos.map(a => (
+                <option key={a} value={a}>{a}</option>
               ))}
             </select>
           </div>
         </div>
 
-        <div className="mt-4">
-          <Button onClick={gerarRelatorio} fullWidth disabled={loading}>
-            <Calendar className="inline mr-2" size={20} />
+        <div className="flex gap-3 mt-6">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={gerarRelatorio}
+            disabled={loading}
+            className="
+              flex-1 bg-slate-800 hover:bg-slate-700
+              disabled:bg-slate-300 disabled:cursor-not-allowed
+              text-white font-bold py-3 rounded-xl
+              flex items-center justify-center gap-2
+              transition-all
+            "
+          >
+            <Calendar size={20} />
             {loading ? 'Gerando...' : 'Gerar Relatório'}
-          </Button>
+          </motion.button>
+
+          {relatorio && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={exportarExcel}
+              className="
+                px-6 bg-emerald-600 hover:bg-emerald-700
+                text-white font-bold py-3 rounded-xl
+                flex items-center gap-2
+                transition-all
+              "
+            >
+              <Download size={20} />
+              Exportar Excel
+            </motion.button>
+          )}
         </div>
       </Card>
 
+      {/* Preview do Relatório */}
       {relatorio && (
-        <>
-          {/* Cards de Resumo */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <Card className="p-6 bg-gradient-to-br from-blue-50 to-white">
-              <p className="text-sm text-slate-600 mb-1">Total de Horas</p>
-              <p className="text-4xl font-bold text-blue-600">{relatorio.resumo.total_horas}h</p>
-            </Card>
-            <Card className="p-6 bg-gradient-to-br from-emerald-50 to-white">
-              <p className="text-sm text-slate-600 mb-1">Dias Completos</p>
-              <p className="text-4xl font-bold text-emerald-600">{relatorio.resumo.dias_completos}</p>
-            </Card>
-            <Card className="p-6 bg-gradient-to-br from-amber-50 to-white">
-              <p className="text-sm text-slate-600 mb-1">Dias Incompletos</p>
-              <p className="text-4xl font-bold text-amber-600">{relatorio.resumo.dias_incompletos}</p>
-            </Card>
-            <Card className="p-6 bg-gradient-to-br from-red-50 to-white">
-              <p className="text-sm text-slate-600 mb-1">Ausências</p>
-              <p className="text-4xl font-bold text-red-600">{relatorio.resumo.ausencias}</p>
-            </Card>
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-slate-900">
+              Resultado do Relatório
+            </h3>
+            <span className="text-sm text-slate-500 capitalize">
+              {meses[mes - 1]} / {ano}
+            </span>
           </div>
 
-          {/* Header da Tabela */}
-          <Card className="p-6 mb-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Detalhes - {usuario?.nome}</h3>
-                <p className="text-sm text-slate-500">
-                  {new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                </p>
+          {tipoRelatorio === 'individual' && (
+            <div>
+              <div className="bg-slate-50 p-4 rounded-xl mb-4">
+                <p className="font-bold text-slate-900">{relatorio.usuario.nome}</p>
+                <p className="text-sm text-slate-600">{relatorio.usuario.matricula} • {relatorio.usuario.cargo}</p>
               </div>
-              <Button onClick={exportarExcel} variant="secondary">
-                <Download className="inline mr-2" size={20} />
-                Exportar Excel
-              </Button>
+              <p className="text-slate-600">Total de {relatorio.registros.length} registro(s)</p>
             </div>
-          </Card>
+          )}
 
-          {/* Tabela */}
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Data</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Entrada</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Saída Int.</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Retorno Int.</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Saída Final</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Horas</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {relatorio.detalhes.map((dia, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 font-medium text-slate-900">
-                        {new Date(dia.date).toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {dia.entrada ? new Date(dia.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {dia.saida_intervalo ? new Date(dia.saida_intervalo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {dia.retorno_intervalo ? new Date(dia.retorno_intervalo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {dia.saida_final ? new Date(dia.saida_final).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-blue-600">
-                        {dia.hours_worked || '0h'}
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant={
-                          dia.status_dia === 'Completo' ? 'success' :
-                          dia.status_dia === 'Incompleto' ? 'warning' : 'danger'
-                        }>
-                          {dia.status_dia}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {tipoRelatorio === 'clt' && (
+            <div>
+              <p className="text-slate-600 mb-4">
+                {relatorio.funcionarios.length} funcionário(s) CLT
+              </p>
+              <div className="space-y-2">
+                {relatorio.funcionarios.map((func, idx) => (
+                  <div key={idx} className="bg-slate-50 p-3 rounded-lg flex justify-between">
+                    <span className="font-medium">{func.funcionario.nome}</span>
+                    <span className="text-slate-600">{func.dias_trabalhados} dias trabalhados</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </Card>
-        </>
+          )}
+
+          {tipoRelatorio === 'plantonistas' && (
+            <div>
+              <p className="text-slate-600 mb-4">
+                {relatorio.plantonistas.length} plantonista(s)
+              </p>
+              <div className="space-y-2">
+                {relatorio.plantonistas.map((plant, idx) => (
+                  <div key={idx} className="bg-blue-50 p-3 rounded-lg flex justify-between">
+                    <span className="font-medium">{plant.plantonista.nome}</span>
+                    <span className="text-blue-700">📋 {plant.total_presencas} presenças</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
       )}
     </Layout>
   );

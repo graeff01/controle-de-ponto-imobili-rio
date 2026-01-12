@@ -5,6 +5,7 @@ const upload = require('../../config/upload');
 
 // ROTAS PÚBLICAS - SEM AUTENTICAÇÃO
 router.get('/user/matricula/:matricula', tabletController.getByMatricula);
+router.get('/user/type/:matricula', tabletController.checkUserType);
 router.post('/record', upload.single('photo'), tabletController.registerRecord);
 router.post('/register', tabletController.register); // ← ADICIONAR ESTA LINHA
 

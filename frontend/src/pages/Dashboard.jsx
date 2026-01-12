@@ -39,38 +39,40 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [graficoSemanal, setGraficoSemanal] = useState([]);
+  const [atividades, setAtividades] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     carregarDados();
+    
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(carregarDados, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const carregarDados = async () => {
     try {
-      const [dashRes] = await Promise.all([
-        api.get('/reports/dashboard')
-      ]);
-      
-      setStats(dashRes.data.data);
-      
-      // Dados do gráfico semanal
-      const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-      const hoje = new Date();
-      const dadosGrafico = [];
-      
-      for (let i = 6; i >= 0; i--) {
-        const data = new Date(hoje);
-        data.setDate(data.getDate() - i);
-        const diaSemana = diasSemana[data.getDay()];
-        
-        dadosGrafico.push({
-          dia: diaSemana,
-          presentes: Math.floor(Math.random() * 5) + 1,
-          ausentes: Math.floor(Math.random() * 2)
-        });
+      const response = await api.get('/reports/dashboard');
+      const data = response?.data?.data;
+
+      if (!data) {
+        setStats(null);
+        setGraficoSemanal([]);
+        setAtividades([]);
+        return;
       }
+
       
-      setGraficoSemanal(dadosGrafico);
+      setStats({
+        presentes: data.presentes,
+        ausencias: data.ausencias,
+        sem_saida: data.sem_saida,
+        alertas: data.alertas
+      });
+      
+      setGraficoSemanal(Array.isArray(data.grafico_semanal) ? data.grafico_semanal : []);
+      setAtividades(Array.isArray(data.atividades_recentes) ? data.atividades_recentes : []);
+
       
     } catch (err) {
       console.error('Erro ao carregar dashboard:', err);
@@ -130,6 +132,14 @@ export default function Dashboard() {
       color: 'blue'
     }
   ];
+
+  const getActivityTypeColor = (tipo) => {
+    return tipo === 'plantonista' ? 'bg-blue-500' : 'bg-emerald-500';
+  };
+
+  const getActivityBadgeColor = (tipo) => {
+    return tipo === 'plantonista' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700';
+  };
 
   if (loading) {
     return (
@@ -336,34 +346,48 @@ export default function Dashboard() {
               <p className="text-sm text-slate-500">Últimas movimentações do sistema</p>
             </div>
           </div>
-          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+          <button 
+            onClick={() => navigate('/registros')}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          >
             Ver todas
           </button>
         </div>
 
-        <div className="space-y-4">
-          {[
-            { user: 'João Silva', action: 'registrou entrada', time: '2 min atrás', type: 'success' },
-            { user: 'Maria Santos', action: 'solicitou ajuste', time: '15 min atrás', type: 'warning' },
-            { user: 'Pedro Costa', action: 'enviou justificativa', time: '1 hora atrás', type: 'info' }
-          ].map((activity, idx) => (
-            <div key={idx} className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
-              <div className={`
-                w-2 h-2 rounded-full
-                ${activity.type === 'success' ? 'bg-emerald-500' : ''}
-                ${activity.type === 'warning' ? 'bg-amber-500' : ''}
-                ${activity.type === 'info' ? 'bg-blue-500' : ''}
-              `} />
-              <div className="flex-1">
-                <p className="text-sm">
-                  <span className="font-semibold text-slate-900">{activity.user}</span>
-                  {' '}
-                  <span className="text-slate-600">{activity.action}</span>
-                </p>
-                <p className="text-xs text-slate-400 mt-1">{activity.time}</p>
-              </div>
+        <div className="space-y-3">
+          {atividades?.length > 0 ? (
+            atividades.map((atividade, idx) => (
+              <motion.div 
+                key={idx}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <div className={`w-2 h-2 rounded-full ${getActivityTypeColor(atividade.tipo)}`} />
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <span className="font-semibold text-slate-900">{atividade.usuario}</span>
+                    {' '}
+                    <span className="text-slate-600">{atividade.acao}</span>
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-slate-400">{atividade.tempo_relativo}</p>
+                    {atividade.tipo === 'plantonista' && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${getActivityBadgeColor(atividade.tipo)}`}>
+                        📋 Plantonista
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-slate-400">
+              <Clock size={32} className="mx-auto mb-2 opacity-50" />
+              <p>Nenhuma atividade recente</p>
             </div>
-          ))}
+          )}
         </div>
       </Card>
     </Layout>

@@ -16,6 +16,7 @@ router.get('/my-journey/:year/:month', timeRecordsController.getMyMonthlyJourney
 
 // Rotas para gestores/admin
 router.get('/today', checkRole(['gestor', 'admin']), timeRecordsController.getTodayRecords);
+router.get('/all', authMiddleware, timeRecordsController.getAllRecords);
 router.get('/date/:date', checkRole(['gestor', 'admin']), timeRecordsController.getByDate);
 router.get('/user/:userId', checkRole(['gestor', 'admin']), timeRecordsController.getUserRecords);
 router.get('/journey/:userId/:date', checkRole(['gestor', 'admin']), timeRecordsController.getDailyJourney);

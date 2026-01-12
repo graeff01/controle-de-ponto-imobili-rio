@@ -4,54 +4,82 @@ const dateHelper = require('../../utils/dateHelper');
 
 class ReportsService {
 
-  async getDashboardStats() {
-  try {
-    // Presentes hoje (quem registrou entrada)
-    const presentesResult = await db.query(`
-      SELECT COUNT(DISTINCT user_id) as total
-      FROM time_records
-      WHERE DATE(timestamp) = CURRENT_DATE
-      AND record_type = 'entrada'
-    `);
+async getDashboardStats() {
+    try {
+      // Stats de funcionários CLT (ponto completo)
+      const employeeStats = await db.query(`
+        SELECT 
+          COUNT(DISTINCT tr.user_id) as presentes
+        FROM time_records tr
+        JOIN users u ON tr.user_id = u.id
+        WHERE DATE(tr.timestamp) = CURRENT_DATE
+        AND tr.record_type = 'entrada'
+        AND u.is_duty_shift_only = false
+      `);
 
-    // Sem saída (quem entrou mas não saiu)
-    const semSaidaResult = await db.query(`
-      SELECT COUNT(DISTINCT user_id) as total
-      FROM time_records
-      WHERE DATE(timestamp) = CURRENT_DATE
-      AND record_type = 'entrada'
-      AND user_id NOT IN (
-        SELECT user_id FROM time_records 
-        WHERE DATE(timestamp) = CURRENT_DATE 
-        AND record_type = 'saida_final'
-      )
-    `);
+      const totalEmployees = await db.query(`
+        SELECT COUNT(*) as total 
+        FROM users 
+        WHERE status = 'ativo' 
+        AND is_duty_shift_only = false
+      `);
 
-    // Total de usuários ativos
-    const totalUsersResult = await db.query(`
-      SELECT COUNT(*) as total FROM users WHERE status = 'ativo'
-    `);
+      // Sem saída (funcionários CLT)
+      const semSaidaResult = await db.query(`
+        SELECT COUNT(DISTINCT user_id) as total
+        FROM time_records
+        WHERE DATE(timestamp) = CURRENT_DATE
+        AND record_type = 'entrada'
+        AND user_id NOT IN (
+          SELECT user_id FROM time_records 
+          WHERE DATE(timestamp) = CURRENT_DATE 
+          AND record_type = 'saida_final'
+        )
+      `);
 
-    // Alertas (tabela não existe ainda, retornar 0)
-    const alertas = 0;
+      // Stats de corretores plantonistas
+      const brokersPresent = await db.query(`
+        SELECT COUNT(DISTINCT user_id) as presentes
+        FROM duty_shifts
+        WHERE date = CURRENT_DATE
+      `);
 
-    const totalUsers = parseInt(totalUsersResult.rows[0].total);
-    const presentes = parseInt(presentesResult.rows[0].total);
-    const ausencias = totalUsers - presentes;
+      const totalBrokers = await db.query(`
+        SELECT COUNT(*) as total 
+        FROM users 
+        WHERE status = 'ativo' 
+        AND is_duty_shift_only = true
+      `);
 
-    return {
-      presentes,
-      ausencias,
-      sem_saida: parseInt(semSaidaResult.rows[0].total),
-      alertas,
-      total_funcionarios: totalUsers
-    };
+      const employees_presentes = parseInt(employeeStats.rows[0].presentes);
+      const employees_total = parseInt(totalEmployees.rows[0].total);
+      const brokers_presentes = parseInt(brokersPresent.rows[0].presentes);
+      const brokers_total = parseInt(totalBrokers.rows[0].total);
 
-  } catch (error) {
-    logger.error('Erro ao buscar estatísticas do dashboard', { error: error.message });
-    throw error;
+      return {
+        employees: {
+          presentes: employees_presentes,
+          total: employees_total,
+          ausencias: employees_total - employees_presentes,
+          sem_saida: parseInt(semSaidaResult.rows[0].total)
+        },
+        brokers: {
+          presentes: brokers_presentes,
+          total: brokers_total,
+          ausentes: brokers_total - brokers_presentes
+        },
+        geral: {
+          total_presentes: employees_presentes + brokers_presentes,
+          total_funcionarios: employees_total + brokers_total
+        },
+        alertas: 0 // Mantido para compatibilidade
+      };
+
+    } catch (error) {
+      logger.error('Erro ao buscar estatísticas do dashboard', { error: error.message });
+      throw error;
+    }
   }
-}
 
   async getWeeklyReport(userId = null) {
     try {

@@ -269,6 +269,54 @@ const result = await db.query(`
       });
     }
   }
+  // Verificar tipo de usuário (para mostrar interface correta)
+  async checkUserType(req, res) {
+    try {
+      const { matricula } = req.params;
+
+      const result = await db.query(`
+        SELECT 
+          id, 
+          matricula, 
+          nome, 
+          cargo, 
+          status,
+          user_type,
+          is_duty_shift_only
+        FROM users
+        WHERE matricula = $1 AND status = 'ativo'
+      `, [matricula]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Matrícula não encontrada ou usuário inativo'
+        });
+      }
+
+      const user = result.rows[0];
+
+      return res.json({
+        success: true,
+        data: {
+          id: user.id,
+          matricula: user.matricula,
+          nome: user.nome,
+          cargo: user.cargo,
+          user_type: user.user_type,
+          is_duty_shift_only: user.is_duty_shift_only,
+          interface_type: user.is_duty_shift_only ? 'DUTY_SHIFT' : 'FULL_TIME'
+        }
+      });
+
+    } catch (error) {
+      logger.error('Erro ao verificar tipo de usuário', { error: error.message });
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao verificar usuário'
+      });
+    }
+  }
 }
 
 module.exports = new TabletController();

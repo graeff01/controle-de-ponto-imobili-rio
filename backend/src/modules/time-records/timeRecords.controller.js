@@ -244,6 +244,61 @@ async getTodayRecords(req, res) {
   }
 }
 
+// ✅ NOVO: Buscar todos os registros (CLT + Plantonistas)
+async getAllRecords(req, res) {
+  try {
+    // Buscar registros CLT
+    const cltRecords = await db.query(`
+      SELECT 
+        tr.id,
+        tr.user_id,
+        tr.record_type,
+        tr.timestamp,
+        tr.photo_data,
+        u.nome,
+        u.matricula,
+        u.cargo,
+        u.departamento,
+        'clt' as user_category
+      FROM time_records tr
+      JOIN users u ON tr.user_id = u.id
+      WHERE DATE(tr.timestamp) >= CURRENT_DATE - INTERVAL '30 days'
+      ORDER BY tr.timestamp DESC
+    `);
+
+    // Buscar registros de Plantonistas
+    const brokerRecords = await db.query(`
+      SELECT 
+        ds.id,
+        ds.user_id,
+        'presenca' as record_type,
+        ds.date::timestamp + ds.check_in_time::time as timestamp,
+        ds.photo,
+        u.nome,
+        u.matricula,
+        u.cargo,
+        u.departamento,
+        'plantonista' as user_category
+      FROM duty_shifts ds
+      JOIN users u ON ds.user_id = u.id
+      WHERE ds.date >= CURRENT_DATE - INTERVAL '30 days'
+      ORDER BY ds.date DESC, ds.check_in_time DESC
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        clt: cltRecords.rows,
+        plantonistas: brokerRecords.rows
+      }
+    });
+
+  } catch (error) {
+    logger.error('Erro ao buscar registros', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+}
+
   async getDailyJourney(req, res, next) {
     try {
       const { userId, date } = req.params;

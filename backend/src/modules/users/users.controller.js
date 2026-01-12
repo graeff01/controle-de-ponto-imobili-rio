@@ -4,7 +4,7 @@ const logger = require('../../utils/logger');
 
 class UsersController {
 
-  // ✅ NOVO: Buscar próxima matrícula
+  // ✅ Buscar próxima matrícula
   async getNextMatricula(req, res) {
     try {
       const result = await db.query(`
@@ -30,7 +30,34 @@ class UsersController {
     }
   }
 
-  // ✅ ATUALIZADO: Listar todos os usuários
+  // ✅ Buscar próxima matrícula de corretor
+  async getNextBrokerMatricula(req, res) {
+    try {
+      const result = await db.query(`
+        SELECT matricula 
+        FROM users 
+        WHERE matricula ~ '^CORR[0-9]+$'
+        ORDER BY CAST(SUBSTRING(matricula FROM 5) AS INTEGER) DESC 
+        LIMIT 1
+      `);
+
+      let nextMatricula;
+      if (result.rows.length === 0) {
+        nextMatricula = 'CORR001';
+      } else {
+        const lastMatricula = result.rows[0].matricula;
+        const lastNumber = parseInt(lastMatricula.replace('CORR', ''));
+        nextMatricula = 'CORR' + String(lastNumber + 1).padStart(3, '0');
+      }
+
+      res.json({ success: true, data: nextMatricula });
+    } catch (error) {
+      logger.error('Erro ao gerar próxima matrícula de corretor', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // ✅ Listar todos os usuários
   async getAll(req, res) {
     try {
       const result = await db.query(`
@@ -43,14 +70,15 @@ class UsersController {
           departamento, 
           role,
           status,
-          data_nascimento,
           work_hours_start,
           work_hours_end,
           expected_daily_hours,
+          user_type,
+          is_duty_shift_only,
           created_at
         FROM users
         WHERE status != 'deleted'
-        ORDER BY nome ASC
+        ORDER BY is_duty_shift_only ASC, nome ASC
       `);
 
       res.json({ success: true, data: result.rows });
@@ -60,60 +88,56 @@ class UsersController {
     }
   }
 
-  // ✅ ATUALIZADO: Buscar por matrícula
+  // ✅ Buscar por matrícula
   async getByMatricula(req, res) {
-    try {
-      const { matricula } = req.params;
+  try {
+    const { matricula } = req.params;
 
-      const result = await db.query(`
-        SELECT 
-          id, 
-          matricula, 
-          nome, 
-          cargo, 
-          departamento, 
-          role,
-          data_nascimento
-        FROM users 
-        WHERE matricula = $1 AND status = 'ativo'
-      `, [matricula]);
+    const result = await db.query(`
+      SELECT 
+        id, 
+        matricula, 
+        nome, 
+        cargo, 
+        departamento, 
+        role,
+        is_duty_shift_only,  -- ✅ ADICIONAR
+        user_type             -- ✅ ADICIONAR
+      FROM users 
+      WHERE matricula = $1 AND status = 'ativo'
+    `, [matricula]);
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-      }
-
-      res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-      logger.error('Erro ao buscar usuário por matrícula', { error: error.message });
-      res.status(500).json({ error: error.message });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-  }
 
-  // ✅ ATUALIZADO: Criar novo usuário
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Erro ao buscar usuário por matrícula', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+}
+
+  // ✅ Criar novo usuário
   async create(req, res) {
     try {
-      const {
-        matricula,
-        nome,
-        email,
-        password,
-        cargo,
-        departamento,
-        role,
-        data_nascimento,
-        work_hours_start,
-        work_hours_end,
-        expected_daily_hours
+      const { 
+        matricula, nome, cargo, departamento, 
+        role, email, password,
+        work_hours_start, work_hours_end, expected_daily_hours,
+        user_type, is_duty_shift_only
       } = req.body;
 
-      // Validações
+      // Validações básicas
       if (!matricula || !nome) {
         return res.status(400).json({ error: 'Matrícula e nome são obrigatórios' });
       }
 
-      // Validar que matrícula é numérica
-      if (!/^\d+$/.test(matricula)) {
-        return res.status(400).json({ error: 'Matrícula deve conter apenas números' });
+      // ✅ Validação de matrícula: Aceita números OU CORR + números
+      if (!/^(\d+|CORR\d+)$/.test(matricula)) {
+        return res.status(400).json({ 
+          error: 'Matrícula inválida. Use formato numérico (000001) ou CORR + número (CORR001)' 
+        });
       }
 
       // Se for admin, email e senha são obrigatórios
@@ -159,14 +183,15 @@ class UsersController {
           cargo,
           departamento,
           role,
-          data_nascimento,
           work_hours_start,
           work_hours_end,
           expected_daily_hours,
+          user_type,
+          is_duty_shift_only,
           status,
           created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ativo', NOW())
-        RETURNING id, matricula, nome, email, cargo, departamento, role
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'ativo', NOW())
+        RETURNING id, matricula, nome, email, cargo, departamento, role, user_type, is_duty_shift_only
       `, [
         matricula,
         nome,
@@ -175,10 +200,11 @@ class UsersController {
         cargo || null,
         departamento || null,
         role || 'employee',
-        data_nascimento || null,
         work_hours_start || '08:00',
         work_hours_end || '18:00',
-        expected_daily_hours || 9
+        expected_daily_hours || 9,
+        user_type || 'employee',
+        is_duty_shift_only || false
       ]);
 
       logger.info('Usuário criado', { user_id: result.rows[0].id, matricula });
@@ -194,21 +220,15 @@ class UsersController {
     }
   }
 
-  // ✅ ATUALIZADO: Atualizar usuário
+  // ✅ Atualizar usuário
   async update(req, res) {
     try {
       const { id } = req.params;
-      const {
-        nome,
-        email,
-        password,
-        cargo,
-        departamento,
-        role,
-        data_nascimento,
-        work_hours_start,
-        work_hours_end,
-        expected_daily_hours
+      const { 
+        nome, cargo, departamento, 
+        role, email, password,
+        work_hours_start, work_hours_end, expected_daily_hours,
+        user_type, is_duty_shift_only
       } = req.body;
 
       // Verificar se usuário existe
@@ -282,12 +302,6 @@ class UsersController {
         paramCount++;
       }
 
-      if (data_nascimento !== undefined) {
-        updates.push(`data_nascimento = $${paramCount}`);
-        values.push(data_nascimento || null);
-        paramCount++;
-      }
-
       if (work_hours_start) {
         updates.push(`work_hours_start = $${paramCount}`);
         values.push(work_hours_start);
@@ -306,6 +320,18 @@ class UsersController {
         paramCount++;
       }
 
+      if (user_type !== undefined) {
+        updates.push(`user_type = $${paramCount}`);
+        values.push(user_type);
+        paramCount++;
+      }
+
+      if (is_duty_shift_only !== undefined) {
+        updates.push(`is_duty_shift_only = $${paramCount}`);
+        values.push(is_duty_shift_only);
+        paramCount++;
+      }
+
       updates.push(`updated_at = NOW()`);
 
       values.push(id);
@@ -314,7 +340,7 @@ class UsersController {
         UPDATE users 
         SET ${updates.join(', ')}
         WHERE id = $${paramCount}
-        RETURNING id, matricula, nome, email, cargo, departamento, role
+        RETURNING id, matricula, nome, email, cargo, departamento, role, user_type, is_duty_shift_only
       `;
 
       const result = await db.query(query, values);

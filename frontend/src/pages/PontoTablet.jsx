@@ -13,6 +13,7 @@ export default function Tablet() {
   const [message, setMessage] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showCamera, setShowCamera] = useState(false);
+  const debounceTimer = useRef(null); // ✅ ADICIONAR
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -33,15 +34,38 @@ export default function Tablet() {
     };
   }, [showCamera]);
 
-  // ✅ BUSCAR USUÁRIO AUTOMATICAMENTE QUANDO DIGITA
   useEffect(() => {
-    if (matricula.length >= 3) {
-      buscarUsuario();
-    } else {
-      setUserData(null);
-      setShowCamera(false);
+  // Limpar timer anterior
+  if (debounceTimer.current) {
+    clearTimeout(debounceTimer.current);
+  }
+
+  // Se matrícula vazia, limpar
+  if (matricula.length === 0) {
+    setUserData(null);
+    setShowCamera(false);
+    return;
+  }
+
+  // Só busca quando tiver 6 (CLT: 000001) ou 7 (PJ: CORR001) dígitos
+  const isValidLength = matricula.length === 6 || matricula.length === 7;
+  
+  if (!isValidLength) {
+    return; // Não busca, usuário ainda está digitando
+  }
+
+  // Aguarda 300ms após parar de digitar
+  debounceTimer.current = setTimeout(() => {
+    buscarUsuario();
+  }, 300);
+
+  // Cleanup
+  return () => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
     }
-  }, [matricula]);
+  };
+}, [matricula]);
 
   const startCamera = async () => {
     try {
@@ -72,19 +96,18 @@ export default function Tablet() {
     }
   };
 
-  // ✅ USAR A ROTA QUE FUNCIONA
-  const buscarUsuario = async () => {
-    if (matricula.length < 3) return;
-    
-    try {
-      const response = await api.get(`/users/matricula/${matricula}`);
-      setUserData(response.data.data);
-      setShowCamera(true);
-    } catch (err) {
-      setUserData(null);
-      setShowCamera(false);
-    }
-  };
+const buscarUsuario = async () => {
+  if (matricula.length < 3) return;
+  
+  try {
+    const response = await api.get(`/users/matricula/${matricula}`);
+    setUserData(response.data.data);
+    setShowCamera(true); // ✅ Ativa câmera para TODOS
+  } catch (err) {
+    setUserData(null);
+    setShowCamera(false);
+  }
+};
 
   const registrarPonto = async () => {
     if (!userData) {
@@ -113,6 +136,38 @@ export default function Tablet() {
       
     } catch (err) {
       showMessage(err.response?.data?.error || 'Erro ao registrar ponto', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const marcarPresenca = async () => {
+  if (!userData) {
+    showMessage('Digite uma matrícula válida', 'error');
+    return;
+  }
+
+  if (!photo) {
+    showMessage('Capture uma foto antes de registrar', 'error');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    await api.post('/duty-shifts/mark-presence', {
+      user_id: userData.id,
+      photo: photo, // ✅ Adicionar foto
+      notes: ''
+    });
+      
+      showMessage(`Presença registrada! Bem-vindo(a), ${userData.nome.split(' ')[0]}`, 'success');
+      
+      setTimeout(() => {
+        resetForm();
+      }, 2000);
+      
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Erro ao marcar presença', 'error');
     } finally {
       setLoading(false);
     }
@@ -213,10 +268,18 @@ export default function Tablet() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-slate-50 rounded-2xl p-6 mb-6"
+              className={`rounded-2xl p-6 mb-6 ${
+                userData.is_duty_shift_only 
+                  ? 'bg-blue-50' 
+                  : 'bg-slate-50'
+              }`}
             >
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center">
+                <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${
+                  userData.is_duty_shift_only 
+                    ? 'bg-blue-600' 
+                    : 'bg-slate-800'
+                }`}>
                   <span className="text-white text-2xl font-bold">
                     {userData.nome.charAt(0)}
                   </span>
@@ -225,7 +288,14 @@ export default function Tablet() {
                   <p className="text-2xl font-bold text-slate-900">
                     {getSaudacao()}, {userData.nome.split(' ')[0]}
                   </p>
-                  <p className="text-slate-600">{userData.cargo}</p>
+                  <p className="text-slate-600 flex items-center gap-2">
+                    {userData.cargo}
+                    {userData.is_duty_shift_only && (
+                      <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-semibold">
+                        📋 Plantonista
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
             </motion.div>
@@ -238,12 +308,10 @@ export default function Tablet() {
             </label>
             <input
               type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
               value={matricula}
-              onChange={(e) => setMatricula(e.target.value.replace(/\D/g, '').toUpperCase())}
-              placeholder="000000"
-              maxLength={10}
+              onChange={(e) => setMatricula(e.target.value.toUpperCase())}
+              placeholder="000000 ou CORR001"
+              maxLength={7}
               className={`
                 px-6 py-4 text-center font-bold
                 bg-slate-50 border-2 border-slate-200
@@ -259,122 +327,121 @@ export default function Tablet() {
             />
           </div>
 
-          {/* Tipo de Registro */}
-          {userData && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mb-6"
-            >
-              <label className="block text-sm font-semibold text-slate-700 mb-3">
-                Selecione o tipo de registro
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setRecordType('entrada')}
-                  className={`
-                    px-6 py-4 rounded-xl font-semibold
-                    border-2 transition-all duration-200
-                    flex items-center justify-center gap-2
-                    ${recordType === 'entrada'
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                    }
-                  `}
-                >
-                  <LogIn size={20} />
-                  Entrada
-                </button>
-                <button
-                  onClick={() => setRecordType('saida_intervalo')}
-                  className={`
-                    px-6 py-4 rounded-xl font-semibold
-                    border-2 transition-all duration-200
-                    flex items-center justify-center gap-2
-                    ${recordType === 'saida_intervalo'
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                    }
-                  `}
-                >
-                  <Coffee size={20} />
-                  Saída Intervalo
-                </button>
-                <button
-                  onClick={() => setRecordType('retorno_intervalo')}
-                  className={`
-                    px-6 py-4 rounded-xl font-semibold
-                    border-2 transition-all duration-200
-                    flex items-center justify-center gap-2
-                    ${recordType === 'retorno_intervalo'
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                    }
-                  `}
-                >
-                  <RotateCcw size={20} />
-                  Retorno Intervalo
-                </button>
-                <button
-                  onClick={() => setRecordType('saida_final')}
-                  className={`
-                    px-6 py-4 rounded-xl font-semibold
-                    border-2 transition-all duration-200
-                    flex items-center justify-center gap-2
-                    ${recordType === 'saida_final'
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                    }
-                  `}
-                >
-                  <LogOut size={20} />
-                  Saída Final
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Webcam Preview */}
-          {showCamera && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mb-6"
-            >
-              <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-inner">
-                {photo ? (
-                  <img src={photo} alt="Preview" className="w-full" />
-                ) : (
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-64 object-cover"
-                  />
-                )}
-                <canvas ref={canvasRef} className="hidden" />
-                
-                {photo && (
-                  <button
-                    onClick={() => setPhoto(null)}
-                    className="
-                      absolute top-4 right-4
-                      bg-slate-800/90 hover:bg-slate-700
-                      text-white px-4 py-2 rounded-lg
-                      font-semibold transition-all duration-200
-                    "
-                  >
-                    ✕ Remover
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Botões de Ação */}
-          {userData && (
+          {/* ===== INTERFACE PARA CLT ===== */}
+          {userData && !userData.is_duty_shift_only && (
             <>
+              {/* Tipo de Registro */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mb-6"
+              >
+                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                  Selecione o tipo de registro
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setRecordType('entrada')}
+                    className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'entrada'
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                      }
+                    `}
+                  >
+                    <LogIn size={20} />
+                    Entrada
+                  </button>
+                  <button
+                    onClick={() => setRecordType('saida_intervalo')}
+                    className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'saida_intervalo'
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                      }
+                    `}
+                  >
+                    <Coffee size={20} />
+                    Saída Intervalo
+                  </button>
+                  <button
+                    onClick={() => setRecordType('retorno_intervalo')}
+                    className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'retorno_intervalo'
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                      }
+                    `}
+                  >
+                    <RotateCcw size={20} />
+                    Retorno Intervalo
+                  </button>
+                  <button
+                    onClick={() => setRecordType('saida_final')}
+                    className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'saida_final'
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                      }
+                    `}
+                  >
+                    <LogOut size={20} />
+                    Saída Final
+                  </button>
+                </div>
+              </motion.div>
+
+              {/* Webcam Preview */}
+              {showCamera && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mb-6"
+                >
+                  <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-inner">
+                    {photo ? (
+                      <img src={photo} alt="Preview" className="w-full" />
+                    ) : (
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-64 object-cover"
+                      />
+                    )}
+                    <canvas ref={canvasRef} className="hidden" />
+                    
+                    {photo && (
+                      <button
+                        onClick={() => setPhoto(null)}
+                        className="
+                          absolute top-4 right-4
+                          bg-slate-800/90 hover:bg-slate-700
+                          text-white px-4 py-2 rounded-lg
+                          font-semibold transition-all duration-200
+                        "
+                      >
+                        ✕ Remover
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Botões de Ação (CLT) */}
               {!photo ? (
                 <button
                   onClick={capturePhoto}
@@ -419,6 +486,127 @@ export default function Tablet() {
                     <>
                       <Camera size={24} />
                       Registrar Ponto
+                    </>
+                  )}
+                </button>
+              )}
+
+              <button
+                onClick={resetForm}
+                className="
+                  w-full bg-white hover:bg-slate-50
+                  text-slate-700 font-semibold
+                  border-2 border-slate-200
+                  rounded-2xl px-6 py-3
+                  transition-all duration-200
+                "
+              >
+                Cancelar
+              </button>
+            </>
+          )}
+
+          {/* ===== INTERFACE PARA PLANTONISTA ===== */}
+          {/* ===== INTERFACE PARA PLANTONISTA ===== */}
+          {userData && userData.is_duty_shift_only && (
+            <>
+              {/* Badge Plantonista */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 text-center"
+              >
+                <p className="text-blue-900 font-bold text-lg mb-2">
+                  📋 Corretor Plantonista (PJ)
+                </p>
+                <p className="text-blue-700 text-sm">
+                  Tire uma foto e confirme sua presença no plantão de hoje
+                </p>
+              </motion.div>
+
+              {/* Webcam Preview */}
+              {showCamera && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mb-6"
+                >
+                  <div className="relative bg-gradient-to-br from-blue-800 to-blue-900 rounded-2xl overflow-hidden border-2 border-blue-700 shadow-inner">
+                    {photo ? (
+                      <img src={photo} alt="Preview" className="w-full" />
+                    ) : (
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-64 object-cover"
+                      />
+                    )}
+                    <canvas ref={canvasRef} className="hidden" />
+                    
+                    {photo && (
+                      <button
+                        onClick={() => setPhoto(null)}
+                        className="
+                          absolute top-4 right-4
+                          bg-blue-800/90 hover:bg-blue-700
+                          text-white px-4 py-2 rounded-lg
+                          font-semibold transition-all duration-200
+                        "
+                      >
+                        ✕ Remover
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Botões de Ação (Plantonista) */}
+              {!photo ? (
+                <button
+                  onClick={capturePhoto}
+                  className="
+                    w-full bg-blue-600 hover:bg-blue-700
+                    text-white font-bold text-lg
+                    rounded-2xl px-8 py-5 mb-3
+                    shadow-lg hover:shadow-xl
+                    transform hover:scale-[1.02]
+                    transition-all duration-200
+                    flex items-center justify-center gap-3
+                  "
+                >
+                  <Camera size={24} />
+                  Capturar Foto
+                </button>
+              ) : (
+                <button
+                  onClick={marcarPresenca}
+                  disabled={loading}
+                  className="
+                    w-full bg-blue-600 hover:bg-blue-700
+                    disabled:bg-slate-300 disabled:cursor-not-allowed
+                    text-white font-bold text-xl
+                    rounded-2xl px-8 py-6 mb-3
+                    shadow-lg hover:shadow-xl
+                    transform hover:scale-[1.02]
+                    transition-all duration-200
+                    flex items-center justify-center gap-3
+                  "
+                >
+                  {loading ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-6 h-6 border-3 border-white border-t-transparent rounded-full"
+                      />
+                      Registrando presença...
+                    </>
+                  ) : (
+                    <>
+                      <Clock size={28} />
+                      ✓ Marcar Presença no Plantão
                     </>
                   )}
                 </button>
