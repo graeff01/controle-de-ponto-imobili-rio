@@ -34,7 +34,7 @@ export default function Tablet() {
     };
   }, [showCamera]);
 
-  useEffect(() => {
+useEffect(() => {
   // Limpar timer anterior
   if (debounceTimer.current) {
     clearTimeout(debounceTimer.current);
@@ -47,17 +47,27 @@ export default function Tablet() {
     return;
   }
 
-  // Só busca quando tiver 6 (CLT: 000001) ou 7 (PJ: CORR001) dígitos
+  // Só busca quando tiver exatamente 6 (CLT) ou 7 (PJ) dígitos
   const isValidLength = matricula.length === 6 || matricula.length === 7;
   
   if (!isValidLength) {
-    return; // Não busca, usuário ainda está digitando
+    return; // Não busca enquanto ainda está digitando
   }
 
-  // Aguarda 300ms após parar de digitar
+  // Validar formato
+  const isNumeric = /^\d{6}$/.test(matricula); // 000001
+  const isBroker = /^CORR\d{3}$/.test(matricula); // CORR001
+  
+  if (!isNumeric && !isBroker) {
+    console.log('❌ Formato inválido:', matricula);
+    return;
+  }
+
+  // Aguarda 500ms após parar de digitar
   debounceTimer.current = setTimeout(() => {
+    console.log('🔍 Buscando matrícula:', matricula);
     buscarUsuario();
-  }, 300);
+  }, 500);
 
   // Cleanup
   return () => {

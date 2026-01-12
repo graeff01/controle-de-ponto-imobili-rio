@@ -107,6 +107,10 @@ const startServer = async () => {
       logger.info('⚠️ Jobs agendados desabilitados em desenvolvimento');
     }
 
+    // Banco de Horas
+const hoursBankRoutes = require('./modules/hours-bank/hours-bank.routes');
+app.use('/api/hours-bank', hoursBankRoutes);
+
 app.listen(
   Number(process.env.PORT) || 5000,
   '0.0.0.0',

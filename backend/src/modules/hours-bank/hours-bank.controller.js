@@ -8,6 +8,8 @@ class HoursBankController {
       const { userId } = req.params;
       const { month, year } = req.query;
 
+      console.log('📊 Buscando detalhes usuário:', { userId, month, year });
+
       let query = `
         SELECT 
           hb.*,
@@ -29,6 +31,8 @@ class HoursBankController {
 
       const result = await db.query(query, params);
 
+      console.log('✅ Registros encontrados:', result.rows.length);
+
       // Calcular saldo total
       const saldoTotal = result.rows.reduce((acc, row) => acc + parseFloat(row.balance), 0);
 
@@ -43,6 +47,7 @@ class HoursBankController {
       });
 
     } catch (error) {
+      console.error('❌ Erro getUserBalance:', error);
       next(error);
     }
   }
@@ -52,6 +57,8 @@ class HoursBankController {
       const { month, year } = req.query;
       const currentMonth = month || new Date().getMonth() + 1;
       const currentYear = year || new Date().getFullYear();
+
+      console.log('📊 Buscando banco de horas ALL:', { month: currentMonth, year: currentYear });
 
       const result = await db.query(`
         SELECT 
@@ -71,19 +78,26 @@ class HoursBankController {
         ORDER BY saldo_total DESC
       `, [currentYear, currentMonth]);
 
+      console.log('✅ Usuários encontrados:', result.rows.length);
+      console.log('📋 Primeiro resultado:', result.rows[0]);
+
       res.json({
         success: true,
         data: result.rows
       });
 
     } catch (error) {
+      console.error('❌ Erro getAllUsers:', error);
       next(error);
     }
   }
 
+  // ✅ MÉTODO AJUSTAR SALDO (estava faltando!)
   async ajustarSaldo(req, res, next) {
     try {
       const { user_id, date, hours_worked, hours_expected, reason } = req.body;
+
+      console.log('⚙️ Ajustando saldo:', { user_id, date, hours_worked, hours_expected });
 
       if (!user_id || !date) {
         return res.status(400).json({
@@ -92,17 +106,24 @@ class HoursBankController {
         });
       }
 
+      // Calcular balance
+      const worked = parseFloat(hours_worked) || 0;
+      const expected = parseFloat(hours_expected) || 8;
+      const balance = worked - expected;
+
       await db.query(`
-        INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected, balance)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (user_id, date) 
         DO UPDATE SET 
           hours_worked = $3,
           hours_expected = $4,
+          balance = $5,
           updated_at = NOW()
-      `, [user_id, date, hours_worked || 0, hours_expected || 8]);
+      `, [user_id, date, worked, expected, balance]);
 
-      logger.success('Banco de horas ajustado', { user_id, date });
+      console.log('✅ Saldo ajustado com sucesso!');
+      logger.success('Banco de horas ajustado', { user_id, date, reason });
 
       res.json({
         success: true,
@@ -110,6 +131,7 @@ class HoursBankController {
       });
 
     } catch (error) {
+      console.error('❌ Erro ajustarSaldo:', error);
       next(error);
     }
   }
