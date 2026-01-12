@@ -238,8 +238,10 @@ export default function Tablet() {
             </label>
             <input
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={matricula}
-              onChange={(e) => setMatricula(e.target.value.toUpperCase())}
+              onChange={(e) => setMatricula(e.target.value.replace(/\D/g, '').toUpperCase())}
               placeholder="000000"
               maxLength={10}
               className={`
