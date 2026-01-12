@@ -4,7 +4,6 @@ import { Camera, LogIn, Coffee, RotateCcw, LogOut, Clock, User, Building2 } from
 import api from '../services/api';
 
 export default function Tablet() {
-  const [step, setStep] = useState('matricula');
   const [matricula, setMatricula] = useState('');
   const [userData, setUserData] = useState(null);
   const [recordType, setRecordType] = useState('entrada');
@@ -13,6 +12,7 @@ export default function Tablet() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showCamera, setShowCamera] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -23,7 +23,7 @@ export default function Tablet() {
   }, []);
 
   useEffect(() => {
-    if (step === 'registro' && !stream) {
+    if (showCamera && !stream) {
       startCamera();
     }
     return () => {
@@ -31,7 +31,17 @@ export default function Tablet() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [step]);
+  }, [showCamera]);
+
+  // ✅ BUSCAR USUÁRIO AUTOMATICAMENTE QUANDO DIGITA
+  useEffect(() => {
+    if (matricula.length >= 3) {
+      buscarUsuario();
+    } else {
+      setUserData(null);
+      setShowCamera(false);
+    }
+  }, [matricula]);
 
   const startCamera = async () => {
     try {
@@ -62,28 +72,26 @@ export default function Tablet() {
     }
   };
 
-  const buscarFuncionario = async (e) => {
-    e.preventDefault();
+  // ✅ USAR A ROTA QUE FUNCIONA
+  const buscarUsuario = async () => {
+    if (matricula.length < 3) return;
     
-    if (!matricula || matricula.length < 6) {
-      showMessage('Digite uma matrícula válida', 'error');
-      return;
-    }
-
-    setLoading(true);
     try {
-      const response = await api.post('/tablet/identify', { matricula });
+      const response = await api.get(`/users/matricula/${matricula}`);
       setUserData(response.data.data);
-      setStep('registro');
+      setShowCamera(true);
     } catch (err) {
-      showMessage(err.response?.data?.error || 'Matrícula não encontrada', 'error');
-      setMatricula('');
-    } finally {
-      setLoading(false);
+      setUserData(null);
+      setShowCamera(false);
     }
   };
 
   const registrarPonto = async () => {
+    if (!userData) {
+      showMessage('Digite uma matrícula válida', 'error');
+      return;
+    }
+
     if (!photo) {
       showMessage('Capture uma foto antes de registrar', 'error');
       return;
@@ -111,11 +119,11 @@ export default function Tablet() {
   };
 
   const resetForm = () => {
-    setStep('matricula');
     setMatricula('');
     setUserData(null);
     setRecordType('entrada');
     setPhoto(null);
+    setShowCamera(false);
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
@@ -142,386 +150,293 @@ export default function Tablet() {
     });
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-6">
-      
-      {/* Mensagens */}
-      <AnimatePresence>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className={`
-              fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl
-              ${message.type === 'success' 
-                ? 'bg-emerald-500 text-white' 
-                : 'bg-red-500 text-white'
-              }
-            `}
-          >
-            <p className="font-semibold">{message.text}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+  const getSaudacao = () => {
+    const hora = currentTime.getHours();
+    if (hora < 12) return 'Bom dia';
+    if (hora < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
 
-      <div className="w-full max-w-2xl">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="container mx-auto px-4 py-8">
         
+        {/* Mensagens */}
+        <AnimatePresence>
+          {message && (
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              className={`
+                fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl
+                ${message.type === 'success' 
+                  ? 'bg-emerald-500 text-white' 
+                  : 'bg-red-500 text-white'
+                }
+              `}
+            >
+              <p className="font-semibold">{message.text}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-xl p-6 mb-6"
-        >
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-6 max-w-4xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-slate-800 rounded-xl flex items-center justify-center">
-                <Clock className="text-white" size={28} />
+              <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center">
+                <Clock className="text-white" size={32} />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">Sistema de Ponto</h1>
-                <p className="text-slate-500">Registro de frequência</p>
+                <p className="text-slate-600">Registro de frequência</p>
               </div>
             </div>
+            
             <div className="text-right">
-              <p className="text-4xl font-bold text-slate-900">{formatTime(currentTime)}</p>
-              <p className="text-sm text-slate-500 capitalize">{formatDate(currentTime)}</p>
+              <div className="text-4xl font-bold text-slate-900 tabular-nums">
+                {formatTime(currentTime)}
+              </div>
+              <p className="text-sm text-slate-600 capitalize">
+                {formatDate(currentTime)}
+              </p>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Conteúdo Principal */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white rounded-2xl shadow-xl overflow-hidden"
-        >
-          <AnimatePresence mode="wait">
-            
-            {/* TELA 1: Input Matrícula */}
-            {step === 'matricula' && (
-              <motion.div
-                key="matricula"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="p-12"
-              >
-                <div className="text-center mb-8">
-                  <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <User className="text-slate-700" size={40} />
-                  </div>
-                  <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                    Digite sua matrícula para começar
-                  </h2>
+        {/* Card Principal */}
+        <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mx-auto transition-all ${userData ? 'max-w-4xl' : 'max-w-2xl'}`}>
+          
+          {/* Saudação */}
+          {userData && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-slate-50 rounded-2xl p-6 mb-6"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center">
+                  <span className="text-white text-2xl font-bold">
+                    {userData.nome.charAt(0)}
+                  </span>
                 </div>
+                <div>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {getSaudacao()}, {userData.nome.split(' ')[0]}
+                  </p>
+                  <p className="text-slate-600">{userData.cargo}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
-                <form onSubmit={buscarFuncionario} className="space-y-6">
-                  <input
-                    type="text"
-                    value={matricula}
-                    onChange={(e) => setMatricula(e.target.value.toUpperCase())}
-                    placeholder="000000"
-                    maxLength={10}
-                    className="
-                      w-full text-4xl text-center font-bold tracking-wider
-                      bg-slate-50 border-2 border-slate-200
-                      focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10
-                      rounded-2xl px-8 py-6
-                      transition-all duration-200
-                      placeholder:text-slate-300
-                      outline-none
-                    "
-                    disabled={loading}
-                    autoFocus
+          {/* Input Matrícula */}
+          <div className={`mb-6 ${!userData ? 'text-center py-12' : ''}`}>
+            <label className={`block font-semibold text-slate-700 mb-4 ${!userData ? 'text-lg' : 'text-sm'}`}>
+              Digite sua matrícula para começar
+            </label>
+            <input
+              type="text"
+              value={matricula}
+              onChange={(e) => setMatricula(e.target.value.toUpperCase())}
+              placeholder="000000"
+              maxLength={10}
+              className={`
+                px-6 py-4 text-center font-bold
+                bg-slate-50 border-2 border-slate-200
+                focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10
+                rounded-2xl outline-none transition-all
+                placeholder:text-slate-300
+                ${!userData 
+                  ? 'w-full max-w-md mx-auto text-4xl tracking-wider' 
+                  : 'w-full text-2xl'
+                }
+              `}
+              autoFocus
+            />
+          </div>
+
+          {/* Tipo de Registro */}
+          {userData && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mb-6"
+            >
+              <label className="block text-sm font-semibold text-slate-700 mb-3">
+                Selecione o tipo de registro
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setRecordType('entrada')}
+                  className={`
+                    px-6 py-4 rounded-xl font-semibold
+                    border-2 transition-all duration-200
+                    flex items-center justify-center gap-2
+                    ${recordType === 'entrada'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }
+                  `}
+                >
+                  <LogIn size={20} />
+                  Entrada
+                </button>
+                <button
+                  onClick={() => setRecordType('saida_intervalo')}
+                  className={`
+                    px-6 py-4 rounded-xl font-semibold
+                    border-2 transition-all duration-200
+                    flex items-center justify-center gap-2
+                    ${recordType === 'saida_intervalo'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }
+                  `}
+                >
+                  <Coffee size={20} />
+                  Saída Intervalo
+                </button>
+                <button
+                  onClick={() => setRecordType('retorno_intervalo')}
+                  className={`
+                    px-6 py-4 rounded-xl font-semibold
+                    border-2 transition-all duration-200
+                    flex items-center justify-center gap-2
+                    ${recordType === 'retorno_intervalo'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }
+                  `}
+                >
+                  <RotateCcw size={20} />
+                  Retorno Intervalo
+                </button>
+                <button
+                  onClick={() => setRecordType('saida_final')}
+                  className={`
+                    px-6 py-4 rounded-xl font-semibold
+                    border-2 transition-all duration-200
+                    flex items-center justify-center gap-2
+                    ${recordType === 'saida_final'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }
+                  `}
+                >
+                  <LogOut size={20} />
+                  Saída Final
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Webcam Preview */}
+          {showCamera && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mb-6"
+            >
+              <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-inner">
+                {photo ? (
+                  <img src={photo} alt="Preview" className="w-full" />
+                ) : (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-64 object-cover"
                   />
-
+                )}
+                <canvas ref={canvasRef} className="hidden" />
+                
+                {photo && (
                   <button
-                    type="submit"
-                    disabled={loading || matricula.length < 6}
+                    onClick={() => setPhoto(null)}
                     className="
-                      w-full bg-slate-800 hover:bg-slate-700
-                      disabled:bg-slate-300 disabled:cursor-not-allowed
-                      text-white font-bold text-lg
-                      rounded-2xl px-8 py-5
-                      shadow-lg hover:shadow-xl
-                      transform hover:scale-[1.02]
-                      transition-all duration-200
-                      flex items-center justify-center gap-3
+                      absolute top-4 right-4
+                      bg-slate-800/90 hover:bg-slate-700
+                      text-white px-4 py-2 rounded-lg
+                      font-semibold transition-all duration-200
                     "
                   >
-                    {loading ? (
-                      <>
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="w-6 h-6 border-3 border-white border-t-transparent rounded-full"
-                        />
-                        Buscando...
-                      </>
-                    ) : (
-                      <>
-                        <LogIn size={24} />
-                        Continuar
-                      </>
-                    )}
+                    ✕ Remover
                   </button>
-                </form>
+                )}
+              </div>
+            </motion.div>
+          )}
 
-                <div className="mt-8 pt-8 border-t border-slate-100 text-center">
-                  <a 
-                    href="/login"
-                    className="text-slate-600 hover:text-slate-900 font-medium transition-colors inline-flex items-center gap-2"
-                  >
-                    <Building2 size={18} />
-                    Acessar painel administrativo →
-                  </a>
-                </div>
-              </motion.div>
-            )}
-
-            {/* TELA 2: Registro com Webcam */}
-            {step === 'registro' && (
-              <motion.div
-                key="registro"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="p-8"
-              >
-                {/* Info do Funcionário */}
-                <div className="bg-slate-50 rounded-2xl p-6 mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-slate-800 rounded-xl flex items-center justify-center">
-                      <span className="text-white text-2xl font-bold">
-                        {userData?.nome?.charAt(0)}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900">
-                        Boa noite, {userData?.nome?.split(' ')[0]}
-                      </h3>
-                      <p className="text-slate-600">{userData?.cargo}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Campo Matrícula (desabilitado) */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Digite sua matrícula para começar
-                  </label>
-                  <input
-                    type="text"
-                    value={userData?.matricula}
-                    disabled
-                    className="
-                      w-full text-center text-lg font-semibold
-                      bg-slate-100 border-2 border-slate-200
-                      rounded-xl px-6 py-3
-                      text-slate-900
-                      cursor-not-allowed
-                    "
-                  />
-                </div>
-
-                {/* Tipo de Registro */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-slate-700 mb-3">
-                    Selecione o tipo de registro
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setRecordType('entrada')}
-                      className={`
-                        px-6 py-4 rounded-xl font-semibold
-                        border-2 transition-all duration-200
-                        flex items-center justify-center gap-2
-                        ${recordType === 'entrada'
-                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                        }
-                      `}
-                    >
-                      <LogIn size={20} />
-                      Entrada
-                    </button>
-                    <button
-                      onClick={() => setRecordType('saida_intervalo')}
-                      className={`
-                        px-6 py-4 rounded-xl font-semibold
-                        border-2 transition-all duration-200
-                        flex items-center justify-center gap-2
-                        ${recordType === 'saida_intervalo'
-                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                        }
-                      `}
-                    >
-                      <Coffee size={20} />
-                      Saída Intervalo
-                    </button>
-                    <button
-                      onClick={() => setRecordType('retorno_intervalo')}
-                      className={`
-                        px-6 py-4 rounded-xl font-semibold
-                        border-2 transition-all duration-200
-                        flex items-center justify-center gap-2
-                        ${recordType === 'retorno_intervalo'
-                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                        }
-                      `}
-                    >
-                      <RotateCcw size={20} />
-                      Retorno Intervalo
-                    </button>
-                    <button
-                      onClick={() => setRecordType('saida_final')}
-                      className={`
-                        px-6 py-4 rounded-xl font-semibold
-                        border-2 transition-all duration-200
-                        flex items-center justify-center gap-2
-                        ${recordType === 'saida_final'
-                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                        }
-                      `}
-                    >
-                      <LogOut size={20} />
-                      Saída Final
-                    </button>
-                  </div>
-                </div>
-
-                {/* Webcam Preview */}
-                <div className="mb-6">
-                  <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-inner">
-                    {photo ? (
-                      <img src={photo} alt="Preview" className="w-full" />
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full"
-                      />
-                    )}
-                    <canvas ref={canvasRef} className="hidden" />
-                    
-                    {photo && (
-                      <button
-                        onClick={() => setPhoto(null)}
-                        className="
-                          absolute top-4 right-4
-                          bg-slate-800/90 hover:bg-slate-700
-                          text-white px-4 py-2 rounded-lg
-                          font-semibold
-                          transition-all duration-200
-                        "
-                      >
-                        ✕ Remover
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Botões de Ação */}
-                <div className="grid grid-cols-2 gap-4">
-                  {!photo ? (
+          {/* Botões de Ação */}
+          {userData && (
+            <>
+              {!photo ? (
+                <button
+                  onClick={capturePhoto}
+                  className="
+                    w-full bg-slate-800 hover:bg-slate-700
+                    text-white font-bold text-lg
+                    rounded-2xl px-8 py-5 mb-3
+                    shadow-lg hover:shadow-xl
+                    transform hover:scale-[1.02]
+                    transition-all duration-200
+                    flex items-center justify-center gap-3
+                  "
+                >
+                  <Camera size={24} />
+                  Capturar Foto
+                </button>
+              ) : (
+                <button
+                  onClick={registrarPonto}
+                  disabled={loading}
+                  className="
+                    w-full bg-emerald-600 hover:bg-emerald-700
+                    disabled:bg-slate-300 disabled:cursor-not-allowed
+                    text-white font-bold text-lg
+                    rounded-2xl px-8 py-5 mb-3
+                    shadow-lg hover:shadow-xl
+                    transform hover:scale-[1.02]
+                    transition-all duration-200
+                    flex items-center justify-center gap-3
+                  "
+                >
+                  {loading ? (
                     <>
-                      <button
-                        onClick={capturePhoto}
-                        className="
-                          col-span-2
-                          bg-slate-800 hover:bg-slate-700
-                          text-white font-bold text-lg
-                          rounded-2xl px-8 py-5
-                          shadow-lg hover:shadow-xl
-                          transform hover:scale-[1.02]
-                          transition-all duration-200
-                          flex items-center justify-center gap-3
-                        "
-                      >
-                        <Camera size={24} />
-                        Capturar Foto
-                      </button>
-                      <button
-                        onClick={resetForm}
-                        className="
-                          col-span-2
-                          bg-white hover:bg-slate-50
-                          text-slate-700 font-semibold
-                          border-2 border-slate-200
-                          rounded-2xl px-6 py-3
-                          transition-all duration-200
-                        "
-                      >
-                        Cancelar
-                      </button>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-5 h-5 border-3 border-white border-t-transparent rounded-full"
+                      />
+                      Registrando...
                     </>
                   ) : (
                     <>
-                      <button
-                        onClick={registrarPonto}
-                        disabled={loading}
-                        className="
-                          bg-emerald-600 hover:bg-emerald-700
-                          disabled:bg-slate-300 disabled:cursor-not-allowed
-                          text-white font-bold text-lg
-                          rounded-2xl px-8 py-5
-                          shadow-lg hover:shadow-xl
-                          transform hover:scale-[1.02]
-                          transition-all duration-200
-                          flex items-center justify-center gap-3
-                        "
-                      >
-                        {loading ? (
-                          <>
-                            <motion.div
-                              animate={{ rotate: 360 }}
-                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                              className="w-5 h-5 border-3 border-white border-t-transparent rounded-full"
-                            />
-                            Registrando...
-                          </>
-                        ) : (
-                          <>
-                            <Camera size={24} />
-                            Registrar Ponto
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={resetForm}
-                        className="
-                          bg-white hover:bg-slate-50
-                          text-slate-700 font-semibold
-                          border-2 border-slate-200
-                          rounded-2xl px-6 py-3
-                          transition-all duration-200
-                        "
-                      >
-                        Cancelar
-                      </button>
+                      <Camera size={24} />
+                      Registrar Ponto
                     </>
                   )}
-                </div>
+                </button>
+              )}
 
-                <div className="mt-6 pt-6 border-t border-slate-100 text-center">
-                  <a 
-                    href="/login"
-                    className="text-slate-600 hover:text-slate-900 font-medium transition-colors inline-flex items-center gap-2"
-                  >
-                    <Building2 size={18} />
-                    Acessar painel administrativo →
-                  </a>
-                </div>
-              </motion.div>
-            )}
-
-          </AnimatePresence>
-        </motion.div>
+              <button
+                onClick={resetForm}
+                className="
+                  w-full bg-white hover:bg-slate-50
+                  text-slate-700 font-semibold
+                  border-2 border-slate-200
+                  rounded-2xl px-6 py-3
+                  transition-all duration-200
+                "
+              >
+                Cancelar
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
