@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, X, UserPlus, Clock, User, Briefcase, Building2, Calendar, Mail, Lock, Shield } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, UserPlus, Clock, User, Briefcase, Building2, Mail, Lock, Shield } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -16,7 +16,6 @@ export default function Usuarios() {
   const [proximaMatricula, setProximaMatricula] = useState('');
   const [formData, setFormData] = useState({
     nome: '',
-    data_nascimento: '',
     cargo: '',
     departamento: '',
     isAdmin: false,
@@ -58,7 +57,6 @@ export default function Usuarios() {
       setEditando(usuario);
       setFormData({
         nome: usuario.nome,
-        data_nascimento: usuario.data_nascimento || '',
         cargo: usuario.cargo || '',
         departamento: usuario.departamento || '',
         isAdmin: usuario.role === 'admin',
@@ -73,7 +71,6 @@ export default function Usuarios() {
       buscarProximaMatricula();
       setFormData({
         nome: '',
-        data_nascimento: '',
         cargo: '',
         departamento: '',
         isAdmin: false,
@@ -93,7 +90,6 @@ export default function Usuarios() {
     try {
       const payload = {
         nome: formData.nome,
-        data_nascimento: formData.data_nascimento,
         cargo: formData.cargo,
         departamento: formData.departamento,
         role: formData.isAdmin ? 'admin' : 'employee',
@@ -312,21 +308,6 @@ export default function Usuarios() {
                     type="text"
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
-                    required
-                  />
-                </div>
-
-                {/* Data de Nascimento */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    <Calendar size={16} className="inline mr-1" />
-                    Data de Nascimento
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.data_nascimento}
-                    onChange={(e) => setFormData({ ...formData, data_nascimento: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
                     required
                   />
