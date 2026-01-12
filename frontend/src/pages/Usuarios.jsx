@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Plus, Edit2, Trash2, X, UserPlus, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Edit2, Trash2, X, UserPlus, Clock, User, Briefcase, Building2, Calendar, Mail, Lock, Shield } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -13,15 +13,15 @@ export default function Usuarios() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState(null);
+  const [proximaMatricula, setProximaMatricula] = useState('');
   const [formData, setFormData] = useState({
-    matricula: '',
-    cpf: '',
     nome: '',
-    email: '',
-    password: '',
+    data_nascimento: '',
     cargo: '',
     departamento: '',
-    status: 'ativo',
+    isAdmin: false,
+    email: '',
+    password: '',
     work_hours_start: '08:00',
     work_hours_end: '18:00',
     expected_daily_hours: 9
@@ -43,33 +43,42 @@ export default function Usuarios() {
     }
   };
 
+  const buscarProximaMatricula = async () => {
+    try {
+      const response = await api.get('/users/next-matricula');
+      setProximaMatricula(response.data.data);
+    } catch (err) {
+      console.error('Erro ao buscar matrícula:', err);
+      setProximaMatricula('000001');
+    }
+  };
+
   const abrirModal = (usuario = null) => {
     if (usuario) {
       setEditando(usuario);
       setFormData({
-        matricula: usuario.matricula,
-        cpf: usuario.cpf,
         nome: usuario.nome,
-        email: usuario.email,
-        password: '',
+        data_nascimento: usuario.data_nascimento || '',
         cargo: usuario.cargo || '',
         departamento: usuario.departamento || '',
-        status: usuario.status,
+        isAdmin: usuario.role === 'admin',
+        email: usuario.email || '',
+        password: '',
         work_hours_start: usuario.work_hours_start || '08:00',
         work_hours_end: usuario.work_hours_end || '18:00',
         expected_daily_hours: usuario.expected_daily_hours || 9
       });
     } else {
       setEditando(null);
+      buscarProximaMatricula();
       setFormData({
-        matricula: '',
-        cpf: '',
         nome: '',
-        email: '',
-        password: '',
+        data_nascimento: '',
         cargo: '',
         departamento: '',
-        status: 'ativo',
+        isAdmin: false,
+        email: '',
+        password: '',
         work_hours_start: '08:00',
         work_hours_end: '18:00',
         expected_daily_hours: 9
@@ -82,10 +91,34 @@ export default function Usuarios() {
     e.preventDefault();
     
     try {
+      const payload = {
+        nome: formData.nome,
+        data_nascimento: formData.data_nascimento,
+        cargo: formData.cargo,
+        departamento: formData.departamento,
+        role: formData.isAdmin ? 'admin' : 'employee',
+        work_hours_start: formData.work_hours_start,
+        work_hours_end: formData.work_hours_end,
+        expected_daily_hours: formData.expected_daily_hours
+      };
+
+      // Adiciona matrícula se for novo usuário
+      if (!editando) {
+        payload.matricula = proximaMatricula;
+      }
+
+      // Só envia email/senha se for admin
+      if (formData.isAdmin) {
+        payload.email = formData.email;
+        if (formData.password) {
+          payload.password = formData.password;
+        }
+      }
+
       if (editando) {
-        await api.put(`/users/${editando.id}`, formData);
+        await api.put(`/users/${editando.id}`, payload);
       } else {
-        await api.post('/users', formData);
+        await api.post('/users', payload);
       }
       
       setShowModal(false);
@@ -115,7 +148,7 @@ export default function Usuarios() {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => abrirModal()}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 flex items-center gap-2"
+          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold shadow-lg flex items-center gap-2 transition-all"
         >
           <UserPlus size={20} />
           Novo Funcionário
@@ -128,7 +161,7 @@ export default function Usuarios() {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
+              className="w-12 h-12 border-4 border-slate-800 border-t-transparent rounded-full"
             />
           </div>
         </Card>
@@ -166,12 +199,17 @@ export default function Usuarios() {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                        <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold text-lg">
                           {usuario.nome.charAt(0)}
                         </div>
                         <div>
                           <p className="font-semibold text-slate-900">{usuario.nome}</p>
-                          <p className="text-sm text-slate-500">{usuario.matricula} • {usuario.email}</p>
+                          <p className="text-sm text-slate-500">
+                            {usuario.matricula}
+                            {usuario.role === 'admin' && (
+                              <Badge variant="info" className="ml-2">Admin</Badge>
+                            )}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -195,10 +233,10 @@ export default function Usuarios() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => abrirModal(usuario)}
-                          className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+                          className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
                           title="Editar"
                         >
-                          <Edit2 size={18} className="text-slate-400 group-hover:text-blue-600" />
+                          <Edit2 size={18} className="text-slate-400 group-hover:text-slate-800" />
                         </button>
                         <button
                           onClick={() => desativarUsuario(usuario.id)}
@@ -218,138 +256,240 @@ export default function Usuarios() {
       )}
 
       {/* Modal */}
-      {showModal && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto"
-          onClick={() => setShowModal(false)}
-        >
+      <AnimatePresence>
+        {showModal && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl max-w-3xl w-full my-8"
-            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            onClick={() => setShowModal(false)}
           >
-            <div className="p-6 border-b border-slate-200">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-slate-900">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900">
                   {editando ? 'Editar Funcionário' : 'Novo Funcionário'}
                 </h2>
                 <button
                   onClick={() => setShowModal(false)}
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
-            </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Matrícula"
-                  value={formData.matricula}
-                  onChange={(e) => setFormData({...formData, matricula: e.target.value})}
-                  required
-                  disabled={!!editando}
-                />
-                <Input
-                  label="CPF"
-                  value={formData.cpf}
-                  onChange={(e) => setFormData({...formData, cpf: e.target.value})}
-                  required
-                  disabled={!!editando}
-                />
-              </div>
-
-              <Input
-                label="Nome Completo"
-                value={formData.nome}
-                onChange={(e) => setFormData({...formData, nome: e.target.value})}
-                required
-              />
-
-              <Input
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                required
-              />
-
-              <Input
-                label={editando ? "Senha (deixe vazio para não alterar)" : "Senha"}
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                required={!editando}
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Cargo"
-                  value={formData.cargo}
-                  onChange={(e) => setFormData({...formData, cargo: e.target.value})}
-                />
-                <Input
-                  label="Departamento"
-                  value={formData.departamento}
-                  onChange={(e) => setFormData({...formData, departamento: e.target.value})}
-                />
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold mb-3 mt-4 text-slate-900">Horário de Trabalho</h3>
-                <div className="grid grid-cols-3 gap-4">
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+                
+                {/* Matrícula (auto) - Só aparece ao criar novo */}
+                {!editando && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Entrada</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Matrícula (gerada automaticamente)
+                    </label>
+                    <div className="px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl">
+                      <p className="text-2xl font-bold text-slate-900 text-center tracking-wider">
+                        {proximaMatricula || 'Carregando...'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Nome Completo */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <User size={16} className="inline mr-1" />
+                    Nome Completo
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.nome}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
+                    required
+                  />
+                </div>
+
+                {/* Data de Nascimento */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <Calendar size={16} className="inline mr-1" />
+                    Data de Nascimento
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.data_nascimento}
+                    onChange={(e) => setFormData({ ...formData, data_nascimento: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
+                    required
+                  />
+                </div>
+
+                {/* Cargo e Departamento */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      <Briefcase size={16} className="inline mr-1" />
+                      Cargo
+                    </label>
                     <input
-                      type="time"
-                      value={formData.work_hours_start}
-                      onChange={(e) => setFormData({...formData, work_hours_start: e.target.value})}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      type="text"
+                      value={formData.cargo}
+                      onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
+                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
+                      required
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Saída</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      <Building2 size={16} className="inline mr-1" />
+                      Departamento
+                    </label>
                     <input
-                      type="time"
-                      value={formData.work_hours_end}
-                      onChange={(e) => setFormData({...formData, work_hours_end: e.target.value})}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Horas/Dia</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="1"
-                      max="12"
-                      value={formData.expected_daily_hours}
-                      onChange={(e) => setFormData({...formData, expected_daily_hours: parseFloat(e.target.value)})}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      type="text"
+                      value={formData.departamento}
+                      onChange={(e) => setFormData({ ...formData, departamento: e.target.value })}
+                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
+                      required
                     />
                   </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
-                  Horário padrão: 8h-18h (9h de trabalho, descontando 1h de intervalo)
-                </p>
-              </div>
 
-              <div className="flex gap-4 pt-4">
-                <Button type="submit" fullWidth>
-                  {editando ? 'Salvar Alterações' : 'Criar Funcionário'}
-                </Button>
-                <Button type="button" variant="secondary" fullWidth onClick={() => setShowModal(false)}>
-                  Cancelar
-                </Button>
-              </div>
-            </form>
+                {/* Checkbox Admin */}
+                <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isAdmin}
+                      onChange={(e) => setFormData({ ...formData, isAdmin: e.target.checked })}
+                      className="w-5 h-5 rounded border-slate-300 text-slate-800 focus:ring-slate-800"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 font-semibold text-slate-900">
+                        <Shield size={18} />
+                        Este usuário é administrador
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        Poderá acessar o painel administrativo
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Email e Senha (só se admin) */}
+                <AnimatePresence>
+                  {formData.isAdmin && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-4 pt-4 border-t border-slate-200"
+                    >
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                          <Mail size={16} className="inline mr-1" />
+                          Email (para login)
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
+                          required={formData.isAdmin}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                          <Lock size={16} className="inline mr-1" />
+                          {editando ? 'Senha (deixe vazio para não alterar)' : 'Senha'}
+                        </label>
+                        <input
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
+                          minLength={6}
+                          required={formData.isAdmin && !editando}
+                          placeholder="Mínimo 6 caracteres"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Horário de Trabalho */}
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                    <Clock size={18} />
+                    Horário de Trabalho
+                  </h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs text-slate-600 mb-1">Entrada</label>
+                      <input
+                        type="time"
+                        value={formData.work_hours_start}
+                        onChange={(e) => setFormData({...formData, work_hours_start: e.target.value})}
+                        className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-slate-800 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-600 mb-1">Saída</label>
+                      <input
+                        type="time"
+                        value={formData.work_hours_end}
+                        onChange={(e) => setFormData({...formData, work_hours_end: e.target.value})}
+                        className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-slate-800 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-600 mb-1">Horas/Dia</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="1"
+                        max="12"
+                        value={formData.expected_daily_hours}
+                        onChange={(e) => setFormData({...formData, expected_daily_hours: parseFloat(e.target.value)})}
+                        className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-slate-800 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Horário padrão: 8h-18h (9h de trabalho, descontando 1h de intervalo)
+                  </p>
+                </div>
+
+                {/* Botões */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg hover:shadow-xl"
+                  >
+                    {editando ? 'Salvar Alterações' : 'Criar Funcionário'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-6 bg-white hover:bg-slate-50 text-slate-700 font-semibold border-2 border-slate-200 py-3 rounded-xl transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

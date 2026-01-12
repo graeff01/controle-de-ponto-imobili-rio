@@ -1,265 +1,372 @@
-﻿const usersService = require('./users.service');
-const validators = require('../../utils/validators');
+﻿const db = require('../../config/database');
+const bcrypt = require('bcrypt');
 const logger = require('../../utils/logger');
 
 class UsersController {
 
-  async create(req, res, next) {
+  // ✅ NOVO: Buscar próxima matrícula
+  async getNextMatricula(req, res) {
     try {
-      // Validação
-      const { error } = validators.createUserSchema.validate(req.body);
-      if (error) {
-        return res.status(400).json({
-          error: 'Dados inválidos',
-          details: error.details.map(d => d.message)
-        });
+      const result = await db.query(`
+        SELECT matricula 
+        FROM users 
+        WHERE matricula ~ '^[0-9]+$'
+        ORDER BY CAST(matricula AS INTEGER) DESC 
+        LIMIT 1
+      `);
+
+      let nextMatricula;
+      if (result.rows.length === 0) {
+        nextMatricula = '000001';
+      } else {
+        const lastMatricula = parseInt(result.rows[0].matricula);
+        nextMatricula = String(lastMatricula + 1).padStart(6, '0');
       }
 
-      const user = await usersService.createUser(req.body, req.userId);
-
-      return res.status(201).json({
-        success: true,
-        data: user
-      });
-
+      res.json({ success: true, data: nextMatricula });
     } catch (error) {
-      next(error);
+      logger.error('Erro ao gerar próxima matrícula', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 
-  async getAll(req, res, next) {
+  // ✅ ATUALIZADO: Listar todos os usuários
+  async getAll(req, res) {
     try {
-      const filters = {
-        status: req.query.status,
-        departamento: req.query.departamento,
-        search: req.query.search
-      };
+      const result = await db.query(`
+        SELECT 
+          id, 
+          matricula, 
+          nome, 
+          email,
+          cargo, 
+          departamento, 
+          role,
+          status,
+          data_nascimento,
+          work_hours_start,
+          work_hours_end,
+          expected_daily_hours,
+          created_at
+        FROM users
+        WHERE status != 'deleted'
+        ORDER BY nome ASC
+      `);
 
-      const users = await usersService.getAllUsers(filters);
-
-      return res.json({
-        success: true,
-        data: users
-      });
-
+      res.json({ success: true, data: result.rows });
     } catch (error) {
-      next(error);
+      logger.error('Erro ao listar usuários', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 
-  async getById(req, res, next) {
-    try {
-      const { id } = req.params;
-
-      const user = await usersService.getUserById(id);
-
-      return res.json({
-        success: true,
-        data: user
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async getByMatricula(req, res, next) {
+  // ✅ ATUALIZADO: Buscar por matrícula
+  async getByMatricula(req, res) {
     try {
       const { matricula } = req.params;
 
-      const user = await usersService.getUserByMatricula(matricula);
+      const result = await db.query(`
+        SELECT 
+          id, 
+          matricula, 
+          nome, 
+          cargo, 
+          departamento, 
+          role,
+          data_nascimento
+        FROM users 
+        WHERE matricula = $1 AND status = 'ativo'
+      `, [matricula]);
 
-      return res.json({
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+      logger.error('Erro ao buscar usuário por matrícula', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // ✅ ATUALIZADO: Criar novo usuário
+  async create(req, res) {
+    try {
+      const {
+        matricula,
+        nome,
+        email,
+        password,
+        cargo,
+        departamento,
+        role,
+        data_nascimento,
+        work_hours_start,
+        work_hours_end,
+        expected_daily_hours
+      } = req.body;
+
+      // Validações
+      if (!matricula || !nome) {
+        return res.status(400).json({ error: 'Matrícula e nome são obrigatórios' });
+      }
+
+      // Validar que matrícula é numérica
+      if (!/^\d+$/.test(matricula)) {
+        return res.status(400).json({ error: 'Matrícula deve conter apenas números' });
+      }
+
+      // Se for admin, email e senha são obrigatórios
+      if (role === 'admin' && (!email || !password)) {
+        return res.status(400).json({ error: 'Email e senha são obrigatórios para administradores' });
+      }
+
+      // Verificar se matrícula já existe
+      const checkMatricula = await db.query(
+        'SELECT id FROM users WHERE matricula = $1',
+        [matricula]
+      );
+
+      if (checkMatricula.rows.length > 0) {
+        return res.status(400).json({ error: 'Matrícula já cadastrada' });
+      }
+
+      // Verificar se email já existe (se fornecido)
+      if (email) {
+        const checkEmail = await db.query(
+          'SELECT id FROM users WHERE email = $1',
+          [email]
+        );
+
+        if (checkEmail.rows.length > 0) {
+          return res.status(400).json({ error: 'Email já cadastrado' });
+        }
+      }
+
+      // Hash da senha (se fornecida)
+      let passwordHash = null;
+      if (password) {
+        passwordHash = await bcrypt.hash(password, 10);
+      }
+
+      // Inserir usuário
+      const result = await db.query(`
+        INSERT INTO users (
+          matricula,
+          nome,
+          email,
+          password_hash,
+          cargo,
+          departamento,
+          role,
+          data_nascimento,
+          work_hours_start,
+          work_hours_end,
+          expected_daily_hours,
+          status,
+          created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'ativo', NOW())
+        RETURNING id, matricula, nome, email, cargo, departamento, role
+      `, [
+        matricula,
+        nome,
+        email || null,
+        passwordHash,
+        cargo || null,
+        departamento || null,
+        role || 'employee',
+        data_nascimento || null,
+        work_hours_start || '08:00',
+        work_hours_end || '18:00',
+        expected_daily_hours || 9
+      ]);
+
+      logger.info('Usuário criado', { user_id: result.rows[0].id, matricula });
+
+      res.status(201).json({
         success: true,
-        data: user
+        data: result.rows[0]
       });
 
     } catch (error) {
-      next(error);
+      logger.error('Erro ao criar usuário', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 
-  // PROCURE a função update e SUBSTITUA por esta versão:
-
-async update(req, res, next) {
-  try {
-    const { id } = req.params;
-    const { 
-      nome, 
-      email, 
-      cargo, 
-      departamento, 
-      status,
-      work_hours_start,
-      work_hours_end,
-      expected_daily_hours
-    } = req.body;
-
-    const updates = [];
-    const values = [];
-    let paramCount = 1;
-
-    if (nome !== undefined) {
-      updates.push(`nome = $${paramCount}`);
-      values.push(nome);
-      paramCount++;
-    }
-
-    if (email !== undefined) {
-      updates.push(`email = $${paramCount}`);
-      values.push(email);
-      paramCount++;
-    }
-
-    if (cargo !== undefined) {
-      updates.push(`cargo = $${paramCount}`);
-      values.push(cargo);
-      paramCount++;
-    }
-
-    if (departamento !== undefined) {
-      updates.push(`departamento = $${paramCount}`);
-      values.push(departamento);
-      paramCount++;
-    }
-
-    if (status !== undefined) {
-      updates.push(`status = $${paramCount}`);
-      values.push(status);
-      paramCount++;
-    }
-
-    if (work_hours_start !== undefined) {
-      updates.push(`work_hours_start = $${paramCount}`);
-      values.push(work_hours_start);
-      paramCount++;
-    }
-
-    if (work_hours_end !== undefined) {
-      updates.push(`work_hours_end = $${paramCount}`);
-      values.push(work_hours_end);
-      paramCount++;
-    }
-
-    if (expected_daily_hours !== undefined) {
-      updates.push(`expected_daily_hours = $${paramCount}`);
-      values.push(expected_daily_hours);
-      paramCount++;
-    }
-
-    if (updates.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Nenhum campo para atualizar'
-      });
-    }
-
-    updates.push(`updated_at = NOW()`);
-    values.push(id);
-
-    const query = `
-      UPDATE users 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramCount}
-      RETURNING id, matricula, nome, email, cargo, departamento, status, 
-                work_hours_start, work_hours_end, expected_daily_hours
-    `;
-
-    const result = await db.query(query, values);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Usuário não encontrado'
-      });
-    }
-
-    logger.success('Usuário atualizado', { user_id: id });
-
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-
-  } catch (error) {
-    next(error);
-  }
-}
-
-  async assignRole(req, res, next) {
+  // ✅ ATUALIZADO: Atualizar usuário
+  async update(req, res) {
     try {
       const { id } = req.params;
-      const { roleName } = req.body;
+      const {
+        nome,
+        email,
+        password,
+        cargo,
+        departamento,
+        role,
+        data_nascimento,
+        work_hours_start,
+        work_hours_end,
+        expected_daily_hours
+      } = req.body;
 
-      if (!roleName) {
-        return res.status(400).json({
-          error: 'Nome da role é obrigatório'
+      // Verificar se usuário existe
+      const userCheck = await db.query(
+        'SELECT id, email FROM users WHERE id = $1',
+        [id]
+      );
+
+      if (userCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+
+      // Se está mudando para admin e não tem email, validar
+      if (role === 'admin' && !email && !userCheck.rows[0].email) {
+        return res.status(400).json({ 
+          error: 'Email é obrigatório para administradores' 
         });
       }
 
-      await usersService.assignRole(id, roleName, req.userId);
+      // Verificar se email já está em uso (se mudou)
+      if (email && email !== userCheck.rows[0].email) {
+        const emailCheck = await db.query(
+          'SELECT id FROM users WHERE email = $1 AND id != $2',
+          [email, id]
+        );
 
-      return res.json({
-        success: true,
-        message: 'Role atribuída com sucesso'
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async removeRole(req, res, next) {
-    try {
-      const { id } = req.params;
-      const { roleName } = req.body;
-
-      if (!roleName) {
-        return res.status(400).json({
-          error: 'Nome da role é obrigatório'
-        });
+        if (emailCheck.rows.length > 0) {
+          return res.status(400).json({ error: 'Email já está em uso' });
+        }
       }
 
-      await usersService.removeRole(id, roleName, req.userId);
+      // Construir query de atualização dinamicamente
+      const updates = [];
+      const values = [];
+      let paramCount = 1;
 
-      return res.json({
+      if (nome) {
+        updates.push(`nome = $${paramCount}`);
+        values.push(nome);
+        paramCount++;
+      }
+
+      if (email !== undefined) {
+        updates.push(`email = $${paramCount}`);
+        values.push(email || null);
+        paramCount++;
+      }
+
+      if (password) {
+        const passwordHash = await bcrypt.hash(password, 10);
+        updates.push(`password_hash = $${paramCount}`);
+        values.push(passwordHash);
+        paramCount++;
+      }
+
+      if (cargo !== undefined) {
+        updates.push(`cargo = $${paramCount}`);
+        values.push(cargo);
+        paramCount++;
+      }
+
+      if (departamento !== undefined) {
+        updates.push(`departamento = $${paramCount}`);
+        values.push(departamento);
+        paramCount++;
+      }
+
+      if (role) {
+        updates.push(`role = $${paramCount}`);
+        values.push(role);
+        paramCount++;
+      }
+
+      if (data_nascimento !== undefined) {
+        updates.push(`data_nascimento = $${paramCount}`);
+        values.push(data_nascimento || null);
+        paramCount++;
+      }
+
+      if (work_hours_start) {
+        updates.push(`work_hours_start = $${paramCount}`);
+        values.push(work_hours_start);
+        paramCount++;
+      }
+
+      if (work_hours_end) {
+        updates.push(`work_hours_end = $${paramCount}`);
+        values.push(work_hours_end);
+        paramCount++;
+      }
+
+      if (expected_daily_hours !== undefined) {
+        updates.push(`expected_daily_hours = $${paramCount}`);
+        values.push(expected_daily_hours);
+        paramCount++;
+      }
+
+      updates.push(`updated_at = NOW()`);
+
+      values.push(id);
+
+      const query = `
+        UPDATE users 
+        SET ${updates.join(', ')}
+        WHERE id = $${paramCount}
+        RETURNING id, matricula, nome, email, cargo, departamento, role
+      `;
+
+      const result = await db.query(query, values);
+
+      logger.info('Usuário atualizado', { user_id: id });
+
+      res.json({
         success: true,
-        message: 'Role removida com sucesso'
+        data: result.rows[0]
       });
 
     } catch (error) {
-      next(error);
+      logger.error('Erro ao atualizar usuário', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 
-  async deactivate(req, res, next) {
+  // ✅ Desativar usuário
+  async deactivate(req, res) {
     try {
       const { id } = req.params;
-      const { reason } = req.body;
 
-      await usersService.deactivateUser(id, req.userId, reason);
+      await db.query(
+        'UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['inativo', id]
+      );
 
-      return res.json({
-        success: true,
-        message: 'Usuário desativado com sucesso'
-      });
+      logger.info('Usuário desativado', { user_id: id });
 
+      res.json({ success: true, message: 'Usuário desativado com sucesso' });
     } catch (error) {
-      next(error);
+      logger.error('Erro ao desativar usuário', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 
-  async getStatistics(req, res, next) {
+  // ✅ Reativar usuário
+  async reactivate(req, res) {
     try {
-      const stats = await usersService.getStatistics();
+      const { id } = req.params;
 
-      return res.json({
-        success: true,
-        data: stats
-      });
+      await db.query(
+        'UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['ativo', id]
+      );
 
+      logger.info('Usuário reativado', { user_id: id });
+
+      res.json({ success: true, message: 'Usuário reativado com sucesso' });
     } catch (error) {
-      next(error);
+      logger.error('Erro ao reativar usuário', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 }

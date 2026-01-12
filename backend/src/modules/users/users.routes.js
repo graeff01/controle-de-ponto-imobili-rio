@@ -1,18 +1,27 @@
 ﻿const express = require('express');
 const router = express.Router();
 const usersController = require('./users.controller');
+const authMiddleware = require('../../middleware/auth');
 
-// ⚠️ ROTA PÚBLICA (para o tablet buscar usuário)
+// ✅ Rota para buscar próxima matrícula (ANTES das outras rotas)
+router.get('/next-matricula', authMiddleware, usersController.getNextMatricula);
+
+// ✅ Buscar por matrícula (específica)
 router.get('/matricula/:matricula', usersController.getByMatricula);
 
-// Rotas (temporariamente SEM autenticação)
-router.get('/', usersController.getAll);
-router.get('/:id', usersController.getById);
-router.post('/', usersController.create);
-router.put('/:id', usersController.update);
-router.post('/:id/deactivate', usersController.deactivate);
+// ✅ Listar todos
+router.get('/', authMiddleware, usersController.getAll);
 
-// DELETE comentado porque o método não existe no controller
-// router.delete('/:id', usersController.delete);
+// ✅ Criar novo
+router.post('/', authMiddleware, usersController.create);
+
+// ✅ Atualizar
+router.put('/:id', authMiddleware, usersController.update);
+
+// ✅ Desativar
+router.post('/:id/deactivate', authMiddleware, usersController.deactivate);
+
+// ✅ Reativar
+router.post('/:id/reactivate', authMiddleware, usersController.reactivate);
 
 module.exports = router;
