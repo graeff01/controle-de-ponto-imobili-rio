@@ -7,7 +7,7 @@ class AdjustmentsService {
 
   async createAdjustment(data, adjustedBy, req) {
     try {
-      const { time_record_id, adjusted_timestamp, adjusted_type, reason } = data;
+      const { time_record_id, adjusted_timestamp, adjusted_type, reason, autoApprove = false } = data;
 
       // Busca registro original
       const recordResult = await db.query(`
@@ -19,13 +19,16 @@ class AdjustmentsService {
       }
 
       const originalRecord = recordResult.rows[0];
+      const status = autoApprove ? 'approved' : 'pending';
+      const approvedBy = autoApprove ? adjustedBy : null;
+      const approvedAt = autoApprove ? new Date() : null;
 
       // Cria ajuste
       const result = await db.query(`
         INSERT INTO time_adjustments 
         (time_record_id, user_id, original_timestamp, original_type, 
-         adjusted_timestamp, adjusted_type, reason, adjusted_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         adjusted_timestamp, adjusted_type, reason, adjusted_by, status, approved_by, approved_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
       `, [
         time_record_id,
@@ -35,44 +38,37 @@ class AdjustmentsService {
         adjusted_timestamp,
         adjusted_type,
         reason,
-        adjustedBy
+        adjustedBy,
+        status,
+        approvedBy,
+        approvedAt
       ]);
 
       const adjustment = result.rows[0];
 
-      // Atualiza o registro original
-      await db.query(`
-        UPDATE time_records 
-        SET timestamp = $1, record_type = $2, updated_at = NOW()
-        WHERE id = $3
-      `, [adjusted_timestamp, adjusted_type, time_record_id]);
+      // Se aprovado automaticamente, aplica a mudança
+      if (status === 'approved') {
+        await this.applyAdjustmentToRecord(adjustment);
+      } else {
+        // Notifica administradores sobre novo ajuste pendente
+        // TODO: Implementar notificação para grupo de admins
+      }
 
       // Log de auditoria
       await auditService.log(
-        'time_record_adjusted',
+        'adjustment_created',
         adjustedBy,
         originalRecord.user_id,
-        'Registro de ponto ajustado',
-        { 
-          recordId: time_record_id,
-          original: { timestamp: originalRecord.timestamp, type: originalRecord.record_type },
-          adjusted: { timestamp: adjusted_timestamp, type: adjusted_type },
-          reason
+        `Solicitação de ajuste de ponto (${status})`,
+        {
+          adjustmentId: adjustment.id,
+          reason,
+          status
         },
         req
       );
 
-      // Cria alerta para o funcionário
-      await notificationService.criarAlerta(
-        originalRecord.user_id,
-        'ajuste_ponto',
-        'info',
-        'Seu ponto foi ajustado',
-        `Registro ajustado por gestor. Motivo: `,
-        { adjustmentId: adjustment.id }
-      );
-
-      logger.success('Ajuste criado com sucesso', { adjustmentId: adjustment.id });
+      logger.success('Solicitação de ajuste criada', { adjustmentId: adjustment.id, status });
 
       return adjustment;
 
@@ -82,15 +78,115 @@ class AdjustmentsService {
     }
   }
 
+  // ✅ NOVO: Aprovar ajuste
+  async approveAdjustment(adjustmentId, approvedBy, req) {
+    try {
+      const result = await db.query(`
+        UPDATE time_adjustments 
+        SET status = 'approved', approved_by = $1, approved_at = NOW()
+        WHERE id = $2 AND status = 'pending'
+        RETURNING *
+      `, [approvedBy, adjustmentId]);
+
+      if (result.rows.length === 0) {
+        throw new Error('Ajuste não encontrado ou já processado');
+      }
+
+      const adjustment = result.rows[0];
+
+      // Aplica a mudança no registro oficial
+      await this.applyAdjustmentToRecord(adjustment);
+
+      // Log e Notificação
+      await auditService.log(
+        'adjustment_approved',
+        approvedBy,
+        adjustment.user_id,
+        'Ajuste de ponto aprovado',
+        { adjustmentId },
+        req
+      );
+
+      await notificationService.criarAlerta(
+        adjustment.user_id,
+        'ajuste_aprovado',
+        'success',
+        'Seu ajuste de ponto foi APROVADO',
+        `O ajuste solicitado foi aprovado e aplicado.`,
+        { adjustmentId }
+      );
+
+      return adjustment;
+
+    } catch (error) {
+      logger.error('Erro ao aprovar ajuste', { error: error.message });
+      throw error;
+    }
+  }
+
+  // ✅ NOVO: Rejeitar ajuste
+  async rejectAdjustment(adjustmentId, rejectedBy, reason, req) {
+    try {
+      const result = await db.query(`
+        UPDATE time_adjustments 
+        SET status = 'rejected', approved_by = $1, rejection_reason = $2, approved_at = NOW()
+        WHERE id = $3 AND status = 'pending'
+        RETURNING *
+      `, [rejectedBy, reason, adjustmentId]);
+
+      if (result.rows.length === 0) {
+        throw new Error('Ajuste não encontrado ou já processado');
+      }
+
+      const adjustment = result.rows[0];
+
+      // Log e Notificação
+      await auditService.log(
+        'adjustment_rejected',
+        rejectedBy,
+        adjustment.user_id,
+        'Ajuste de ponto rejeitado',
+        { adjustmentId, reason },
+        req
+      );
+
+      await notificationService.criarAlerta(
+        adjustment.user_id,
+        'ajuste_rejeitado',
+        'error',
+        'Seu ajuste de ponto foi REJEITADO',
+        `Motivo: ${reason}`,
+        { adjustmentId }
+      );
+
+      return adjustment;
+
+    } catch (error) {
+      logger.error('Erro ao rejeitar ajuste', { error: error.message });
+      throw error;
+    }
+  }
+
+  // Auxiliar para aplicar mudança
+  async applyAdjustmentToRecord(adjustment) {
+    await db.query(`
+      UPDATE time_records 
+      SET timestamp = $1, record_type = $2, updated_at = NOW()
+      WHERE id = $3
+    `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
+  }
+
   async getAdjustmentsByUser(userId) {
     try {
       const result = await db.query(`
         SELECT ta.*, 
                u.nome as adjusted_by_name,
+               app.nome as approved_by_name, -- Novo
                tr.timestamp as current_timestamp,
                tr.record_type as current_type
         FROM time_adjustments ta
         JOIN users u ON ta.adjusted_by = u.id
+        LEFT JOIN users app ON ta.approved_by = app.id
         JOIN time_records tr ON ta.time_record_id = tr.id
         WHERE ta.user_id = $1
         ORDER BY ta.adjusted_at DESC
@@ -110,10 +206,12 @@ class AdjustmentsService {
         SELECT ta.*, 
                u.nome as user_name,
                u.matricula,
-               adj.nome as adjusted_by_name
+               adj.nome as adjusted_by_name,
+               app.nome as approved_by_name
         FROM time_adjustments ta
         JOIN users u ON ta.user_id = u.id
         JOIN users adj ON ta.adjusted_by = adj.id
+        LEFT JOIN users app ON ta.approved_by = app.id
         WHERE 1=1
       `;
 
@@ -121,13 +219,19 @@ class AdjustmentsService {
       let paramIndex = 1;
 
       if (filters.userId) {
-        query += ` AND ta.user_id = $`;
+        query += ` AND ta.user_id = $${paramIndex}`;
         params.push(filters.userId);
         paramIndex++;
       }
 
+      if (filters.status) {
+        query += ` AND ta.status = $${paramIndex}`;
+        params.push(filters.status);
+        paramIndex++;
+      }
+
       if (filters.startDate && filters.endDate) {
-        query += ` AND DATE(ta.adjusted_at) BETWEEN $ AND $`;
+        query += ` AND DATE(ta.adjusted_at) BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
         params.push(filters.startDate, filters.endDate);
         paramIndex += 2;
       }

@@ -4,7 +4,7 @@ const dateHelper = require('../../utils/dateHelper');
 
 class ReportsService {
 
-async getDashboardStats() {
+  async getDashboardStats() {
     try {
       // Stats de funcionários CLT (ponto completo)
       const employeeStats = await db.query(`
@@ -197,6 +197,63 @@ async getDashboardStats() {
 
     } catch (error) {
       logger.error('Erro ao buscar log de atividades', { error: error.message });
+      throw error;
+    }
+  }
+
+
+  // --- ANALYTICS RH ---
+
+  async getAbsenteismoStats() {
+    try {
+      // Taxa de absenteísmo global dos últimos 30 dias
+      const result = await db.query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE dj.entrada IS NULL AND h.id IS NULL AND extract(dow from dj.date) not in (0,6)) as faltas,
+          COUNT(*) FILTER (WHERE extract(dow from dj.date) not in (0,6)) as dias_uteis_totais
+        FROM daily_journey dj
+        LEFT JOIN holidays h ON dj.date = h.date
+        WHERE dj.date >= CURRENT_DATE - INTERVAL '30 days'
+      `);
+
+      const faltas = parseInt(result.rows[0].faltas);
+      const total = parseInt(result.rows[0].dias_uteis_totais);
+      const taxa = total > 0 ? ((faltas / total) * 100).toFixed(2) : 0;
+
+      return {
+        taxa_absenteismo: taxa,
+        total_faltas: faltas,
+        total_dias_analisados: total,
+        periodo: 'Últimos 30 dias'
+      };
+    } catch (error) {
+      logger.error('Erro stats absenteismo', error);
+      throw error;
+    }
+  }
+
+  async getOvertimeStats() {
+    try {
+      // Top 5 funcionários com mais horas extras no mês atual
+      const result = await db.query(`
+        SELECT 
+          u.nome,
+          SUM(hb.balance) as saldo_minutos
+        FROM hours_bank hb
+        JOIN users u ON hb.user_id = u.id
+        WHERE hb.date >= date_trunc('month', CURRENT_DATE)
+        AND hb.balance > 0
+        GROUP BY u.id, u.nome
+        ORDER BY saldo_minutos DESC
+        LIMIT 5
+      `);
+
+      return result.rows.map(r => ({
+        nome: r.nome,
+        horas_extras: (r.saldo_minutos / 60).toFixed(2)
+      }));
+    } catch (error) {
+      logger.error('Erro stats overtime', error);
       throw error;
     }
   }

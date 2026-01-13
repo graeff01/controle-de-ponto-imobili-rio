@@ -52,7 +52,8 @@ class AdjustmentsController {
       const filters = {
         userId: req.query.userId,
         startDate: req.query.startDate,
-        endDate: req.query.endDate
+        endDate: req.query.endDate,
+        status: req.query.status // Novo filtro
       };
 
       const adjustments = await adjustmentsService.getAllAdjustments(filters);
@@ -60,6 +61,47 @@ class AdjustmentsController {
       return res.json({
         success: true,
         data: adjustments
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ✅ NOVO: Aprovar Ajuste
+  async approve(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const adjustment = await adjustmentsService.approveAdjustment(id, req.userId, req);
+
+      return res.json({
+        success: true,
+        message: 'Ajuste aprovado com sucesso',
+        data: adjustment
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ✅ NOVO: Rejeitar Ajuste
+  async reject(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({ error: 'Motivo da rejeição é obrigatório' });
+      }
+
+      const adjustment = await adjustmentsService.rejectAdjustment(id, req.userId, reason, req);
+
+      return res.json({
+        success: true,
+        message: 'Ajuste rejeitado',
+        data: adjustment
       });
 
     } catch (error) {

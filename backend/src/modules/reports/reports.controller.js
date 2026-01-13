@@ -364,6 +364,39 @@ class ReportsController {
   async getActivity(req, res) {
     res.json({ success: true, data: [], message: 'Em desenvolvimento' });
   }
+  // --- ANALYTICS RH (Fase 6) ---
+
+  async getAbsenteismo(req, res, next) {
+    try {
+      const result = await db.query(`
+        SELECT 
+          to_char(date, 'YYYY-MM') as mes,
+          COUNT(*) filter (where status_dia = 'Ausente') as faltas,
+          COUNT(*) as total_dias_uteis
+        FROM daily_journey dj
+        JOIN monthly_closings mc ON to_char(dj.date, 'YYYY-MM') = mc.month_year
+        GROUP BY 1
+        ORDER BY 1 DESC
+        LIMIT 6
+      `);
+      // Nota: Essa query é simplificada. Idealmente precisa de uma tabela de dias úteis esperados.
+      // Vou usar uma abordagem mais dinâmica baseada nos daily_journey gerados.
+
+      const stats = await reportsService.getAbsenteismoStats();
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getOvertimeStats(req, res, next) {
+    try {
+      const stats = await reportsService.getOvertimeStats();
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new ReportsController();

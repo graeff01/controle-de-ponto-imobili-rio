@@ -11,6 +11,8 @@ import RelatorioMensal from './pages/RelatorioMensal';
 import Justificativas from './pages/Justificativas';
 import BancoHoras from './pages/BancoHoras';
 import Auditoria from './pages/Auditoria';
+import Feriados from './pages/Feriados'; // ✅ Novo
+import Aprovacoes from './pages/Aprovacoes'; // ✅ Corrigido (sem acento)
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
@@ -36,10 +38,10 @@ function App() {
         <Routes>
           {/* Rota pública - Tablet de registro */}
           <Route path="/" element={<PontoTablet />} />
-          
+
           {/* Login do gestor */}
           <Route path="/login" element={<Login />} />
-          
+
           {/* Rotas protegidas do gestor */}
           <Route
             path="/dashboard"
@@ -113,8 +115,24 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/feriados"
+            element={
+              <ProtectedRoute>
+                <Feriados />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/aprovacoes"
+            element={
+              <ProtectedRoute>
+                <Aprovacoes />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-<Route path="/reset-password/:token" element={<ResetPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

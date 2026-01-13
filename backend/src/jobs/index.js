@@ -1,5 +1,6 @@
 ﻿const cron = require('node-cron');
 const { checkLateArrivals, checkMissingExits } = require('./checkLateArrivals');
+const dailyClosing = require('./dailyClosing'); // ✅ Novo job Fase 4
 const logger = require('../utils/logger');
 
 function startAllJobs() {
@@ -15,6 +16,12 @@ function startAllJobs() {
   cron.schedule('30,0 18-19 * * 1-5', async () => {
     logger.info('Executando verificação de saídas...');
     await checkMissingExits();
+  });
+
+  // Fechamento Diário do Banco de Horas (23:55)
+  cron.schedule('55 23 * * *', async () => {
+    logger.info('Executando fechamento diário...');
+    await dailyClosing();
   });
 
   logger.success('✅ Jobs agendados iniciados');

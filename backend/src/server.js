@@ -31,8 +31,29 @@ const app = express();
 app.use(helmet());
 
 // CORS
+// CORS
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174', // Frontend alternativo
+  'http://127.0.0.1:5173',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Permitir requests sem origin (como mobile apps ou curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      // Opcional: Permitir qualquer localhost em desenvolvimento
+      if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
+        return callback(null, true);
+      }
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
@@ -74,6 +95,8 @@ app.use('/api/justifications', require('./modules/justifications/justifications.
 app.use('/api/hours-bank', require('./modules/hours-bank/hours-bank.routes'));
 app.use('/api/audit', require('./modules/audit/audit.routes'));
 app.use('/api/duty-shifts', require('./modules/duty-shifts/dutyShifts.routes'));
+app.use('/api/holidays', require('./modules/holidays/holidays.routes'));
+app.use('/api/time-mirrors', require('./modules/time-mirrors/timeMirrors.routes')); // ✅ Nova rota Fase 6
 
 // ============================================
 // ROTA 404

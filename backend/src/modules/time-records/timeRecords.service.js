@@ -37,11 +37,23 @@ class TimeRecordsService {
       const result = await db.query(`
         INSERT INTO time_records 
         (user_id, record_type, timestamp, photo_data, photo_captured_at, 
-         ip_address, user_agent, device_info, is_manual, registered_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $1)
+         ip_address, user_agent, device_info, is_manual, registered_by,
+         latitude, longitude, location_accuracy)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $1, $9, $10, $11)
         RETURNING *
-      `, [userId, recordType, timestamp, photoData, photoCapturedAt, 
-           ipAddress, userAgent, JSON.stringify(deviceInfo)]);
+      `, [
+        userId,
+        recordType,
+        timestamp,
+        photoData,
+        photoCapturedAt,
+        ipAddress,
+        userAgent,
+        JSON.stringify(deviceInfo),
+        req.body.latitude || null,   // ✅ Novo
+        req.body.longitude || null,  // ✅ Novo
+        req.body.accuracy || null    // ✅ Novo
+      ]);
 
       const record = result.rows[0];
 
@@ -55,10 +67,10 @@ class TimeRecordsService {
         req
       );
 
-      logger.success('Registro de ponto criado', { 
-        userId, 
-        recordType, 
-        timestamp: dateHelper.formatDateTimeBR(timestamp) 
+      logger.success('Registro de ponto criado', {
+        userId,
+        recordType,
+        timestamp: dateHelper.formatDateTimeBR(timestamp)
       });
 
       // Remove foto do retorno (muito grande para JSON)
@@ -176,9 +188,9 @@ class TimeRecordsService {
     }
   }
 
-async getRecordsByDate(date) {
-  try {
-    const result = await db.query(`
+  async getRecordsByDate(date) {
+    try {
+      const result = await db.query(`
       SELECT 
         tr.id,
         tr.user_id,
@@ -198,30 +210,30 @@ async getRecordsByDate(date) {
       ORDER BY tr.timestamp ASC
     `, [date]);
 
-    // ✅ CONVERTER BUFFER PARA STRING BASE64
-    const rows = result.rows.map(row => {
-      if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
-        return {
-          ...row,
-          photo_data: row.photo_data.toString('utf-8')
-        };
-      }
-      return row;
-    });
+      // ✅ CONVERTER BUFFER PARA STRING BASE64
+      const rows = result.rows.map(row => {
+        if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
+          return {
+            ...row,
+            photo_data: row.photo_data.toString('utf-8')
+          };
+        }
+        return row;
+      });
 
-    return rows;
+      return rows;
 
-  } catch (error) {
-    logger.error('Erro ao buscar registros por data', { error: error.message });
-    throw error;
+    } catch (error) {
+      logger.error('Erro ao buscar registros por data', { error: error.message });
+      throw error;
+    }
   }
-}
 
   async getTodayRecords() {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    const result = await db.query(`
+    try {
+      const today = new Date().toISOString().split('T')[0];
+
+      const result = await db.query(`
       SELECT 
         tr.id,
         tr.user_id,
@@ -241,26 +253,26 @@ async getRecordsByDate(date) {
       ORDER BY tr.timestamp ASC
     `, [today]);
 
-    // ✅ CONVERTER BUFFER PARA STRING BASE64
-    const rows = result.rows.map(row => {
-      if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
-        return {
-          ...row,
-          photo_data: row.photo_data.toString('utf-8')
-        };
-      }
-      return row;
-    });
+      // ✅ CONVERTER BUFFER PARA STRING BASE64
+      const rows = result.rows.map(row => {
+        if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
+          return {
+            ...row,
+            photo_data: row.photo_data.toString('utf-8')
+          };
+        }
+        return row;
+      });
 
-    logger.info('Registros de hoje carregados', { count: rows.length });
-    
-    return rows;
+      logger.info('Registros de hoje carregados', { count: rows.length });
 
-  } catch (error) {
-    logger.error('Erro ao buscar registros de hoje', { error: error.message });
-    throw error;
+      return rows;
+
+    } catch (error) {
+      logger.error('Erro ao buscar registros de hoje', { error: error.message });
+      throw error;
+    }
   }
-}
 
   async getDailyJourney(userId, date) {
     try {
@@ -360,7 +372,7 @@ async getRecordsByDate(date) {
       // Verifica intervalo irregular
       if (journey.saida_intervalo && journey.retorno_intervalo) {
         const intervaloMinutos = dateHelper.calculateHoursDiff(
-          journey.saida_intervalo, 
+          journey.saida_intervalo,
           journey.retorno_intervalo
         ) * 60;
 

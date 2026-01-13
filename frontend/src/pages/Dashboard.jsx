@@ -19,6 +19,7 @@ import Layout from '../components/layout/Layout';
 import StatCard from '../components/ui/StatCard';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
+import { useAuth } from '../context/AuthContext'; // ✅ Novo
 import api from '../services/api';
 import {
   AreaChart,
@@ -37,14 +38,16 @@ import {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth(); // ✅ Novo
   const [stats, setStats] = useState(null);
   const [graficoSemanal, setGraficoSemanal] = useState([]);
   const [atividades, setAtividades] = useState([]);
+  const [analytics, setAnalytics] = useState(null); // ✅ Novo
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     carregarDados();
-    
+
     // Atualizar a cada 30 segundos
     const interval = setInterval(carregarDados, 30000);
     return () => clearInterval(interval);
@@ -62,18 +65,34 @@ export default function Dashboard() {
         return;
       }
 
-      
+
       setStats({
         presentes: data.presentes,
         ausencias: data.ausencias,
         sem_saida: data.sem_saida,
         alertas: data.alertas
       });
-      
+
       setGraficoSemanal(Array.isArray(data.grafico_semanal) ? data.grafico_semanal : []);
       setAtividades(Array.isArray(data.atividades_recentes) ? data.atividades_recentes : []);
 
-      
+      // ✅ Carregar Analytics RH se permitido
+      if (user?.role === 'admin' || user?.role === 'gestor') {
+        try {
+          const [absenteismoRes, overtimeRes] = await Promise.all([
+            api.get('/reports/stats/absenteismo'),
+            api.get('/reports/stats/overtime')
+          ]);
+          setAnalytics({
+            absenteismo: absenteismoRes.data.data,
+            overtime: overtimeRes.data.data
+          });
+        } catch (e) {
+          console.error('Erro loading analytics', e);
+        }
+      }
+
+
     } catch (err) {
       console.error('Erro ao carregar dashboard:', err);
     } finally {
@@ -156,8 +175,8 @@ export default function Dashboard() {
   }
 
   return (
-    <Layout 
-      title="Dashboard" 
+    <Layout
+      title="Dashboard"
       subtitle={`Bem-vindo de volta! Aqui está o resumo de hoje.`}
     >
       {/* Stats Cards */}
@@ -206,25 +225,25 @@ export default function Dashboard() {
             </div>
             <Badge variant="info">Atualizado agora</Badge>
           </div>
-          
+
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={graficoSemanal}>
               <defs>
                 <linearGradient id="colorPresentes" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="colorAusentes" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="dia" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'white', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
                   border: '1px solid #e2e8f0',
                   borderRadius: '12px',
                   boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
@@ -346,7 +365,7 @@ export default function Dashboard() {
               <p className="text-sm text-slate-500">Últimas movimentações do sistema</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => navigate('/registros')}
             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
@@ -357,7 +376,7 @@ export default function Dashboard() {
         <div className="space-y-3">
           {atividades?.length > 0 ? (
             atividades.map((atividade, idx) => (
-              <motion.div 
+              <motion.div
                 key={idx}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -390,6 +409,47 @@ export default function Dashboard() {
           )}
         </div>
       </Card>
+
+      {/* Analytics RH (Visível apenas para Gestão) */}
+      {analytics && (
+        <div className="mt-8">
+          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <Shield size={24} className="text-purple-600" />
+            Analytics de RH
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {/* Absenteísmo */}
+            <Card className="p-6 border-l-4 border-l-red-500">
+              <h4 className="font-semibold text-slate-700 mb-2">Taxa de Absenteísmo (30 dias)</h4>
+              <div className="flex items-end gap-2 mb-2">
+                <span className="text-4xl font-bold text-slate-900">{analytics.absenteismo?.taxa_absenteismo || 0}%</span>
+                <span className="text-sm text-slate-500 mb-1">do total de dias úteis</span>
+              </div>
+              <p className="text-sm text-slate-600">
+                Total de faltas injustificadas: <strong>{analytics.absenteismo?.total_faltas || 0}</strong>
+              </p>
+            </Card>
+
+            {/* Top Horas Extras */}
+            <Card className="p-6 border-l-4 border-l-amber-500">
+              <h4 className="font-semibold text-slate-700 mb-4">Top Horas Extras (Mês Atual)</h4>
+              <div className="space-y-3">
+                {analytics.overtime?.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center border-b border-slate-100 last:border-0 pb-2 last:pb-0">
+                    <span className="text-sm font-medium text-slate-800">{item.nome}</span>
+                    <Badge variant="warning">+{item.horas_extras}h</Badge>
+                  </div>
+                ))}
+                {analytics.overtime?.length === 0 && (
+                  <p className="text-sm text-slate-400 italic">Sem horas extras registradas.</p>
+                )}
+              </div>
+            </Card>
+
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

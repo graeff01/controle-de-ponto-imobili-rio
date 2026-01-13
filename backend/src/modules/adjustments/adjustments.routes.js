@@ -14,4 +14,8 @@ router.post('/', checkRole(['gestor', 'admin']), adjustmentsController.create);
 router.get('/', checkRole(['gestor', 'admin']), adjustmentsController.getAll);
 router.get('/user/:userId', checkRole(['gestor', 'admin']), adjustmentsController.getByUser);
 
+// ✅ Aprovação de Ajustes
+router.post('/:id/approve', checkRole(['gestor', 'admin']), adjustmentsController.approve);
+router.post('/:id/reject', checkRole(['gestor', 'admin']), adjustmentsController.reject);
+
 module.exports = router;

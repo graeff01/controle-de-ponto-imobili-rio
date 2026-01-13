@@ -13,7 +13,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  User
+  User,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -38,6 +39,8 @@ export default function Sidebar() {
         { path: '/banco-horas', icon: Timer, label: 'Banco de Horas' },
         { path: '/justificativas', icon: FileText, label: 'Justificativas' },
         { path: '/ajustes', icon: Settings, label: 'Ajustes' },
+        { path: '/aprovacoes', icon: CheckCircle, label: 'Aprovações' }, // ✅ Novo
+        { path: '/feriados', icon: Calendar, label: 'Feriados' }, // ✅ Novo
         { path: '/relatorio-mensal', icon: Calendar, label: 'Relatório Mensal' }
       ]
     },
@@ -138,7 +141,7 @@ export default function Sidebar() {
           <LogOut size={20} className="flex-shrink-0" />
           {!collapsed && <span className="font-medium text-sm">Sair</span>}
         </button>
-        
+
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="w-full flex items-center justify-center p-2 rounded-lg text-slate-400 hover:bg-slate-800 transition-all"

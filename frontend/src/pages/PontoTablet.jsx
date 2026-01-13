@@ -13,13 +13,29 @@ export default function Tablet() {
   const [message, setMessage] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showCamera, setShowCamera] = useState(false);
-  const debounceTimer = useRef(null); // ✅ ADICIONAR
-  
+  const [location, setLocation] = useState(null); // ✅ Estado para GPS
+  const debounceTimer = useRef(null);
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    // Solicitar GPS ao carregar
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('📍 GPS obtido:', position.coords);
+          setLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          });
+        },
+        (error) => console.error('Erro GPS:', error),
+        { enableHighAccuracy: true }
+      );
+    }
     return () => clearInterval(timer);
   }, []);
 
@@ -34,48 +50,48 @@ export default function Tablet() {
     };
   }, [showCamera]);
 
-useEffect(() => {
-  // Limpar timer anterior
-  if (debounceTimer.current) {
-    clearTimeout(debounceTimer.current);
-  }
-
-  // Se matrícula vazia, limpar
-  if (matricula.length === 0) {
-    setUserData(null);
-    setShowCamera(false);
-    return;
-  }
-
-  // Só busca quando tiver exatamente 6 (CLT) ou 7 (PJ) dígitos
-  const isValidLength = matricula.length === 6 || matricula.length === 7;
-  
-  if (!isValidLength) {
-    return; // Não busca enquanto ainda está digitando
-  }
-
-  // Validar formato
-  const isNumeric = /^\d{6}$/.test(matricula); // 000001
-  const isBroker = /^CORR\d{3}$/.test(matricula); // CORR001
-  
-  if (!isNumeric && !isBroker) {
-    console.log('❌ Formato inválido:', matricula);
-    return;
-  }
-
-  // Aguarda 500ms após parar de digitar
-  debounceTimer.current = setTimeout(() => {
-    console.log('🔍 Buscando matrícula:', matricula);
-    buscarUsuario();
-  }, 500);
-
-  // Cleanup
-  return () => {
+  useEffect(() => {
+    // Limpar timer anterior
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
-  };
-}, [matricula]);
+
+    // Se matrícula vazia, limpar
+    if (matricula.length === 0) {
+      setUserData(null);
+      setShowCamera(false);
+      return;
+    }
+
+    // Só busca quando tiver exatamente 6 (CLT) ou 7 (PJ) dígitos
+    const isValidLength = matricula.length === 6 || matricula.length === 7;
+
+    if (!isValidLength) {
+      return; // Não busca enquanto ainda está digitando
+    }
+
+    // Validar formato
+    const isNumeric = /^\d{6}$/.test(matricula); // 000001
+    const isBroker = /^CORR\d{3}$/.test(matricula); // CORR001
+
+    if (!isNumeric && !isBroker) {
+      console.log('❌ Formato inválido:', matricula);
+      return;
+    }
+
+    // Aguarda 500ms após parar de digitar
+    debounceTimer.current = setTimeout(() => {
+      console.log('🔍 Buscando matrícula:', matricula);
+      buscarUsuario();
+    }, 500);
+
+    // Cleanup
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [matricula]);
 
   const startCamera = async () => {
     try {
@@ -95,7 +111,7 @@ useEffect(() => {
   const capturePhoto = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
+
     if (video && canvas) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -106,18 +122,18 @@ useEffect(() => {
     }
   };
 
-const buscarUsuario = async () => {
-  if (matricula.length < 3) return;
-  
-  try {
-    const response = await api.get(`/users/matricula/${matricula}`);
-    setUserData(response.data.data);
-    setShowCamera(true); // ✅ Ativa câmera para TODOS
-  } catch (err) {
-    setUserData(null);
-    setShowCamera(false);
-  }
-};
+  const buscarUsuario = async () => {
+    if (matricula.length < 3) return;
+
+    try {
+      const response = await api.get(`/users/matricula/${matricula}`);
+      setUserData(response.data.data);
+      setShowCamera(true); // ✅ Ativa câmera para TODOS
+    } catch (err) {
+      setUserData(null);
+      setShowCamera(false);
+    }
+  };
 
   const registrarPonto = async () => {
     if (!userData) {
@@ -135,15 +151,18 @@ const buscarUsuario = async () => {
       await api.post('/tablet/register', {
         matricula: userData.matricula,
         record_type: recordType,
-        photo
+        photo,
+        latitude: location?.latitude, // ✅ GPS
+        longitude: location?.longitude, // ✅ GPS
+        accuracy: location?.accuracy  // ✅ GPS
       });
-      
+
       showMessage('Ponto registrado com sucesso!', 'success');
-      
+
       setTimeout(() => {
         resetForm();
       }, 2000);
-      
+
     } catch (err) {
       showMessage(err.response?.data?.error || 'Erro ao registrar ponto', 'error');
     } finally {
@@ -152,30 +171,33 @@ const buscarUsuario = async () => {
   };
 
   const marcarPresenca = async () => {
-  if (!userData) {
-    showMessage('Digite uma matrícula válida', 'error');
-    return;
-  }
+    if (!userData) {
+      showMessage('Digite uma matrícula válida', 'error');
+      return;
+    }
 
-  if (!photo) {
-    showMessage('Capture uma foto antes de registrar', 'error');
-    return;
-  }
+    if (!photo) {
+      showMessage('Capture uma foto antes de registrar', 'error');
+      return;
+    }
 
-  setLoading(true);
-  try {
-    await api.post('/duty-shifts/mark-presence', {
-      user_id: userData.id,
-      photo: photo, // ✅ Adicionar foto
-      notes: ''
-    });
-      
+    setLoading(true);
+    try {
+      await api.post('/duty-shifts/mark-presence', {
+        user_id: userData.id,
+        photo: photo,
+        notes: '',
+        latitude: location?.latitude, // ✅ GPS
+        longitude: location?.longitude, // ✅ GPS
+        accuracy: location?.accuracy  // ✅ GPS
+      });
+
       showMessage(`Presença registrada! Bem-vindo(a), ${userData.nome.split(' ')[0]}`, 'success');
-      
+
       setTimeout(() => {
         resetForm();
       }, 2000);
-      
+
     } catch (err) {
       showMessage(err.response?.data?.error || 'Erro ao marcar presença', 'error');
     } finally {
@@ -201,17 +223,17 @@ const buscarUsuario = async () => {
   };
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString('pt-BR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
   const formatDate = (date) => {
-    return date.toLocaleDateString('pt-BR', { 
-      weekday: 'long', 
-      day: '2-digit', 
-      month: 'long' 
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long'
     });
   };
 
@@ -225,7 +247,7 @@ const buscarUsuario = async () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="container mx-auto px-4 py-8">
-        
+
         {/* Mensagens */}
         <AnimatePresence>
           {message && (
@@ -235,8 +257,8 @@ const buscarUsuario = async () => {
               exit={{ opacity: 0, y: -50 }}
               className={`
                 fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl
-                ${message.type === 'success' 
-                  ? 'bg-emerald-500 text-white' 
+                ${message.type === 'success'
+                  ? 'bg-emerald-500 text-white'
                   : 'bg-red-500 text-white'
                 }
               `}
@@ -258,38 +280,45 @@ const buscarUsuario = async () => {
                 <p className="text-slate-600">Registro de frequência</p>
               </div>
             </div>
-            
+
             <div className="text-right">
               <div className="text-4xl font-bold text-slate-900 tabular-nums">
                 {formatTime(currentTime)}
               </div>
-              <p className="text-sm text-slate-600 capitalize">
+              <p className="text-sm text-slate-600 capitalize mb-1">
                 {formatDate(currentTime)}
               </p>
+              {location ? (
+                <div className="flex items-center justify-end gap-1 text-green-600 text-xs font-medium">
+                  <span>📍 GPS Ativo</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-end gap-1 text-red-400 text-xs font-medium">
+                  <span>⚠️ Sem GPS</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Card Principal */}
         <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mx-auto transition-all ${userData ? 'max-w-4xl' : 'max-w-2xl'}`}>
-          
+
           {/* Saudação */}
           {userData && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`rounded-2xl p-6 mb-6 ${
-                userData.is_duty_shift_only 
-                  ? 'bg-blue-50' 
-                  : 'bg-slate-50'
-              }`}
+              className={`rounded-2xl p-6 mb-6 ${userData.is_duty_shift_only
+                ? 'bg-blue-50'
+                : 'bg-slate-50'
+                }`}
             >
               <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${
-                  userData.is_duty_shift_only 
-                    ? 'bg-blue-600' 
-                    : 'bg-slate-800'
-                }`}>
+                <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${userData.is_duty_shift_only
+                  ? 'bg-blue-600'
+                  : 'bg-slate-800'
+                  }`}>
                   <span className="text-white text-2xl font-bold">
                     {userData.nome.charAt(0)}
                   </span>
@@ -328,8 +357,8 @@ const buscarUsuario = async () => {
                 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10
                 rounded-2xl outline-none transition-all
                 placeholder:text-slate-300
-                ${!userData 
-                  ? 'w-full max-w-md mx-auto text-4xl tracking-wider' 
+                ${!userData
+                  ? 'w-full max-w-md mx-auto text-4xl tracking-wider'
                   : 'w-full text-2xl'
                 }
               `}
@@ -433,7 +462,7 @@ const buscarUsuario = async () => {
                       />
                     )}
                     <canvas ref={canvasRef} className="hidden" />
-                    
+
                     {photo && (
                       <button
                         onClick={() => setPhoto(null)}
@@ -554,7 +583,7 @@ const buscarUsuario = async () => {
                       />
                     )}
                     <canvas ref={canvasRef} className="hidden" />
-                    
+
                     {photo && (
                       <button
                         onClick={() => setPhoto(null)}
