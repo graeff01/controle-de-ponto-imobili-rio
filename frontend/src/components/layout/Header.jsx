@@ -1,17 +1,176 @@
-import { Bell, Search } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Bell, Search, Check, X, AlertTriangle, Info, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
-export default function Header({ title, subtitle }) {
+const NotificationBell = () => {
+  const { user } = useAuth();
+  const [alerts, setAlerts] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Fecha ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchAlerts = async () => {
+    if (!user || (user.role !== 'admin' && user.role !== 'gestor')) return;
+    try {
+      // Busca alertas não resolvidos (status=open)
+      const response = await api.get('/alerts', { params: { status: 'open' } });
+      const data = response.data.data || [];
+      setAlerts(data);
+      setUnreadCount(data.length);
+    } catch (error) {
+      console.error('Erro ao buscar notificações:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAlerts();
+    // Polling a cada 60s
+    const interval = setInterval(fetchAlerts, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const handleMarkAsRead = async (id, e) => {
+    e.stopPropagation();
+    try {
+      await api.patch(`/alerts/${id}/dismiss`); // Usando dismiss para remover da lista
+      setAlerts(prev => prev.filter(a => a.id !== id));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Erro ao marcar como lido:', error);
+    }
+  };
+
+  const getSeverityIcon = (severity) => {
+    switch (severity) {
+      case 'high': return <AlertTriangle size={16} className="text-red-500" />;
+      case 'medium': return <AlertCircle size={16} className="text-orange-500" />;
+      default: return <Info size={16} className="text-blue-500" />;
+    }
+  };
+
+  if (!user || (user.role !== 'admin' && user.role !== 'gestor')) {
+    return null; // Apenas gestores veem alertas
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors"
+      >
+        <Bell size={20} className="text-slate-600" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50"
+          >
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-semibold text-slate-800">Notificações</h3>
+              <span className="text-xs bg-slate-100 px-2 py-1 rounded-full text-slate-600">
+                {unreadCount} novas
+              </span>
+            </div>
+
+            <div className="max-h-96 overflow-y-auto">
+              {alerts.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-sm">
+                  <Bell size={24} className="mx-auto mb-2 opacity-50" />
+                  <p>Nenhuma notificação pendente.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-50">
+                  {alerts.map((alert) => (
+                    <div key={alert.id} className="p-4 hover:bg-slate-50 transition-colors relative group">
+                      <div className="flex gap-3">
+                        <div className="mt-1 flex-shrink-0">
+                          {getSeverityIcon(alert.severity)}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-medium text-slate-800 mb-1">{alert.title}</h4>
+                          <p className="text-xs text-slate-500 leading-relaxed mb-2">
+                            {alert.description}
+                          </p>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(alert.created_at).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => handleMarkAsRead(alert.id, e)}
+                          className="absolute top-2 right-2 p-1 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-all"
+                          title="Arquivar notificação"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {alerts.length > 0 && (
+              <div className="p-2 bg-slate-50 text-center border-t border-slate-100">
+                <button
+                  onClick={() => navigate('/ajustes')} // Exemplo de ação
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Ver todas as pendências
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+import { Menu } from 'lucide-react'; // Importar Menu
+
+export default function Header({ title, subtitle, onMenuClick }) { // Receber onMenuClick
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
-      <div className="px-8 py-6">
+      <div className="px-4 md:px-8 py-4 md:py-6">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="text-slate-500 mt-1">{subtitle}</p>
-            )}
+          <div className="flex items-center gap-4">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={onMenuClick}
+              className="md:hidden p-2 -ml-2 hover:bg-slate-100 rounded-lg text-slate-600"
+            >
+              <Menu size={24} />
+            </button>
+
+            <div>
+              <h1 className="text-xl md:text-3xl font-bold text-slate-900">
+                {title}
+              </h1>
+              {subtitle && (
+                <p className="text-slate-500 mt-1 text-sm md:text-base hidden sm:block">{subtitle}</p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -26,10 +185,7 @@ export default function Header({ title, subtitle }) {
             </div>
 
             {/* Notifications */}
-            <button className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors">
-              <Bell size={20} className="text-slate-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+            <NotificationBell />
 
             {/* Date */}
             <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">

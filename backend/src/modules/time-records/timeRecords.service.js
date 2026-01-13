@@ -117,6 +117,28 @@ class TimeRecordsService {
         throw new Error(messages[recordType] || 'Sequência de registro inválida');
       }
 
+      // ✅ Validação de Intervalo Mínimo de 1 Hora (apenas para retorno_intervalo)
+      if (recordType === 'retorno_intervalo') {
+        const lastTimestampResult = await db.query(`
+          SELECT timestamp FROM time_records 
+          WHERE user_id = $1 
+          AND record_type = 'saida_intervalo'
+          AND DATE(timestamp) = CURRENT_DATE
+          ORDER BY timestamp DESC LIMIT 1
+        `, [userId]);
+
+        if (lastTimestampResult.rows.length > 0) {
+          const lastTime = new Date(lastTimestampResult.rows[0].timestamp);
+          const now = new Date();
+          const diffMinutes = (now - lastTime) / 1000 / 60;
+
+          if (diffMinutes < 60) {
+            const remainingMinutes = Math.ceil(60 - diffMinutes);
+            throw new Error(`Intervalo mínimo de 1 hora não cumprido. Aguarde mais ${remainingMinutes} minutos.`);
+          }
+        }
+      }
+
       return true;
 
     } catch (error) {

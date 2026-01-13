@@ -14,7 +14,7 @@ const loginLimiter = rateLimit({
 // Rate limiter geral para API
 const apiLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
   message: {
     error: 'Muitas requisições. Tente novamente mais tarde.'
   },

@@ -276,8 +276,8 @@ export default function Tablet() {
                 <Clock className="text-white" size={32} />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Sistema de Ponto</h1>
-                <p className="text-slate-600">Registro de frequência</p>
+                <h1 className="text-2xl font-bold text-slate-900">Sistema de Presença - Jardim do Lago</h1>
+                <p className="text-slate-600">Registro de presença</p>
               </div>
             </div>
 

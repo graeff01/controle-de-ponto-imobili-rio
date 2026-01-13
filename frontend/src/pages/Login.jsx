@@ -29,30 +29,30 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      
+
       {/* Left Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 lg:p-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="w-full max-w-md"
         >
-          
+
           {/* Logo/Header */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-slate-900 rounded-xl mx-auto mb-4 flex items-center justify-center">
               <Clock className="text-white" size={32} />
             </div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Sistema de Ponto</h1>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Sistema de Presença</h1>
             <p className="text-slate-600">Acesso ao Painel Administrativo</p>
           </div>
 
           {/* Card */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-            
+
             <form onSubmit={handleSubmit} className="space-y-6">
-              
+
               {/* Error Message */}
               {error && (
                 <motion.div
@@ -152,14 +152,14 @@ export default function Login() {
 
           {/* Footer */}
           <p className="text-center text-slate-500 text-xs mt-6">
-            © 2025 Sistema de Controle de Ponto. Todos os direitos reservados.
+            © 2025 Sistema de Controle de Presença. Todos os direitos reservados.
           </p>
         </motion.div>
       </div>
 
       {/* Right Side - Brand/Info */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 items-center justify-center p-12 relative overflow-hidden">
-        
+
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-5">
           <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
@@ -169,10 +169,10 @@ export default function Login() {
         <div className="relative z-10 text-center max-w-lg">
           <Building2 className="text-white mx-auto mb-6" size={64} />
           <h2 className="text-4xl font-bold text-white mb-4">
-            Gestão de Ponto Profissional
+            Gestão de Presença
           </h2>
           <p className="text-slate-300 text-lg leading-relaxed mb-8">
-            Controle completo de jornada de trabalho com tecnologia moderna e segura.
+            Controle completo de presença com tecnologia moderna e segura.
           </p>
           <div className="grid grid-cols-3 gap-6 text-center">
             <div>

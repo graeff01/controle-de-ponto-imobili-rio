@@ -66,7 +66,7 @@ const Aprovacoes = () => {
             ) : (
                 <div className="grid gap-4">
                     {adjustments.map((adj) => (
-                        <div key={adj.id} className="bg-white p-6 rounded-lg shadow border-l-4 border-orange-500 flex justify-between items-center">
+                        <div key={adj.id} className="bg-white p-6 rounded-lg shadow border-l-4 border-orange-500 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <div className="flex items-center gap-2 mb-2">
                                     <User size={16} className="text-gray-400" />
@@ -87,7 +87,7 @@ const Aprovacoes = () => {
                                 </p>
                             </div>
 
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
                                 <button
                                     onClick={() => handleApprove(adj.id)}
                                     className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700 transition"

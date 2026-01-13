@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
 const TABLET_API_KEY = process.env.TABLET_API_KEY || 'tablet-ponto-imobiliaria-2024';
 
 // Lista de IPs autorizados (opcional - deixe vazia para permitir qualquer IP)
-const ALLOWED_IPS = process.env.TABLET_ALLOWED_IPS 
+const ALLOWED_IPS = process.env.TABLET_ALLOWED_IPS
   ? process.env.TABLET_ALLOWED_IPS.split(',').map(ip => ip.trim())
   : [];
 
@@ -29,7 +29,7 @@ const tabletAuthMiddleware = (req, res, next) => {
     }
 
     if (apiKey !== TABLET_API_KEY) {
-      logger.warn('Tentativa de acesso ao tablet com API Key inválida', { 
+      logger.warn('Tentativa de acesso ao tablet com API Key inválida', {
         ip: clientIp,
         providedKey: apiKey.substring(0, 10) + '...'
       });
@@ -41,9 +41,9 @@ const tabletAuthMiddleware = (req, res, next) => {
 
     // Verificar IP (se lista de IPs autorizados estiver configurada)
     if (ALLOWED_IPS.length > 0 && !ALLOWED_IPS.includes(clientIp)) {
-      logger.warn('Tentativa de acesso ao tablet de IP não autorizado', { 
+      logger.warn('Tentativa de acesso ao tablet de IP não autorizado', {
         ip: clientIp,
-        allowedIps: ALLOWED_IPS 
+        allowedIps: ALLOWED_IPS
       });
       return res.status(403).json({
         success: false,
@@ -76,7 +76,7 @@ const tabletAuthMiddleware = (req, res, next) => {
  */
 const tabletRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minuto
-  max: 30, // 30 requisições por minuto por IP
+  max: 100, // 100 requisições por minuto por IP
   message: {
     success: false,
     error: 'Muitas requisições do tablet. Aguarde um momento.'
