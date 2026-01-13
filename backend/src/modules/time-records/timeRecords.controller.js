@@ -7,13 +7,13 @@ class TimeRecordsController {
 
   // ADICIONAR NO TOPO DA CLASSE TimeRecordsController
 
-async create(req, res, next) {
-  try {
-    const { user_id, record_type } = req.body;
-    const photo = req.file;
+  async create(req, res, next) {
+    try {
+      const { user_id, record_type } = req.body;
+      const photo = req.file;
 
-    // Validar duplicados - NOVO!
-    const ultimoRegistro = await db.query(`
+      // Validar duplicados - NOVO!
+      const ultimoRegistro = await db.query(`
       SELECT record_type, timestamp 
       FROM time_records 
       WHERE user_id = $1 
@@ -21,91 +21,91 @@ async create(req, res, next) {
       LIMIT 1
     `, [user_id]);
 
-    if (ultimoRegistro.rows.length > 0) {
-      const ultimo = ultimoRegistro.rows[0];
-      const diff = (new Date() - new Date(ultimo.timestamp)) / 1000 / 60; // minutos
+      if (ultimoRegistro.rows.length > 0) {
+        const ultimo = ultimoRegistro.rows[0];
+        const diff = (new Date() - new Date(ultimo.timestamp)) / 1000 / 60; // minutos
 
-      // Não permitir mesmo tipo em menos de 5 minutos
-      if (ultimo.record_type === record_type && diff < 5) {
-        return res.status(400).json({
-          success: false,
-          error: `Você já registrou "${record_type}" há ${Math.floor(diff)} minuto(s)`
-        });
+        // Não permitir mesmo tipo em menos de 5 minutos
+        if (ultimo.record_type === record_type && diff < 5) {
+          return res.status(400).json({
+            success: false,
+            error: `Você já registrou "${record_type}" há ${Math.floor(diff)} minuto(s)`
+          });
+        }
       }
-    }
 
-    // Processar foto
-    let photoData = null;
-    if (photo) {
-      photoData = photo.buffer;
-    }
+      // Processar foto
+      let photoData = null;
+      if (photo) {
+        photoData = photo.buffer;
+      }
 
-    // Inserir registro
-    const result = await db.query(`
+      // Inserir registro
+      const result = await db.query(`
       INSERT INTO time_records (user_id, record_type, timestamp, photo_data, ip_address, user_agent)
       VALUES ($1, $2, NOW(), $3, $4, $5)
       RETURNING id, user_id, record_type, timestamp
     `, [user_id, record_type, photoData, req.ip, req.get('user-agent')]);
 
-    // Atualizar banco de horas - NOVO!
-    await this.atualizarBancoHoras(user_id, new Date());
+      // Atualizar banco de horas - NOVO!
+      await this.atualizarBancoHoras(user_id, new Date());
 
-    logger.success('Ponto registrado', { record_id: result.rows[0].id });
+      logger.success('Ponto registrado', { record_id: result.rows[0].id });
 
-    res.status(201).json({
-      success: true,
-      data: result.rows[0]
-    });
+      res.status(201).json({
+        success: true,
+        data: result.rows[0]
+      });
 
-  } catch (error) {
-    next(error);
+    } catch (error) {
+      next(error);
+    }
   }
-}
 
-// ADICIONAR ESTA NOVA FUNÇÃO NA CLASSE
-async atualizarBancoHoras(userId, date) {
-  try {
-    const dataFormatada = date.toISOString().split('T')[0];
+  // ADICIONAR ESTA NOVA FUNÇÃO NA CLASSE
+  async atualizarBancoHoras(userId, date) {
+    try {
+      const dataFormatada = date.toISOString().split('T')[0];
 
-    // Buscar horário esperado do usuário
-    const userResult = await db.query(
-      'SELECT expected_daily_hours FROM users WHERE id = $1',
-      [userId]
-    );
+      // Buscar horário esperado do usuário
+      const userResult = await db.query(
+        'SELECT expected_daily_hours FROM users WHERE id = $1',
+        [userId]
+      );
 
-    const horasEsperadas = userResult.rows[0]?.expected_daily_hours || 8;
+      const horasEsperadas = userResult.rows[0]?.expected_daily_hours || 8;
 
-    // Calcular horas trabalhadas do dia
-    const registros = await db.query(`
+      // Calcular horas trabalhadas do dia
+      const registros = await db.query(`
       SELECT record_type, timestamp 
       FROM time_records 
       WHERE user_id = $1 AND DATE(timestamp) = $2
       ORDER BY timestamp ASC
     `, [userId, dataFormatada]);
 
-    let horasTrabalhadas = 0;
+      let horasTrabalhadas = 0;
 
-    if (registros.rows.length >= 2) {
-      const entrada = registros.rows.find(r => r.record_type === 'entrada');
-      const saidaFinal = registros.rows.find(r => r.record_type === 'saida_final');
+      if (registros.rows.length >= 2) {
+        const entrada = registros.rows.find(r => r.record_type === 'entrada');
+        const saidaFinal = registros.rows.find(r => r.record_type === 'saida_final');
 
-      if (entrada && saidaFinal) {
-        const diff = new Date(saidaFinal.timestamp) - new Date(entrada.timestamp);
-        horasTrabalhadas = diff / 1000 / 60 / 60; // converter para horas
+        if (entrada && saidaFinal) {
+          const diff = new Date(saidaFinal.timestamp) - new Date(entrada.timestamp);
+          horasTrabalhadas = diff / 1000 / 60 / 60; // converter para horas
 
-        // Descontar intervalo
-        const saidaIntervalo = registros.rows.find(r => r.record_type === 'saida_intervalo');
-        const retornoIntervalo = registros.rows.find(r => r.record_type === 'retorno_intervalo');
+          // Descontar intervalo
+          const saidaIntervalo = registros.rows.find(r => r.record_type === 'saida_intervalo');
+          const retornoIntervalo = registros.rows.find(r => r.record_type === 'retorno_intervalo');
 
-        if (saidaIntervalo && retornoIntervalo) {
-          const intervalo = (new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp)) / 1000 / 60 / 60;
-          horasTrabalhadas -= intervalo;
+          if (saidaIntervalo && retornoIntervalo) {
+            const intervalo = (new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp)) / 1000 / 60 / 60;
+            horasTrabalhadas -= intervalo;
+          }
         }
       }
-    }
 
-    // Inserir ou atualizar banco de horas
-    await db.query(`
+      // Inserir ou atualizar banco de horas
+      await db.query(`
       INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (user_id, date) 
@@ -114,10 +114,10 @@ async atualizarBancoHoras(userId, date) {
         updated_at = NOW()
     `, [userId, dataFormatada, horasTrabalhadas.toFixed(2), horasEsperadas]);
 
-  } catch (error) {
-    logger.error('Erro ao atualizar banco de horas', { error: error.message });
+    } catch (error) {
+      logger.error('Erro ao atualizar banco de horas', { error: error.message });
+    }
   }
-}
 
   async createManual(req, res, next) {
     try {
@@ -225,30 +225,24 @@ async atualizarBancoHoras(userId, date) {
     }
   }
 
-async getTodayRecords(req, res) {
-  try {
-    const response = await timeRecordsService.getTodayRecords();
-    
-    // ← ADICIONE ESTE LOG:
-    console.log('📊 Registros encontrados:', response.length);
-    if (response.length > 0) {
-      console.log('📸 Primeiro registro tem foto?', !!response[0].photo_data);
-    }
-    
-    res.json({
-      success: true,
-      data: response
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}
+  async getTodayRecords(req, res) {
+    try {
+      const response = await timeRecordsService.getTodayRecords();
 
-// ✅ NOVO: Buscar todos os registros (CLT + Plantonistas)
-async getAllRecords(req, res) {
-  try {
-    // Buscar registros CLT
-    const cltRecords = await db.query(`
+      res.json({
+        success: true,
+        data: response
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // ✅ NOVO: Buscar todos os registros (CLT + Plantonistas)
+  async getAllRecords(req, res) {
+    try {
+      // Buscar registros CLT
+      const cltRecords = await db.query(`
       SELECT 
         tr.id,
         tr.user_id,
@@ -266,8 +260,8 @@ async getAllRecords(req, res) {
       ORDER BY tr.timestamp DESC
     `);
 
-    // Buscar registros de Plantonistas
-    const brokerRecords = await db.query(`
+      // Buscar registros de Plantonistas
+      const brokerRecords = await db.query(`
       SELECT 
         ds.id,
         ds.user_id,
@@ -285,19 +279,19 @@ async getAllRecords(req, res) {
       ORDER BY ds.date DESC, ds.check_in_time DESC
     `);
 
-    res.json({
-      success: true,
-      data: {
-        clt: cltRecords.rows,
-        plantonistas: brokerRecords.rows
-      }
-    });
+      res.json({
+        success: true,
+        data: {
+          clt: cltRecords.rows,
+          plantonistas: brokerRecords.rows
+        }
+      });
 
-  } catch (error) {
-    logger.error('Erro ao buscar registros', { error: error.message });
-    res.status(500).json({ error: error.message });
+    } catch (error) {
+      logger.error('Erro ao buscar registros', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
   }
-}
 
   async getDailyJourney(req, res, next) {
     try {
@@ -382,22 +376,22 @@ async getAllRecords(req, res) {
   }
 
   async getRecordPhoto(req, res, next) {
-  try {
-    const { recordId } = req.params;
+    try {
+      const { recordId } = req.params;
 
-    const photoBuffer = await timeRecordsService.getRecordPhoto(recordId);
+      const photoBuffer = await timeRecordsService.getRecordPhoto(recordId);
 
-    if (!photoBuffer) {
-      return res.status(404).send('Foto não encontrada');
+      if (!photoBuffer) {
+        return res.status(404).send('Foto não encontrada');
+      }
+
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.send(photoBuffer);
+
+    } catch (error) {
+      next(error);
     }
-
-    res.setHeader('Content-Type', 'image/jpeg');
-    res.send(photoBuffer);
-
-  } catch (error) {
-    next(error);
   }
-}
 
 
   async checkInconsistencies(req, res, next) {

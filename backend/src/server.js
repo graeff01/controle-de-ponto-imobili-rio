@@ -53,8 +53,8 @@ app.use('/api/', apiLimiter);
 // HEALTH CHECK
 // ============================================
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
@@ -107,18 +107,13 @@ const startServer = async () => {
       logger.info('⚠️ Jobs agendados desabilitados em desenvolvimento');
     }
 
-    // Banco de Horas
-const hoursBankRoutes = require('./modules/hours-bank/hours-bank.routes');
-app.use('/api/hours-bank', hoursBankRoutes);
-
-app.listen(
-  Number(process.env.PORT) || 5000,
-  '0.0.0.0',
-  () => {
-    logger.success(`Servidor rodando na porta ${process.env.PORT || 5000}`);
-  }
-);
-
+    app.listen(
+      Number(process.env.PORT) || 5000,
+      '0.0.0.0',
+      () => {
+        logger.success(`Servidor rodando na porta ${process.env.PORT || 5000}`);
+      }
+    );
 
   } catch (error) {
     logger.error('❌ Erro ao iniciar servidor', { error: error.message });

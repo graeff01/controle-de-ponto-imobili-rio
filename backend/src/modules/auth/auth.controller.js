@@ -1,8 +1,9 @@
 ﻿const authService = require('./auth.service');
 const logger = require('../../utils/logger');
 const crypto = require('crypto');
-const bcrypt = require('bcrypt');  // ← ADICIONAR
-const db = require('../../config/database');  // ← ADICIONAR
+const bcrypt = require('bcrypt');
+const db = require('../../config/database');
+const { validatePassword } = require('../../utils/validationSchemas');
 
 class AuthController {
 
@@ -83,9 +84,12 @@ class AuthController {
         });
       }
 
-      if (newPassword.length < 6) {
+      // Validar força da senha
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.valid) {
         return res.status(400).json({
-          error: 'Nova senha deve ter no mínimo 6 caracteres'
+          error: 'Senha não atende aos requisitos de segurança',
+          details: passwordValidation.errors
         });
       }
 
@@ -174,14 +178,14 @@ class AuthController {
       // Link de recuperação
       const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-      logger.info('Token de recuperação gerado', { 
+      logger.info('Token de recuperação gerado', {
         user_id: user.id,
-        resetUrl 
+        resetUrl
       });
 
       // TODO: Enviar email (por enquanto retorna o link)
       // Por segurança em produção, sempre enviar email
-      
+
       res.json({
         success: true,
         message: 'Link de recuperação enviado para o email',
@@ -205,11 +209,13 @@ class AuthController {
         });
       }
 
-      // Validar senha
-      if (newPassword.length < 6) {
+      // Validar força da senha
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.valid) {
         return res.status(400).json({
           success: false,
-          error: 'Senha deve ter no mínimo 6 caracteres'
+          error: 'Senha não atende aos requisitos de segurança',
+          details: passwordValidation.errors
         });
       }
 

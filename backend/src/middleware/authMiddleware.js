@@ -6,13 +6,13 @@ const logger = require('../utils/logger');
 const authMiddleware = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({ error: 'Token não fornecido' });
     }
 
     const parts = authHeader.split(' ');
-    
+
     if (parts.length !== 2) {
       return res.status(401).json({ error: 'Token mal formatado' });
     }
@@ -29,7 +29,9 @@ const authMiddleware = (req, res, next) => {
         return res.status(401).json({ error: 'Token inválido' });
       }
 
+      // Popular tanto req.user quanto req.userId para compatibilidade
       req.user = decoded;
+      req.userId = decoded.id; // Necessário para o middleware RBAC
       return next();
     });
 

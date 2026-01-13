@@ -4,39 +4,33 @@ const logger = require('../../utils/logger');
 class DutyShiftsService {
 
   async markPresence(userId, photo = null, notes = null) {
-  try {
-    const today = new Date().toISOString().split('T')[0];
+    try {
+      const today = new Date().toISOString().split('T')[0];
 
-    console.log('📋 Tentando marcar presença:', { userId, today, hasPhoto: !!photo });
-
-    // Verificar se já marcou presença hoje
-    const existing = await db.query(`
+      // Verificar se já marcou presença hoje
+      const existing = await db.query(`
       SELECT id FROM duty_shifts 
       WHERE user_id = $1 AND date = $2
     `, [userId, today]);
 
-    if (existing.rows.length > 0) {
-      console.log('❌ Já marcou presença hoje');
-      throw new Error('Você já marcou presença hoje');
+      if (existing.rows.length > 0) {
+        throw new Error('Você já marcou presença hoje');
+      }
+
+      // ... resto do código
+
+      return {
+        id: result.rows[0].id,
+        user_name: user.nome,
+        check_in_time: result.rows[0].check_in_time,
+        date: result.rows[0].date
+      };
+
+    } catch (error) {
+      logger.error('Erro ao marcar presença', { error: error.message });
+      throw error;
     }
-
-    // ... resto do código
-
-    console.log('✅ Presença registrada com sucesso!');
-    
-    return {
-      id: result.rows[0].id,
-      user_name: user.nome,
-      check_in_time: result.rows[0].check_in_time,
-      date: result.rows[0].date
-    };
-
-  } catch (error) {
-    console.error('❌ Erro ao marcar presença:', error.message);
-    logger.error('Erro ao marcar presença', { error: error.message });
-    throw error;
   }
-}
 
   // Buscar plantões de um corretor
   async getBrokerShifts(userId, startDate, endDate) {
@@ -166,11 +160,11 @@ class DutyShiftsService {
         'Nome': corretor.nome,
         'Cargo': corretor.cargo || '-',
         'Total de Plantões': corretor.total_plantoes,
-        'Primeiro Plantão': corretor.primeiro_plantao ? 
+        'Primeiro Plantão': corretor.primeiro_plantao ?
           new Date(corretor.primeiro_plantao).toLocaleDateString('pt-BR') : '-',
-        'Último Plantão': corretor.ultimo_plantao ? 
+        'Último Plantão': corretor.ultimo_plantao ?
           new Date(corretor.ultimo_plantao).toLocaleDateString('pt-BR') : '-',
-        'Datas de Presença': corretor.datas_presenca ? 
+        'Datas de Presença': corretor.datas_presenca ?
           corretor.datas_presenca.map(d => new Date(d).toLocaleDateString('pt-BR')).join(', ') : '-'
       }));
 
