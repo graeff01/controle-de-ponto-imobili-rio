@@ -3,21 +3,29 @@ const logger = require('../../utils/logger');
 
 class DutyShiftsService {
 
-  async markPresence(userId, photo = null, notes = null) {
+  async markPresence(userId, photo = null, notes = null, timestamp = null) {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const markDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
-      // Verificar se já marcou presença hoje
+      // Verificar se já marcou presença nesta data
       const existing = await db.query(`
       SELECT id FROM duty_shifts 
       WHERE user_id = $1 AND date = $2
-    `, [userId, today]);
+    `, [userId, markDate]);
 
       if (existing.rows.length > 0) {
-        throw new Error('Você já marcou presença hoje');
+        throw new Error('Você já marcou presença nesta data');
       }
 
-      // ... resto do código
+      // Buscar usuário para log e retorno
+      const userRes = await db.query('SELECT nome FROM users WHERE id = $1', [userId]);
+      const user = userRes.rows[0];
+
+      const result = await db.query(`
+        INSERT INTO duty_shifts (user_id, date, check_in_time, photo_url, notes)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, date, check_in_time
+      `, [userId, markDate, timestamp || 'NOW()', photo, notes]);
 
       return {
         id: result.rows[0].id,

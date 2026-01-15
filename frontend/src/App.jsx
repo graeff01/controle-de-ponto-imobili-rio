@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SyncProvider } from './services/syncService';
 import PontoTablet from './pages/PontoTablet';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -34,107 +35,109 @@ function ProtectedRoute({ children }) {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Rota pública - Tablet de registro */}
-          <Route path="/" element={<PontoTablet />} />
+      <SyncProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Rota pública - Tablet de registro */}
+            <Route path="/" element={<PontoTablet />} />
 
-          {/* Login do gestor */}
-          <Route path="/login" element={<Login />} />
+            {/* Login do gestor */}
+            <Route path="/login" element={<Login />} />
 
-          {/* Rotas protegidas do gestor */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/registros"
-            element={
-              <ProtectedRoute>
-                <Registros />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/usuarios"
-            element={
-              <ProtectedRoute>
-                <Usuarios />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/jornada/:userId/:date"
-            element={
-              <ProtectedRoute>
-                <JornadaDiaria />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/ajustes"
-            element={
-              <ProtectedRoute>
-                <Ajustes />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/relatorio-mensal"
-            element={
-              <ProtectedRoute>
-                <RelatorioMensal />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/justificativas"
-            element={
-              <ProtectedRoute>
-                <Justificativas />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/banco-horas"
-            element={
-              <ProtectedRoute>
-                <BancoHoras />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/auditoria"
-            element={
-              <ProtectedRoute>
-                <Auditoria />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/feriados"
-            element={
-              <ProtectedRoute>
-                <Feriados />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/aprovacoes"
-            element={
-              <ProtectedRoute>
-                <Aprovacoes />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Rotas protegidas do gestor */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/registros"
+              element={
+                <ProtectedRoute>
+                  <Registros />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/usuarios"
+              element={
+                <ProtectedRoute>
+                  <Usuarios />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/jornada/:userId/:date"
+              element={
+                <ProtectedRoute>
+                  <JornadaDiaria />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ajustes"
+              element={
+                <ProtectedRoute>
+                  <Ajustes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/relatorio-mensal"
+              element={
+                <ProtectedRoute>
+                  <RelatorioMensal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/justificativas"
+              element={
+                <ProtectedRoute>
+                  <Justificativas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/banco-horas"
+              element={
+                <ProtectedRoute>
+                  <BancoHoras />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/auditoria"
+              element={
+                <ProtectedRoute>
+                  <Auditoria />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/feriados"
+              element={
+                <ProtectedRoute>
+                  <Feriados />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/aprovacoes"
+              element={
+                <ProtectedRoute>
+                  <Aprovacoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
+          </Routes>
+        </BrowserRouter>
+      </SyncProvider>
     </AuthProvider>
   );
 }

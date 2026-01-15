@@ -3,7 +3,7 @@ const logger = require('../../utils/logger');
 const photoService = require('../../services/photoService');
 
 class TabletController {
-  
+
   // Buscar usuário por matrícula (SEM autenticação)
   async getByMatricula(req, res) {
     try {
@@ -41,7 +41,7 @@ class TabletController {
   // Registrar ponto com MATRÍCULA (VERSÃO COMPLETA COM VALIDAÇÕES)
   async register(req, res) {
     try {
-      const { matricula, record_type, photo } = req.body;
+      const { matricula, record_type, photo, timestamp } = req.body;
 
       // Validar campos obrigatórios
       if (!matricula || !record_type) {
@@ -86,12 +86,14 @@ class TabletController {
       // VALIDAÇÃO DE INTERVALO MÍNIMO (1 HORA)
       // ============================================
       if (record_type === 'retorno_intervalo') {
+        const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
+
         const lastIntervalExit = await db.query(`
           SELECT timestamp
           FROM time_records
           WHERE user_id = $1
             AND record_type = 'saida_intervalo'
-            AND DATE(timestamp) = CURRENT_DATE
+            AND DATE(timestamp) = ${validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`}
           ORDER BY timestamp DESC
           LIMIT 1
         `, [user.id]);
@@ -116,12 +118,13 @@ class TabletController {
       // VALIDAÇÃO: NÃO PODE BATER ENTRADA 2X
       // ============================================
       if (record_type === 'entrada') {
+        const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
         const jaTemEntrada = await db.query(`
           SELECT id
           FROM time_records
           WHERE user_id = $1
             AND record_type = 'entrada'
-            AND DATE(timestamp) = CURRENT_DATE
+            AND DATE(timestamp) = ${validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`}
           LIMIT 1
         `, [user.id]);
 
@@ -137,12 +140,13 @@ class TabletController {
       // VALIDAÇÃO: NÃO PODE BATER SAÍDA FINAL SEM ENTRADA
       // ============================================
       if (record_type === 'saida_final') {
+        const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
         const temEntrada = await db.query(`
           SELECT id
           FROM time_records
           WHERE user_id = $1
             AND record_type = 'entrada'
-            AND DATE(timestamp) = CURRENT_DATE
+            AND DATE(timestamp) = ${validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`}
           LIMIT 1
         `, [user.id]);
 
@@ -154,29 +158,29 @@ class TabletController {
         }
       }
 
-// Processar foto base64 (se houver)
-let photoData = null;
-if (photo) {
-  try {
-    const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
-    photoData = base64Data;
-    
-    // ← ADICIONE ESTE LOG:
-    logger.info('📸 Foto processada', { 
-      photoLength: base64Data.length,
-      preview: base64Data.substring(0, 50) 
-    });
-  } catch (err) {
-    logger.error('Erro ao processar foto', { error: err.message });
-  }
-}
+      // Processar foto base64 (se houver)
+      let photoData = null;
+      if (photo) {
+        try {
+          const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
+          photoData = base64Data;
 
-// Inserir registro
-const result = await db.query(`
+          // ← ADICIONE ESTE LOG:
+          logger.info('📸 Foto processada', {
+            photoLength: base64Data.length,
+            preview: base64Data.substring(0, 50)
+          });
+        } catch (err) {
+          logger.error('Erro ao processar foto', { error: err.message });
+        }
+      }
+
+      // Inserir registro
+      const result = await db.query(`
   INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
-  VALUES ($1, $2, NOW(), $3, NOW())
+  VALUES ($1, $2, COALESCE($3, NOW()), $4, NOW())
   RETURNING id, user_id, record_type, timestamp, photo_data
-`, [user.id, record_type, photoData]);
+`, [user.id, record_type, timestamp, photoData]);
 
       logger.success('Ponto registrado via tablet', {
         matricula,

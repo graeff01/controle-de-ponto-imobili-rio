@@ -13,5 +13,6 @@ router.get('/activity', reportsController.getActivity);
 router.get('/monthly/individual/:userId/:year/:month', reportsController.getMonthlyIndividual);
 router.get('/monthly/clt/:year/:month', reportsController.getMonthlyCLT);
 router.get('/monthly/plantonistas/:year/:month', reportsController.getMonthlyPlantonistas);
+router.post('/signed-pdf', reportsController.generateSignedPDF);
 
 module.exports = router;

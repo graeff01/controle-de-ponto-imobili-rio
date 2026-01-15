@@ -1,5 +1,6 @@
 ﻿const db = require('../../config/database');
 const logger = require('../../utils/logger');
+const PDFDocument = require('pdfkit');
 
 // Função auxiliar para tempo relativo
 function getTempoRelativo(timestamp) {
@@ -395,6 +396,123 @@ class ReportsController {
       res.json({ success: true, data: stats });
     } catch (error) {
       next(error);
+    }
+  }
+
+  // ✅ Gerar PDF Assinado
+  async generateSignedPDF(req, res) {
+    try {
+      const { userId, year, month, signature, type = 'individual' } = req.body;
+
+      // 1. Buscar dados do relatório (reutilizando a lógica existente)
+      // Nota: Idealmente refatoraríamos a lógica de busca para um Service para evitar duplicação.
+      // Vou simplificar chamando o banco diretamente aqui por enquanto.
+
+      const userRes = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+      if (userRes.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+      const user = userRes.rows[0];
+      const isPlant = user.is_duty_shift_only;
+
+      let registros = [];
+
+      if (isPlant) {
+        // Busca presenças de plantonista
+        const res = await db.query(`
+          SELECT date as data, 'presenca' as record_type, check_in_time as timestamp
+          FROM duty_shifts
+          WHERE user_id = $1
+          AND EXTRACT(YEAR FROM date) = $2
+          AND EXTRACT(MONTH FROM date) = $3
+          ORDER BY date, check_in_time
+        `, [userId, year, month]);
+        registros = res.rows;
+      } else {
+        // Busca registros de CLT
+        const res = await db.query(`
+          SELECT DATE(timestamp) as data, record_type, timestamp
+          FROM time_records
+          WHERE user_id = $1
+          AND EXTRACT(YEAR FROM timestamp) = $2
+          AND EXTRACT(MONTH FROM timestamp) = $3
+          ORDER BY timestamp
+        `, [userId, year, month]);
+        registros = res.rows;
+      }
+
+      // 2. Gerar PDF
+      const doc = new PDFDocument({ margin: 50 });
+
+      // Configurar headers para download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=espelho_ponto_${user.nome.replace(/\s/g, '_')}_${month}_${year}.pdf`);
+
+      doc.pipe(res);
+
+      // Título
+      doc.fontSize(18).text('Espelho de Ponto', { align: 'center' });
+      doc.moveDown();
+
+      // Info do Usuário
+      doc.fontSize(12).text(`Funcionário: ${user.nome}`);
+      doc.text(`Matrícula: ${user.matricula}`);
+      doc.text(`Período: ${month}/${year}`);
+      doc.moveDown();
+
+      // Tabela (Header)
+      const tableTop = 200;
+      doc.font('Helvetica-Bold');
+      doc.text('Data', 50, tableTop);
+      doc.text('Registros', 200, tableTop);
+      doc.font('Helvetica');
+      doc.moveDown();
+
+      let y = tableTop + 25;
+
+      // Agrupar e imprimir registros
+      const porDia = {};
+      registros.forEach(r => {
+        const dia = r.data.toISOString().split('T')[0];
+        if (!porDia[dia]) porDia[dia] = [];
+        porDia[dia].push(new Date(r.timestamp).toLocaleTimeString('pt-BR'));
+      });
+
+      Object.entries(porDia).forEach(([data, horarios]) => {
+        if (y > 700) { // Nova página
+          doc.addPage();
+          y = 50;
+        }
+
+        doc.text(new Date(data).toLocaleDateString('pt-BR'), 50, y);
+        // Se for plantonista, só tem um horário. Se for CLT, pode ter vários.
+        doc.text(isPlant ? 'Presença Confirmada' : horarios.join(' - '), 200, y);
+        y += 20;
+      });
+
+      doc.moveDown(4);
+
+      // Assinatura
+      if (signature) {
+        doc.text('Assinatura do Colaborador:', 50, doc.y);
+        doc.moveDown();
+        const signatureBuffer = Buffer.from(signature.split(',')[1], 'base64');
+        doc.image(signatureBuffer, 50, doc.y, { width: 200 });
+      } else {
+        doc.text('__________________________________________', 50, doc.y);
+        doc.text('Assinatura do Colaborador(a)', 50, doc.y + 15);
+      }
+
+      doc.moveDown(4);
+      doc.text('__________________________________________', 300, doc.y - 80); // Alinhado com a assinatura visualmente
+      doc.text('Assinatura do Gestor', 300, doc.y - 65);
+
+      doc.end();
+
+    } catch (error) {
+      logger.error('Erro ao gerar PDF', { error: error.message });
+      // Se já enviou headers, não pode enviar json
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message });
+      }
     }
   }
 }

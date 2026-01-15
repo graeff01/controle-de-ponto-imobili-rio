@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, LogIn, Coffee, RotateCcw, LogOut, Clock, User, Building2 } from 'lucide-react';
+import { Camera, LogIn, Coffee, RotateCcw, LogOut, Clock, Wifi, WifiOff, Cloud } from 'lucide-react';
 import api from '../services/api';
+import { useSync } from '../services/syncService';
+import { offlineStorage } from '../services/offlineStorage';
 
 export default function Tablet() {
+  const { isOnline, pendingCount } = useSync();
   const [matricula, setMatricula] = useState('');
   const [userData, setUserData] = useState(null);
   const [recordType, setRecordType] = useState('entrada');
@@ -148,6 +151,33 @@ export default function Tablet() {
     }
 
     setLoading(true);
+
+    // ✅ OFFLINE MODE
+    if (!isOnline) {
+      try {
+        await offlineStorage.saveRecord({
+          matricula: userData.matricula,
+          record_type: recordType,
+          photo,
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+          accuracy: location?.accuracy
+        });
+
+        showMessage('Ponto salvo localmente! Será enviado quando houver conexão.', 'success');
+
+        setTimeout(() => {
+          resetForm();
+        }, 3000);
+      } catch (err) {
+        console.error(err);
+        showMessage('Erro ao salvar localmente.', 'error');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       await api.post('/tablet/register', {
         matricula: userData.matricula,
@@ -183,6 +213,34 @@ export default function Tablet() {
     }
 
     setLoading(true);
+
+    // ✅ OFFLINE MODE
+    if (!isOnline) {
+      try {
+        await offlineStorage.saveRecord({
+          user_id: userData.id,
+          isDutyShift: true,
+          photo: photo,
+          notes: '',
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+          accuracy: location?.accuracy
+        });
+
+        showMessage(`Presença salva localmente! Bem-vindo(a), ${userData.nome.split(' ')[0]}`, 'success');
+
+        setTimeout(() => {
+          resetForm();
+        }, 3000);
+      } catch (err) {
+        console.error(err);
+        showMessage('Erro ao salvar localmente.', 'error');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       await api.post('/duty-shifts/mark-presence', {
         user_id: userData.id,
@@ -289,15 +347,37 @@ export default function Tablet() {
               <p className="text-sm text-slate-600 capitalize mb-1">
                 {formatDate(currentTime)}
               </p>
-              {location ? (
-                <div className="flex items-center justify-end gap-1 text-green-600 text-xs font-medium">
-                  <span>📍 GPS Ativo</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-end gap-1 text-red-400 text-xs font-medium">
-                  <span>⚠️ Sem GPS</span>
-                </div>
-              )}
+
+              <div className="flex flex-col items-end gap-1">
+                {location ? (
+                  <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
+                    <span>📍 GPS Ativo</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-red-400 text-xs font-medium">
+                    <span>⚠️ Sem GPS</span>
+                  </div>
+                )}
+
+                {isOnline ? (
+                  <div className="flex items-center gap-1 text-emerald-600 text-xs font-medium">
+                    <Wifi size={14} />
+                    <span>Online</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-red-500 text-xs font-medium">
+                    <WifiOff size={14} />
+                    <span>Offline</span>
+                  </div>
+                )}
+
+                {pendingCount > 0 && (
+                  <div className="flex items-center gap-1 text-orange-500 text-xs font-medium animate-pulse">
+                    <Cloud size={14} />
+                    <span>{pendingCount} Pendentes</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

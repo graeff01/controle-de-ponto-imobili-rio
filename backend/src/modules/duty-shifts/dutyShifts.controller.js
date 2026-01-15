@@ -6,13 +6,13 @@ class DutyShiftsController {
   // Marcar presença (rota pública para tablet)
   async markPresence(req, res) {
     try {
-      const { user_id, photo, notes } = req.body;
+      const { user_id, photo, notes, timestamp } = req.body;
 
       if (!user_id) {
         return res.status(400).json({ error: 'ID do usuário é obrigatório' });
       }
 
-      const result = await dutyShiftsService.markPresence(user_id, photo, notes);
+      const result = await dutyShiftsService.markPresence(user_id, photo, notes, timestamp);
 
       res.status(201).json({
         success: true,
@@ -52,7 +52,7 @@ class DutyShiftsController {
       }
 
       const result = await dutyShiftsService.getMonthlyReport(
-        parseInt(year), 
+        parseInt(year),
         parseInt(month)
       );
 
@@ -77,7 +77,7 @@ class DutyShiftsController {
       }
 
       const buffer = await dutyShiftsService.exportMonthlyReport(
-        parseInt(year), 
+        parseInt(year),
         parseInt(month)
       );
 

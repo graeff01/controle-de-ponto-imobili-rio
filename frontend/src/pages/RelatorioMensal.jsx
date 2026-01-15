@@ -5,6 +5,8 @@ import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
 import api from '../services/api';
 import * as XLSX from 'xlsx';
+import SignatureModal from '../components/modals/SignatureModal'; // ✅ Import
+import { PenTool } from 'lucide-react'; // ✅ Import
 
 export default function RelatorioMensal() {
   const [tipoRelatorio, setTipoRelatorio] = useState('individual'); // individual, clt, plantonistas
@@ -14,6 +16,7 @@ export default function RelatorioMensal() {
   const [ano, setAno] = useState(new Date().getFullYear());
   const [relatorio, setRelatorio] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false); // ✅ State
 
   useEffect(() => {
     carregarUsuarios();
@@ -35,7 +38,7 @@ export default function RelatorioMensal() {
     setLoading(true);
     try {
       let response;
-      
+
       if (tipoRelatorio === 'individual') {
         response = await api.get(`/reports/monthly/individual/${usuarioSelecionado}/${ano}/${mes}`);
       } else if (tipoRelatorio === 'clt') {
@@ -43,7 +46,7 @@ export default function RelatorioMensal() {
       } else {
         response = await api.get(`/reports/monthly/plantonistas/${ano}/${mes}`);
       }
-      
+
       setRelatorio(response.data.data);
     } catch (err) {
       console.error('Erro ao gerar relatório:', err);
@@ -103,6 +106,39 @@ export default function RelatorioMensal() {
     XLSX.writeFile(wb, nomeArquivo);
   };
 
+  const handleAssinar = () => {
+    setIsSignatureModalOpen(true);
+  };
+
+  const gerarPDFAssinado = async (signatureData) => {
+    try {
+      setLoading(true);
+      const response = await api.post('/reports/signed-pdf', {
+        userId: usuarioSelecionado,
+        year: ano,
+        month: mes,
+        signature: signatureData
+      }, {
+        responseType: 'blob' // Important for PDF download
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `espelho_ponto_${mes}_${ano}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove(); // Clean up
+
+    } catch (err) {
+      console.error('Erro ao baixar PDF:', err);
+      alert('Erro ao gerar PDF');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const meses = [
     'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
@@ -112,10 +148,10 @@ export default function RelatorioMensal() {
 
   return (
     <Layout title="Relatório Mensal" subtitle="Análise completa de horas e registros">
-      
+
       <Card className="p-6 mb-6">
         <h3 className="text-xl font-bold text-slate-900 mb-6">Selecionar Período</h3>
-        
+
         {/* Tipo de Relatório */}
         <div className="mb-6">
           <label className="block text-sm font-semibold text-slate-700 mb-3">
@@ -268,6 +304,29 @@ export default function RelatorioMensal() {
           )}
         </div>
       </Card>
+
+      {/* Botão Flutuante de Assinatura (Apenas se individual e tiver relatório) */}
+      {relatorio && tipoRelatorio === 'individual' && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="fixed bottom-6 right-6 z-40"
+        >
+          <button
+            onClick={handleAssinar}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-full shadow-lg flex items-center gap-3 transition-all"
+          >
+            <PenTool size={24} />
+            Assinar e Baixar PDF
+          </button>
+        </motion.div>
+      )}
+
+      <SignatureModal
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onSave={gerarPDFAssinado}
+      />
 
       {/* Preview do Relatório */}
       {relatorio && (
