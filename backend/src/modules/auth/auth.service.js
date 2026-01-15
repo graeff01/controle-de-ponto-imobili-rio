@@ -23,22 +23,14 @@ class AuthService {
 
       // Verificar senha
       const isValidPassword = await bcrypt.compare(password, user.password_hash);
-      
+
       if (!isValidPassword) {
         logger.warn('Senha incorreta', { matricula });
         throw new Error('Credenciais inválidas');
       }
 
-      // Determinar role baseado no cargo
-      let role = 'funcionario';
-      if (user.cargo) {
-        const cargoLower = user.cargo.toLowerCase();
-        if (cargoLower.includes('admin')) {
-          role = 'admin';
-        } else if (cargoLower.includes('gestor')) {
-          role = 'gestor';
-        }
-      }
+      // Usar a role do banco de dados (que já está correta: admin, manager, employee)
+      const role = user.role || 'employee';
 
       // Gerar token JWT
       const token = jwt.sign(
@@ -58,7 +50,7 @@ class AuthService {
         [user.id]
       );
 
-      logger.success('Login realizado', { 
+      logger.success('Login realizado', {
         user_id: user.id,
         matricula: user.matricula,
         role: role
