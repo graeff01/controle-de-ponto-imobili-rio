@@ -63,8 +63,8 @@ export default function Tablet() {
       return;
     }
 
-    // Só busca quando tiver exatamente 6 (CLT) ou 7 (PJ) dígitos
-    const isValidLength = matricula.length === 6 || matricula.length === 7;
+    // Só busca quando tiver tamanho válido (6=CLT, 7=PJ, 9=Gestor)
+    const isValidLength = matricula.length === 6 || matricula.length === 7 || matricula.length === 9;
 
     if (!isValidLength) {
       return; // Não busca enquanto ainda está digitando
@@ -73,8 +73,9 @@ export default function Tablet() {
     // Validar formato
     const isNumeric = /^\d{6}$/.test(matricula); // 000001
     const isBroker = /^CORR\d{3}$/.test(matricula); // CORR001
+    const isManager = /^GESTOR\d{3}$/.test(matricula); // GESTOR001
 
-    if (!isNumeric && !isBroker) {
+    if (!isNumeric && !isBroker && !isManager) {
       console.log('❌ Formato inválido:', matricula);
       return;
     }
@@ -349,8 +350,8 @@ export default function Tablet() {
               type="text"
               value={matricula}
               onChange={(e) => setMatricula(e.target.value.toUpperCase())}
-              placeholder="000000 ou CORR001"
-              maxLength={7}
+              placeholder="000000, CORR001 ou GESTOR001"
+              maxLength={10}
               className={`
                 px-6 py-4 text-center font-bold
                 bg-slate-50 border-2 border-slate-200

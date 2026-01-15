@@ -40,26 +40,26 @@ export default function Sidebar({ isOpen, onClose }) {
     {
       title: 'PRINCIPAL',
       items: [
-        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { path: '/registros', icon: Clock, label: 'Registros' },
-        { path: '/usuarios', icon: Users, label: 'Funcionários' }
+        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'manager'] },
+        { path: '/registros', icon: Clock, label: 'Registros', roles: ['admin', 'manager'] },
+        { path: '/usuarios', icon: Users, label: 'Funcionários', roles: ['admin', 'manager'] }
       ]
     },
     {
       title: 'GESTÃO',
       items: [
-        { path: '/banco-horas', icon: Timer, label: 'Banco de Horas' },
-        { path: '/justificativas', icon: FileText, label: 'Justificativas' },
-        { path: '/ajustes', icon: Settings, label: 'Ajustes' },
-        { path: '/aprovacoes', icon: CheckCircle, label: 'Aprovações' },
-        { path: '/feriados', icon: Calendar, label: 'Feriados' },
-        { path: '/relatorio-mensal', icon: Calendar, label: 'Relatório Mensal' }
+        { path: '/banco-horas', icon: Timer, label: 'Banco de Horas', roles: ['admin', 'manager'] },
+        { path: '/justificativas', icon: FileText, label: 'Justificativas', roles: ['admin', 'manager'] },
+        { path: '/ajustes', icon: Settings, label: 'Ajustes', roles: ['admin'] }, // Apenas Admin
+        { path: '/aprovacoes', icon: CheckCircle, label: 'Aprovações', roles: ['admin', 'manager'] },
+        { path: '/feriados', icon: Calendar, label: 'Feriados', roles: ['admin'] }, // Apenas Admin
+        { path: '/relatorio-mensal', icon: Calendar, label: 'Relatório Mensal', roles: ['admin', 'manager'] }
       ]
     },
     {
       title: 'SISTEMA',
       items: [
-        { path: '/auditoria', icon: Shield, label: 'Auditoria' }
+        { path: '/auditoria', icon: Shield, label: 'Auditoria', roles: ['admin'] } // Apenas Admin
       ]
     }
   ];
@@ -148,39 +148,49 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Menu */}
         <div className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
-          {menuSections.map((section, idx) => (
-            <div key={idx} className="mb-6">
-              {(!collapsed || isMobile) && (
-                <p className="px-6 text-xs font-semibold text-slate-500 uppercase mb-2 whitespace-nowrap">
-                  {section.title}
-                </p>
-              )}
-              <div className="space-y-1 px-3">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <button
-                      key={item.path}
-                      onClick={() => handleNavigation(item.path)}
-                      className={`
-                        w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all
-                        ${isActive
-                          ? 'bg-slate-800 text-white'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                        }
-                      `}
-                    >
-                      <Icon size={20} className="flex-shrink-0" />
-                      {(!collapsed || isMobile) && (
-                        <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>
-                      )}
-                    </button>
-                  );
-                })}
+          {menuSections.map((section, idx) => {
+            // Filter items based on user role
+            const filteredItems = section.items.filter(item =>
+              !item.roles || item.roles.includes(user?.role || 'employee')
+            );
+
+            // If no items in section, don't render section
+            if (filteredItems.length === 0) return null;
+
+            return (
+              <div key={idx} className="mb-6">
+                {(!collapsed || isMobile) && (
+                  <p className="px-6 text-xs font-semibold text-slate-500 uppercase mb-2 whitespace-nowrap">
+                    {section.title}
+                  </p>
+                )}
+                <div className="space-y-1 px-3">
+                  {filteredItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <button
+                        key={item.path}
+                        onClick={() => handleNavigation(item.path)}
+                        className={`
+                          w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all
+                          ${isActive
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          }
+                        `}
+                      >
+                        <Icon size={20} className="flex-shrink-0" />
+                        {(!collapsed || isMobile) && (
+                          <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Footer */}

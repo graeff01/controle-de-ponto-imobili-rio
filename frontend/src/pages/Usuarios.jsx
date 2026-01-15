@@ -195,7 +195,7 @@ export default function Usuarios() {
 
   // ========== RENDER ==========
   return (
-    <Layout title="Gerenciar Funcionários" subtitle={`${usuarios.length} funcionário(s) cadastrado(s)`}>
+    <Layout title="Gerenciar Funcionários v1.1" subtitle={`${usuarios.length} funcionário(s) cadastrado(s)`}>
 
       {/* Botão Novo Funcionário (Apenas Admin) */}
       {user?.role === 'admin' && (
