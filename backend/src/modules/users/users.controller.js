@@ -57,6 +57,33 @@ class UsersController {
     }
   }
 
+  // ✅ Buscar próxima matrícula de admin
+  async getNextAdminMatricula(req, res) {
+    try {
+      const result = await db.query(`
+        SELECT matricula 
+        FROM users 
+        WHERE matricula ~ '^ADMIN[0-9]+$'
+        ORDER BY CAST(SUBSTRING(matricula FROM 6) AS INTEGER) DESC 
+        LIMIT 1
+      `);
+
+      let nextMatricula;
+      if (result.rows.length === 0) {
+        nextMatricula = 'ADMIN001';
+      } else {
+        const lastMatricula = result.rows[0].matricula;
+        const lastNumber = parseInt(lastMatricula.replace('ADMIN', ''));
+        nextMatricula = 'ADMIN' + String(lastNumber + 1).padStart(3, '0');
+      }
+
+      res.json({ success: true, data: nextMatricula });
+    } catch (error) {
+      logger.error('Erro ao gerar próxima matrícula de admin', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
+  }
+
   // ✅ Listar todos os usuários
   async getAll(req, res) {
     try {
@@ -133,10 +160,10 @@ class UsersController {
         return res.status(400).json({ error: 'Matrícula e nome são obrigatórios' });
       }
 
-      // ✅ Validação de matrícula: Aceita números OU CORR + números
-      if (!/^(\d+|CORR\d+)$/.test(matricula)) {
+      // ✅ Validação de matrícula: Aceita números OU CORR/ADMIN + números
+      if (!/^(\d+|CORR\d+|ADMIN\d+)$/.test(matricula)) {
         return res.status(400).json({ 
-          error: 'Matrícula inválida. Use formato numérico (000001) ou CORR + número (CORR001)' 
+          error: 'Matrícula inválida. Use formato numérico (000001), CORR + número (CORR001) ou ADMIN + número (ADMIN001)' 
         });
       }
 

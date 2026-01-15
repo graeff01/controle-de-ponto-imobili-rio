@@ -9,6 +9,9 @@ router.get('/next-matricula', authMiddleware, usersController.getNextMatricula);
 // ✅ Rota para buscar próxima matrícula de corretor
 router.get('/next-matricula-broker', authMiddleware, usersController.getNextBrokerMatricula);
 
+// ✅ Rota para buscar próxima matrícula de admin
+router.get('/next-matricula-admin', authMiddleware, usersController.getNextAdminMatricula);
+
 // ✅ Buscar por matrícula (específica)
 router.get('/matricula/:matricula', usersController.getByMatricula);
 

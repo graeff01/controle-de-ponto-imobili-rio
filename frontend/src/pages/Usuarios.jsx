@@ -66,16 +66,29 @@ export default function Usuarios() {
     }
   };
 
+  const buscarProximaMatriculaAdmin = async () => {
+    try {
+      const response = await api.get('/users/next-matricula-admin');
+      setProximaMatricula(response.data.data);
+    } catch (err) {
+      console.error('Erro ao buscar matrícula de admin:', err);
+      setProximaMatricula('ADMIN001');
+    }
+  };
+
   // Monitora mudança no checkbox de plantonista
+  // Monitora mudança nos checkboxes para definir matrícula
   useEffect(() => {
     if (!editando && showModal) {
-      if (formData.isDutyShift) {
+      if (formData.isAdmin) {
+        buscarProximaMatriculaAdmin();
+      } else if (formData.isDutyShift) {
         buscarProximaMatriculaBroker();
       } else {
         buscarProximaMatricula();
       }
     }
-  }, [formData.isDutyShift, showModal, editando]);
+  }, [formData.isDutyShift, formData.isAdmin, showModal, editando]);
 
   const abrirModal = (usuario = null) => {
     if (usuario) {
@@ -113,7 +126,7 @@ export default function Usuarios() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
       const payload = {
         nome: formData.nome,
@@ -143,7 +156,7 @@ export default function Usuarios() {
       } else {
         await api.post('/users', payload);
       }
-      
+
       setShowModal(false);
       carregarUsuarios();
       alert(editando ? 'Usuário atualizado!' : 'Usuário criado!');
@@ -154,7 +167,7 @@ export default function Usuarios() {
 
   const desativarUsuario = async (id) => {
     if (!confirm('Deseja realmente desativar este usuário?')) return;
-    
+
     try {
       await api.post(`/users/${id}/deactivate`);
       carregarUsuarios();
@@ -166,7 +179,7 @@ export default function Usuarios() {
   // ========== RENDER ==========
   return (
     <Layout title="Gerenciar Funcionários" subtitle={`${usuarios.length} funcionário(s) cadastrado(s)`}>
-      
+
       {/* Botão Novo Funcionário */}
       <div className="flex justify-end mb-6">
         <motion.button
@@ -192,8 +205,109 @@ export default function Usuarios() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {/* ========== ADMINISTRADORES ========== */}
+          {usuarios.filter(u => u.role === 'admin').length > 0 && (
+            <Card className="overflow-hidden">
+              <div className="bg-purple-800 px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <Shield size={20} className="text-white" />
+                  <h3 className="text-white font-bold text-lg">
+                    Administradores
+                  </h3>
+                  <Badge variant="default" className="bg-white/20 text-white border-white/30">
+                    {usuarios.filter(u => u.role === 'admin').length}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-purple-50 border-b border-purple-200">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-purple-900 uppercase tracking-wider">
+                        Administrador
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-purple-900 uppercase tracking-wider">
+                        Cargo
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-purple-900 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-purple-900 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-purple-900 uppercase tracking-wider">
+                        Ações
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-purple-100">
+                    {usuarios
+                      .filter(usuario => usuario.role === 'admin')
+                      .map((usuario, idx) => (
+                        <motion.tr
+                          key={usuario.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="hover:bg-purple-50 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full bg-purple-800 flex items-center justify-center text-white font-bold text-lg">
+                                {usuario.nome.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-slate-900">{usuario.nome}</p>
+                                <p className="text-sm text-purple-700 font-medium">
+                                  {usuario.matricula}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-900">{usuario.cargo}</p>
+                            <p className="text-sm text-slate-500">{usuario.departamento}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                              <Mail size={16} className="text-purple-400" />
+                              <span>{usuario.email}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
+                              {usuario.status}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => abrirModal(usuario)}
+                                className="p-2 hover:bg-purple-100 rounded-lg transition-colors group"
+                                title="Editar"
+                              >
+                                <Edit2 size={18} className="text-slate-400 group-hover:text-purple-800" />
+                              </button>
+                              <button
+                                onClick={() => desativarUsuario(usuario.id)}
+                                className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+                                title="Desativar"
+                              >
+                                <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
+                              </button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
           {/* ========== FUNCIONÁRIOS CLT ========== */}
-          {usuarios.filter(u => !u.is_duty_shift_only).length > 0 && (
+          {usuarios.filter(u => !u.is_duty_shift_only && u.role !== 'admin').length > 0 && (
             <Card className="overflow-hidden">
               <div className="bg-slate-800 px-6 py-4">
                 <div className="flex items-center gap-3">
@@ -202,11 +316,11 @@ export default function Usuarios() {
                     Funcionários CLT
                   </h3>
                   <Badge variant="default" className="bg-white/20 text-white border-white/30">
-                    {usuarios.filter(u => !u.is_duty_shift_only).length}
+                    {usuarios.filter(u => !u.is_duty_shift_only && u.role !== 'admin').length}
                   </Badge>
                 </div>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -230,7 +344,7 @@ export default function Usuarios() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {usuarios
-                      .filter(usuario => !usuario.is_duty_shift_only)
+                      .filter(usuario => !usuario.is_duty_shift_only && usuario.role !== 'admin')
                       .map((usuario, idx) => (
                         <motion.tr
                           key={usuario.id}
@@ -248,9 +362,6 @@ export default function Usuarios() {
                                 <p className="font-semibold text-slate-900">{usuario.nome}</p>
                                 <p className="text-sm text-slate-500">
                                   {usuario.matricula}
-                                  {usuario.role === 'admin' && (
-                                    <Badge variant="info" className="ml-2">Admin</Badge>
-                                  )}
                                 </p>
                               </div>
                             </div>
@@ -298,7 +409,7 @@ export default function Usuarios() {
           )}
 
           {/* ========== CORRETORES PLANTONISTAS ========== */}
-          {usuarios.filter(u => u.is_duty_shift_only).length > 0 && (
+          {usuarios.filter(u => u.is_duty_shift_only && u.role !== 'admin').length > 0 && (
             <Card className="overflow-hidden">
               <div className="bg-blue-600 px-6 py-4">
                 <div className="flex items-center gap-3">
@@ -311,7 +422,7 @@ export default function Usuarios() {
                   </Badge>
                 </div>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-blue-50 border-b border-blue-200">
@@ -335,7 +446,7 @@ export default function Usuarios() {
                   </thead>
                   <tbody className="divide-y divide-blue-100">
                     {usuarios
-                      .filter(usuario => usuario.is_duty_shift_only)
+                      .filter(usuario => usuario.is_duty_shift_only && usuario.role !== 'admin')
                       .map((usuario, idx) => (
                         <motion.tr
                           key={usuario.id}
@@ -442,27 +553,24 @@ export default function Usuarios() {
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-                
+
                 {/* Matrícula (auto) - Só aparece ao criar novo */}
                 {!editando && (
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
                       Matrícula (gerada automaticamente)
                     </label>
-                    <div className={`px-4 py-3 border-2 rounded-xl ${
-                      formData.isDutyShift 
-                        ? 'bg-blue-50 border-blue-200' 
-                        : 'bg-slate-50 border-slate-200'
-                    }`}>
-                      <p className={`text-2xl font-bold text-center tracking-wider ${
-                        formData.isDutyShift ? 'text-blue-900' : 'text-slate-900'
+                    <div className={`px-4 py-3 border-2 rounded-xl ${formData.isAdmin
+                        ? 'bg-purple-50 border-purple-200'
+                        : (formData.isDutyShift ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200')
                       }`}>
+                      <p className={`text-2xl font-bold text-center tracking-wider ${formData.isAdmin ? 'text-purple-900' : (formData.isDutyShift ? 'text-blue-900' : 'text-slate-900')
+                        }`}>
                         {proximaMatricula || 'Carregando...'}
                       </p>
-                      <p className={`text-xs text-center mt-1 ${
-                        formData.isDutyShift ? 'text-blue-600' : 'text-slate-500'
-                      }`}>
-                        {formData.isDutyShift ? '📋 Corretor Plantonista' : '👤 Funcionário CLT'}
+                      <p className={`text-xs text-center mt-1 ${formData.isDutyShift ? 'text-blue-600' : 'text-slate-500'
+                        }`}>
+                        {formData.isAdmin ? '🛡️ Administrador' : (formData.isDutyShift ? '📋 Corretor Plantonista' : '👤 Funcionário CLT')}
                       </p>
                     </div>
                   </div>
@@ -611,7 +719,7 @@ export default function Usuarios() {
                         <input
                           type="time"
                           value={formData.work_hours_start}
-                          onChange={(e) => setFormData({...formData, work_hours_start: e.target.value})}
+                          onChange={(e) => setFormData({ ...formData, work_hours_start: e.target.value })}
                           className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-slate-800 outline-none transition-all"
                         />
                       </div>
@@ -620,7 +728,7 @@ export default function Usuarios() {
                         <input
                           type="time"
                           value={formData.work_hours_end}
-                          onChange={(e) => setFormData({...formData, work_hours_end: e.target.value})}
+                          onChange={(e) => setFormData({ ...formData, work_hours_end: e.target.value })}
                           className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-slate-800 outline-none transition-all"
                         />
                       </div>
@@ -632,7 +740,7 @@ export default function Usuarios() {
                           min="1"
                           max="12"
                           value={formData.expected_daily_hours}
-                          onChange={(e) => setFormData({...formData, expected_daily_hours: parseFloat(e.target.value)})}
+                          onChange={(e) => setFormData({ ...formData, expected_daily_hours: parseFloat(e.target.value) })}
                           className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-slate-800 outline-none transition-all"
                         />
                       </div>
