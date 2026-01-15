@@ -84,6 +84,33 @@ class UsersController {
     }
   }
 
+  // ✅ Buscar próxima matrícula de gestor
+  async getNextManagerMatricula(req, res) {
+    try {
+      const result = await db.query(`
+        SELECT matricula 
+        FROM users 
+        WHERE matricula ~ '^GESTOR[0-9]+$'
+        ORDER BY CAST(SUBSTRING(matricula FROM 7) AS INTEGER) DESC 
+        LIMIT 1
+      `);
+
+      let nextMatricula;
+      if (result.rows.length === 0) {
+        nextMatricula = 'GESTOR001';
+      } else {
+        const lastMatricula = result.rows[0].matricula;
+        const lastNumber = parseInt(lastMatricula.replace('GESTOR', ''));
+        nextMatricula = 'GESTOR' + String(lastNumber + 1).padStart(3, '0');
+      }
+
+      res.json({ success: true, data: nextMatricula });
+    } catch (error) {
+      logger.error('Erro ao gerar próxima matrícula de gestor', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
+  }
+
   // ✅ Listar todos os usuários
   async getAll(req, res) {
     try {
@@ -117,10 +144,10 @@ class UsersController {
 
   // ✅ Buscar por matrícula
   async getByMatricula(req, res) {
-  try {
-    const { matricula } = req.params;
+    try {
+      const { matricula } = req.params;
 
-    const result = await db.query(`
+      const result = await db.query(`
       SELECT 
         id, 
         matricula, 
@@ -134,22 +161,22 @@ class UsersController {
       WHERE matricula = $1 AND status = 'ativo'
     `, [matricula]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
 
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    logger.error('Erro ao buscar usuário por matrícula', { error: error.message });
-    res.status(500).json({ error: error.message });
+      res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+      logger.error('Erro ao buscar usuário por matrícula', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
   }
-}
 
   // ✅ Criar novo usuário
   async create(req, res) {
     try {
-      const { 
-        matricula, nome, cargo, departamento, 
+      const {
+        matricula, nome, cargo, departamento,
         role, email, password,
         work_hours_start, work_hours_end, expected_daily_hours,
         user_type, is_duty_shift_only
@@ -160,16 +187,16 @@ class UsersController {
         return res.status(400).json({ error: 'Matrícula e nome são obrigatórios' });
       }
 
-      // ✅ Validação de matrícula: Aceita números OU CORR/ADMIN + números
-      if (!/^(\d+|CORR\d+|ADMIN\d+)$/.test(matricula)) {
-        return res.status(400).json({ 
-          error: 'Matrícula inválida. Use formato numérico (000001), CORR + número (CORR001) ou ADMIN + número (ADMIN001)' 
+      // ✅ Validação de matrícula: Aceita números, CORR, ADMIN ou GESTOR
+      if (!/^(\d+|CORR\d+|ADMIN\d+|GESTOR\d+)$/.test(matricula)) {
+        return res.status(400).json({
+          error: 'Matrícula inválida. Use formato numérico (000001), CORR (CORR001), ADMIN (ADMIN001) ou GESTOR (GESTOR001)'
         });
       }
 
-      // Se for admin, email e senha são obrigatórios
-      if (role === 'admin' && (!email || !password)) {
-        return res.status(400).json({ error: 'Email e senha são obrigatórios para administradores' });
+      // Se for admin ou gestor, email e senha são obrigatórios
+      if ((role === 'admin' || role === 'manager') && (!email || !password)) {
+        return res.status(400).json({ error: 'Email e senha são obrigatórios para administradores e gestores' });
       }
 
       // Verificar se matrícula já existe
@@ -251,8 +278,8 @@ class UsersController {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { 
-        nome, cargo, departamento, 
+      const {
+        nome, cargo, departamento,
         role, email, password,
         work_hours_start, work_hours_end, expected_daily_hours,
         user_type, is_duty_shift_only
@@ -268,10 +295,10 @@ class UsersController {
         return res.status(404).json({ error: 'Usuário não encontrado' });
       }
 
-      // Se está mudando para admin e não tem email, validar
-      if (role === 'admin' && !email && !userCheck.rows[0].email) {
-        return res.status(400).json({ 
-          error: 'Email é obrigatório para administradores' 
+      // Se está mudando para admin/gestor e não tem email, validar
+      if ((role === 'admin' || role === 'manager') && !email && !userCheck.rows[0].email) {
+        return res.status(400).json({
+          error: 'Email é obrigatório para administradores e gestores'
         });
       }
 
@@ -400,6 +427,25 @@ class UsersController {
       res.json({ success: true, message: 'Usuário desativado com sucesso' });
     } catch (error) {
       logger.error('Erro ao desativar usuário', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // ✅ Excluir usuário (Soft delete)
+  async delete(req, res) {
+    try {
+      const { id } = req.params;
+
+      await db.query(
+        'UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['deleted', id]
+      );
+
+      logger.info('Usuário excluído', { user_id: id });
+
+      res.json({ success: true, message: 'Usuário excluído com sucesso' });
+    } catch (error) {
+      logger.error('Erro ao excluir usuário', { error: error.message });
       res.status(500).json({ error: error.message });
     }
   }

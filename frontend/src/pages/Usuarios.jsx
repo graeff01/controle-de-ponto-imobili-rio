@@ -7,8 +7,10 @@ import Badge from '../components/ui/Badge';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Usuarios() {
+  const { user } = useAuth(); // Hook de autenticação
   // ========== STATES ==========
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +22,7 @@ export default function Usuarios() {
     cargo: '',
     departamento: '',
     isAdmin: false,
+    isManager: false,
     isDutyShift: false,
     email: '',
     password: '',
@@ -30,6 +33,7 @@ export default function Usuarios() {
 
   // ========== EFFECTS ==========
   useEffect(() => {
+    console.log('Usuarios page rendered. formData:', formData); // DEBUG
     carregarUsuarios();
   }, []);
 
@@ -76,19 +80,30 @@ export default function Usuarios() {
     }
   };
 
-  // Monitora mudança no checkbox de plantonista
+  const buscarProximaMatriculaGestor = async () => {
+    try {
+      const response = await api.get('/users/next-matricula-manager');
+      setProximaMatricula(response.data.data);
+    } catch (err) {
+      console.error('Erro ao buscar matrícula de gestor:', err);
+      setProximaMatricula('GESTOR001');
+    }
+  };
+
   // Monitora mudança nos checkboxes para definir matrícula
   useEffect(() => {
     if (!editando && showModal) {
       if (formData.isAdmin) {
         buscarProximaMatriculaAdmin();
+      } else if (formData.isManager) {
+        buscarProximaMatriculaGestor();
       } else if (formData.isDutyShift) {
         buscarProximaMatriculaBroker();
       } else {
         buscarProximaMatricula();
       }
     }
-  }, [formData.isDutyShift, formData.isAdmin, showModal, editando]);
+  }, [formData.isDutyShift, formData.isAdmin, formData.isManager, showModal, editando]);
 
   const abrirModal = (usuario = null) => {
     if (usuario) {
@@ -98,6 +113,7 @@ export default function Usuarios() {
         cargo: usuario.cargo || '',
         departamento: usuario.departamento || '',
         isAdmin: usuario.role === 'admin',
+        isManager: usuario.role === 'manager',
         isDutyShift: usuario.is_duty_shift_only || false,
         email: usuario.email || '',
         password: '',
@@ -112,6 +128,7 @@ export default function Usuarios() {
         cargo: '',
         departamento: '',
         isAdmin: false,
+        isManager: false,
         isDutyShift: false,
         email: '',
         password: '',
@@ -132,11 +149,11 @@ export default function Usuarios() {
         nome: formData.nome,
         cargo: formData.cargo,
         departamento: formData.departamento,
-        role: formData.isAdmin ? 'admin' : 'employee',
+        role: formData.isAdmin ? 'admin' : (formData.isManager ? 'manager' : 'employee'),
         work_hours_start: formData.work_hours_start,
         work_hours_end: formData.work_hours_end,
         expected_daily_hours: formData.expected_daily_hours,
-        user_type: formData.isDutyShift ? 'broker' : 'employee',
+        user_type: formData.isDutyShift ? 'broker' : (formData.isManager ? 'manager' : 'employee'),
         is_duty_shift_only: formData.isDutyShift
       };
 
@@ -144,7 +161,7 @@ export default function Usuarios() {
         payload.matricula = proximaMatricula;
       }
 
-      if (formData.isAdmin) {
+      if (formData.isAdmin || formData.isManager) {
         payload.email = formData.email;
         if (formData.password) {
           payload.password = formData.password;
@@ -165,14 +182,14 @@ export default function Usuarios() {
     }
   };
 
-  const desativarUsuario = async (id) => {
-    if (!confirm('Deseja realmente desativar este usuário?')) return;
+  const excluirUsuario = async (id) => {
+    if (!confirm('Deseja realmente excluir este usuário?')) return;
 
     try {
-      await api.post(`/users/${id}/deactivate`);
+      await api.delete(`/users/${id}`);
       carregarUsuarios();
     } catch (err) {
-      alert('Erro ao desativar usuário');
+      alert('Erro ao excluir usuário');
     }
   };
 
@@ -180,18 +197,20 @@ export default function Usuarios() {
   return (
     <Layout title="Gerenciar Funcionários" subtitle={`${usuarios.length} funcionário(s) cadastrado(s)`}>
 
-      {/* Botão Novo Funcionário */}
-      <div className="flex justify-end mb-6">
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => abrirModal()}
-          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold shadow-lg flex items-center gap-2 transition-all"
-        >
-          <UserPlus size={20} />
-          Novo Funcionário
-        </motion.button>
-      </div>
+      {/* Botão Novo Funcionário (Apenas Admin) */}
+      {user?.role === 'admin' && (
+        <div className="flex justify-end mb-6">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => abrirModal()}
+            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold shadow-lg flex items-center gap-2 transition-all"
+          >
+            <UserPlus size={20} />
+            Novo Funcionário
+          </motion.button>
+        </div>
+      )}
 
       {loading ? (
         <Card className="p-12">
@@ -281,22 +300,127 @@ export default function Usuarios() {
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => abrirModal(usuario)}
-                                className="p-2 hover:bg-purple-100 rounded-lg transition-colors group"
-                                title="Editar"
-                              >
-                                <Edit2 size={18} className="text-slate-400 group-hover:text-purple-800" />
-                              </button>
-                              <button
-                                onClick={() => desativarUsuario(usuario.id)}
-                                className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
-                                title="Desativar"
-                              >
-                                <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
-                              </button>
+                            {user?.role === 'admin' && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => abrirModal(usuario)}
+                                  className="p-2 hover:bg-purple-100 rounded-lg transition-colors group"
+                                  title="Editar"
+                                >
+                                  <Edit2 size={18} className="text-slate-400 group-hover:text-purple-800" />
+                                </button>
+                                <button
+                                  onClick={() => excluirUsuario(usuario.id)}
+                                  className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+                                  title="Excluir"
+                                >
+                                  <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </motion.tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* ========== GESTORES ========== */}
+          {usuarios.filter(u => u.role === 'manager').length > 0 && (
+            <Card className="overflow-hidden">
+              <div className="bg-emerald-600 px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <Briefcase size={20} className="text-white" />
+                  <h3 className="text-white font-bold text-lg">
+                    Gestores
+                  </h3>
+                  <Badge variant="default" className="bg-white/20 text-white border-white/30">
+                    {usuarios.filter(u => u.role === 'manager').length}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-emerald-50 border-b border-emerald-200">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-emerald-900 uppercase tracking-wider">
+                        Gestor
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-emerald-900 uppercase tracking-wider">
+                        Cargo
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-emerald-900 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-emerald-900 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-emerald-900 uppercase tracking-wider">
+                        Ações
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-emerald-100">
+                    {usuarios
+                      .filter(usuario => usuario.role === 'manager')
+                      .map((usuario, idx) => (
+                        <motion.tr
+                          key={usuario.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="hover:bg-emerald-50 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-lg">
+                                {usuario.nome.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-slate-900">{usuario.nome}</p>
+                                <p className="text-sm text-emerald-700 font-medium">
+                                  {usuario.matricula}
+                                </p>
+                              </div>
                             </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-900">{usuario.cargo}</p>
+                            <p className="text-sm text-slate-500">{usuario.departamento}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                              <Mail size={16} className="text-emerald-400" />
+                              <span>{usuario.email}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
+                              {usuario.status}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            {user?.role === 'admin' && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => abrirModal(usuario)}
+                                  className="p-2 hover:bg-emerald-100 rounded-lg transition-colors group"
+                                  title="Editar"
+                                >
+                                  <Edit2 size={18} className="text-slate-400 group-hover:text-emerald-800" />
+                                </button>
+                                <button
+                                  onClick={() => excluirUsuario(usuario.id)}
+                                  className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+                                  title="Excluir"
+                                >
+                                  <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </motion.tr>
                       ))}
@@ -307,7 +431,7 @@ export default function Usuarios() {
           )}
 
           {/* ========== FUNCIONÁRIOS CLT ========== */}
-          {usuarios.filter(u => !u.is_duty_shift_only && u.role !== 'admin').length > 0 && (
+          {usuarios.filter(u => !u.is_duty_shift_only && u.role !== 'admin' && u.role !== 'manager').length > 0 && (
             <Card className="overflow-hidden">
               <div className="bg-slate-800 px-6 py-4">
                 <div className="flex items-center gap-3">
@@ -316,7 +440,7 @@ export default function Usuarios() {
                     Funcionários CLT
                   </h3>
                   <Badge variant="default" className="bg-white/20 text-white border-white/30">
-                    {usuarios.filter(u => !u.is_duty_shift_only && u.role !== 'admin').length}
+                    {usuarios.filter(u => !u.is_duty_shift_only && u.role !== 'admin' && u.role !== 'manager').length}
                   </Badge>
                 </div>
               </div>
@@ -344,7 +468,7 @@ export default function Usuarios() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {usuarios
-                      .filter(usuario => !usuario.is_duty_shift_only && usuario.role !== 'admin')
+                      .filter(usuario => !usuario.is_duty_shift_only && usuario.role !== 'admin' && usuario.role !== 'manager')
                       .map((usuario, idx) => (
                         <motion.tr
                           key={usuario.id}
@@ -383,22 +507,24 @@ export default function Usuarios() {
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => abrirModal(usuario)}
-                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
-                                title="Editar"
-                              >
-                                <Edit2 size={18} className="text-slate-400 group-hover:text-slate-800" />
-                              </button>
-                              <button
-                                onClick={() => desativarUsuario(usuario.id)}
-                                className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
-                                title="Desativar"
-                              >
-                                <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
-                              </button>
-                            </div>
+                            {user?.role === 'admin' && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => abrirModal(usuario)}
+                                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
+                                  title="Editar"
+                                >
+                                  <Edit2 size={18} className="text-slate-400 group-hover:text-slate-800" />
+                                </button>
+                                <button
+                                  onClick={() => excluirUsuario(usuario.id)}
+                                  className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+                                  title="Excluir"
+                                >
+                                  <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </motion.tr>
                       ))}
@@ -409,7 +535,7 @@ export default function Usuarios() {
           )}
 
           {/* ========== CORRETORES PLANTONISTAS ========== */}
-          {usuarios.filter(u => u.is_duty_shift_only && u.role !== 'admin').length > 0 && (
+          {usuarios.filter(u => u.is_duty_shift_only && u.role !== 'admin' && u.role !== 'manager').length > 0 && (
             <Card className="overflow-hidden">
               <div className="bg-blue-600 px-6 py-4">
                 <div className="flex items-center gap-3">
@@ -446,7 +572,7 @@ export default function Usuarios() {
                   </thead>
                   <tbody className="divide-y divide-blue-100">
                     {usuarios
-                      .filter(usuario => usuario.is_duty_shift_only && usuario.role !== 'admin')
+                      .filter(usuario => usuario.is_duty_shift_only && usuario.role !== 'admin' && usuario.role !== 'manager')
                       .map((usuario, idx) => (
                         <motion.tr
                           key={usuario.id}
@@ -483,22 +609,24 @@ export default function Usuarios() {
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => abrirModal(usuario)}
-                                className="p-2 hover:bg-blue-100 rounded-lg transition-colors group"
-                                title="Editar"
-                              >
-                                <Edit2 size={18} className="text-slate-400 group-hover:text-blue-700" />
-                              </button>
-                              <button
-                                onClick={() => desativarUsuario(usuario.id)}
-                                className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
-                                title="Desativar"
-                              >
-                                <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
-                              </button>
-                            </div>
+                            {user?.role === 'admin' && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => abrirModal(usuario)}
+                                  className="p-2 hover:bg-blue-100 rounded-lg transition-colors group"
+                                  title="Editar"
+                                >
+                                  <Edit2 size={18} className="text-slate-400 group-hover:text-blue-700" />
+                                </button>
+                                <button
+                                  onClick={() => excluirUsuario(usuario.id)}
+                                  className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+                                  title="Excluir"
+                                >
+                                  <Trash2 size={18} className="text-slate-400 group-hover:text-red-600" />
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </motion.tr>
                       ))}
@@ -561,16 +689,16 @@ export default function Usuarios() {
                       Matrícula (gerada automaticamente)
                     </label>
                     <div className={`px-4 py-3 border-2 rounded-xl ${formData.isAdmin
-                        ? 'bg-purple-50 border-purple-200'
-                        : (formData.isDutyShift ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200')
+                      ? 'bg-purple-50 border-purple-200'
+                      : (formData.isManager ? 'bg-emerald-50 border-emerald-200' : (formData.isDutyShift ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'))
                       }`}>
-                      <p className={`text-2xl font-bold text-center tracking-wider ${formData.isAdmin ? 'text-purple-900' : (formData.isDutyShift ? 'text-blue-900' : 'text-slate-900')
+                      <p className={`text-2xl font-bold text-center tracking-wider ${formData.isAdmin ? 'text-purple-900' : (formData.isManager ? 'text-emerald-900' : (formData.isDutyShift ? 'text-blue-900' : 'text-slate-900'))
                         }`}>
                         {proximaMatricula || 'Carregando...'}
                       </p>
-                      <p className={`text-xs text-center mt-1 ${formData.isDutyShift ? 'text-blue-600' : 'text-slate-500'
+                      <p className={`text-xs text-center mt-1 ${formData.isAdmin ? 'text-purple-600' : (formData.isManager ? 'text-emerald-600' : (formData.isDutyShift ? 'text-blue-600' : 'text-slate-500'))
                         }`}>
-                        {formData.isAdmin ? '🛡️ Administrador' : (formData.isDutyShift ? '📋 Corretor Plantonista' : '👤 Funcionário CLT')}
+                        {formData.isAdmin ? '🛡️ Administrador' : (formData.isManager ? '💼 Gestor' : (formData.isDutyShift ? '📋 Corretor Plantonista' : '👤 Funcionário CLT'))}
                       </p>
                     </div>
                   </div>
@@ -628,7 +756,7 @@ export default function Usuarios() {
                     <input
                       type="checkbox"
                       checked={formData.isAdmin}
-                      onChange={(e) => setFormData({ ...formData, isAdmin: e.target.checked })}
+                      onChange={(e) => setFormData({ ...formData, isAdmin: e.target.checked, isManager: false, isDutyShift: false })}
                       className="w-5 h-5 rounded border-slate-300 text-slate-800 focus:ring-slate-800"
                     />
                     <div>
@@ -643,13 +771,34 @@ export default function Usuarios() {
                   </label>
                 </div>
 
+                {/* Checkbox Gestor (Novo) */}
+                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isManager}
+                      onChange={(e) => setFormData({ ...formData, isManager: e.target.checked, isAdmin: false, isDutyShift: false })}
+                      className="w-5 h-5 rounded border-emerald-300 text-emerald-800 focus:ring-emerald-800"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 font-semibold text-emerald-900">
+                        <Briefcase size={18} />
+                        Este usuário é Gestor
+                      </div>
+                      <p className="text-sm text-emerald-600">
+                        Acesso de visualização a todos os funcionários (sem permissão de edição)
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
                 {/* Checkbox Corretor Plantonista */}
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={formData.isDutyShift}
-                      onChange={(e) => setFormData({ ...formData, isDutyShift: e.target.checked })}
+                      onChange={(e) => setFormData({ ...formData, isDutyShift: e.target.checked, isAdmin: false, isManager: false })}
                       className="w-5 h-5 rounded border-blue-300 text-blue-800 focus:ring-blue-800"
                     />
                     <div>
@@ -664,9 +813,9 @@ export default function Usuarios() {
                   </label>
                 </div>
 
-                {/* Email e Senha (só se admin) */}
+                {/* Email e Senha (só se admin ou gestor) */}
                 <AnimatePresence>
-                  {formData.isAdmin && (
+                  {(formData.isAdmin || formData.isManager) && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
@@ -683,7 +832,7 @@ export default function Usuarios() {
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
-                          required={formData.isAdmin}
+                          required={formData.isAdmin || formData.isManager}
                         />
                       </div>
 
@@ -698,7 +847,7 @@ export default function Usuarios() {
                           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                           className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10 outline-none transition-all"
                           minLength={6}
-                          required={formData.isAdmin && !editando}
+                          required={(formData.isAdmin || formData.isManager) && !editando}
                           placeholder="Mínimo 6 caracteres"
                         />
                       </div>
