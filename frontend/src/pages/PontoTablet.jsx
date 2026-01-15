@@ -17,6 +17,8 @@ export default function Tablet() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showCamera, setShowCamera] = useState(false);
   const [location, setLocation] = useState(null); // ✅ Estado para GPS
+  const [countdown, setCountdown] = useState(null); // ✅ Estado para Contagem
+  const [showFlash, setShowFlash] = useState(null); // ✅ Estado para Flash (guarda a cor)
   const debounceTimer = useRef(null);
 
   const videoRef = useRef(null);
@@ -113,16 +115,42 @@ export default function Tablet() {
   };
 
   const capturePhoto = () => {
+    if (countdown !== null) return; // Evita cliques múltiplos
+
+    let count = 3;
+    setCountdown(count);
+
+    const timer = setInterval(() => {
+      count -= 1;
+      if (count > 0) {
+        setCountdown(count);
+      } else {
+        clearInterval(timer);
+        setCountdown(null);
+        executeCapture();
+      }
+    }, 1000);
+  };
+
+  const executeCapture = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
     if (video && canvas) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      context.drawImage(video, 0, 0);
-      const photoData = canvas.toDataURL('image/jpeg', 0.8);
-      setPhoto(photoData);
+      // Ativar Flash
+      const colors = ['#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF'];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+      setShowFlash(randomColor);
+
+      setTimeout(() => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0);
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        setPhoto(photoData);
+        setShowFlash(null);
+      }, 50); // Foto tirada no auge do flash
     }
   };
 
@@ -544,6 +572,53 @@ export default function Tablet() {
                     )}
                     <canvas ref={canvasRef} className="hidden" />
 
+                    {/* ✅ MÁSCARA DE ENQUADRAMENTO (Só aparece se não houver foto e não estiver em contagem) */}
+                    {!photo && !countdown && (
+                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                        <svg className="w-48 h-64 text-white/30" viewBox="0 0 100 100">
+                          <path d="M50,10 C30,10 15,30 15,50 C15,70 30,90 50,90 C70,90 85,70 85,50 C85,30 70,10 50,10 Z M50,15 C68,15 80,32 80,50 C80,68 68,85 50,85 C32,85 20,68 20,50 C20,32 32,15 50,15 Z" fill="currentColor" />
+                          <path d="M30,45 C30,40 35,35 40,35 C45,35 50,40 50,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          <path d="M50,45 C50,40 55,35 60,35 C65,35 70,40 70,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          <path d="M40,70 C40,75 60,75 60,70" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute top-4 left-0 right-0 text-center">
+                          <span className="bg-black/50 text-white text-[10px] px-2 py-1 rounded-full uppercase tracking-widest font-bold">
+                            Alinhe seu rosto
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ✅ CONTAGEM REGRESSIVA */}
+                    <AnimatePresence>
+                      {countdown && (
+                        <motion.div
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1.2, opacity: 1 }}
+                          exit={{ scale: 2, opacity: 0 }}
+                          key={countdown}
+                          className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                        >
+                          <span className="text-8xl font-black text-white drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                            {countdown}
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* ✅ FLASH DE AUTENTICIDADE */}
+                    <AnimatePresence>
+                      {showFlash && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 z-30 pointer-events-none"
+                          style={{ backgroundColor: showFlash }}
+                        />
+                      )}
+                    </AnimatePresence>
+
                     {photo && (
                       <button
                         onClick={() => setPhoto(null)}
@@ -565,18 +640,19 @@ export default function Tablet() {
               {!photo ? (
                 <button
                   onClick={capturePhoto}
-                  className="
-                    w-full bg-slate-800 hover:bg-slate-700
-                    text-white font-bold text-lg
+                  disabled={countdown !== null}
+                  className={`
+                    w-full text-white font-bold text-lg
                     rounded-2xl px-8 py-5 mb-3
                     shadow-lg hover:shadow-xl
                     transform hover:scale-[1.02]
                     transition-all duration-200
                     flex items-center justify-center gap-3
-                  "
+                    ${countdown !== null ? 'bg-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'}
+                  `}
                 >
                   <Camera size={24} />
-                  Capturar Foto
+                  {countdown !== null ? `Aguarde (${countdown})...` : 'Capturar Foto'}
                 </button>
               ) : (
                 <button
@@ -665,6 +741,48 @@ export default function Tablet() {
                     )}
                     <canvas ref={canvasRef} className="hidden" />
 
+                    {/* ✅ MÁSCARA DE ENQUADRAMENTO */}
+                    {!photo && !countdown && (
+                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                        <svg className="w-48 h-64 text-white/30" viewBox="0 0 100 100">
+                          <path d="M50,10 C30,10 15,30 15,50 C15,70 30,90 50,90 C70,90 85,70 85,50 C85,30 70,10 50,10 Z M50,15 C68,15 80,32 80,50 C80,68 68,85 50,85 C32,85 20,68 20,50 C20,32 32,15 50,15 Z" fill="currentColor" />
+                          <path d="M30,45 C30,40 35,35 40,35 C45,35 50,40 50,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          <path d="M50,45 C50,40 55,35 60,35 C65,35 70,40 70,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          <path d="M40,70 C40,75 60,75 60,70" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </div>
+                    )}
+
+                    {/* ✅ CONTAGEM REGRESSIVA */}
+                    <AnimatePresence>
+                      {countdown && (
+                        <motion.div
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1.2, opacity: 1 }}
+                          exit={{ scale: 2, opacity: 0 }}
+                          key={countdown}
+                          className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                        >
+                          <span className="text-8xl font-black text-white drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                            {countdown}
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* ✅ FLASH DE AUTENTICIDADE */}
+                    <AnimatePresence>
+                      {showFlash && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 z-30 pointer-events-none"
+                          style={{ backgroundColor: showFlash }}
+                        />
+                      )}
+                    </AnimatePresence>
+
                     {photo && (
                       <button
                         onClick={() => setPhoto(null)}
@@ -686,18 +804,19 @@ export default function Tablet() {
               {!photo ? (
                 <button
                   onClick={capturePhoto}
-                  className="
-                    w-full bg-blue-600 hover:bg-blue-700
-                    text-white font-bold text-lg
+                  disabled={countdown !== null}
+                  className={`
+                    w-full text-white font-bold text-lg
                     rounded-2xl px-8 py-5 mb-3
                     shadow-lg hover:shadow-xl
                     transform hover:scale-[1.02]
                     transition-all duration-200
                     flex items-center justify-center gap-3
-                  "
+                    ${countdown !== null ? 'bg-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+                  `}
                 >
                   <Camera size={24} />
-                  Capturar Foto
+                  {countdown !== null ? `Aguarde (${countdown})...` : 'Capturar Foto'}
                 </button>
               ) : (
                 <button
