@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // API Key para autenticação do tablet
 // IMPORTANTE: Em produção, use uma variável de ambiente segura
-const TABLET_API_KEY = import.meta.env.VITE_TABLET_API_KEY || 'tabletPontoImob2026SecureKey@Aux';
+const TABLET_API_KEY = import.meta.env.VITE_TABLET_API_KEY || 'tablet-ponto-imobiliaria-2024';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
