@@ -19,6 +19,7 @@ const timeRecordsRoutes = require('./modules/time-records/timeRecords.routes');
 const adjustmentsRoutes = require('./modules/adjustments/adjustments.routes');
 const alertsRoutes = require('./modules/alerts/alerts.routes');
 const reportsRoutes = require('./modules/reports/reports.routes');
+const migrationRoutes = require('./modules/admin/migration.routes');
 
 // Inicializar Express
 const app = express();
@@ -98,6 +99,7 @@ app.use('/api/audit', require('./modules/audit/audit.routes'));
 app.use('/api/duty-shifts', require('./modules/duty-shifts/dutyShifts.routes'));
 app.use('/api/holidays', require('./modules/holidays/holidays.routes'));
 app.use('/api/time-mirrors', require('./modules/time-mirrors/timeMirrors.routes')); // ✅ Nova rota Fase 6
+app.use('/api/admin', migrationRoutes); // ✅ Rota para migrações
 
 // ============================================
 // ROTA 404
