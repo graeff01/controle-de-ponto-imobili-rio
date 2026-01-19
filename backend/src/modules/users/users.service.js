@@ -76,21 +76,21 @@ class UsersService {
       let paramIndex = 1;
 
       if (filters.status) {
-        query += ` AND u.status = $`;
+        query += ` AND u.status = $${paramIndex}`;
         params.push(filters.status);
         paramIndex++;
       }
 
       if (filters.departamento) {
-        query += ` AND u.departamento = $`;
+        query += ` AND u.departamento = $${paramIndex}`;
         params.push(filters.departamento);
         paramIndex++;
       }
 
       if (filters.search) {
-        query += ` AND (u.nome ILIKE $ OR u.matricula ILIKE $ OR u.email ILIKE $)`;
-        params.push(`%%`);
-        paramIndex++;
+        query += ` AND (u.nome ILIKE $${paramIndex} OR u.matricula ILIKE $${paramIndex + 1} OR u.email ILIKE $${paramIndex + 2})`;
+        params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
+        paramIndex += 3;
       }
 
       query += ` GROUP BY u.id ORDER BY u.nome ASC`;

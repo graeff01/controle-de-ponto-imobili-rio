@@ -16,25 +16,25 @@ class AlertsService {
       let paramIndex = 1;
 
       if (filters.userId) {
-        query += ` AND a.user_id = $`;
+        query += ` AND a.user_id = $${paramIndex}`;
         params.push(filters.userId);
         paramIndex++;
       }
 
       if (filters.status) {
-        query += ` AND a.status = $`;
+        query += ` AND a.status = $${paramIndex}`;
         params.push(filters.status);
         paramIndex++;
       }
 
       if (filters.severity) {
-        query += ` AND a.severity = $`;
+        query += ` AND a.severity = $${paramIndex}`;
         params.push(filters.severity);
         paramIndex++;
       }
 
       if (filters.alertType) {
-        query += ` AND a.alert_type = $`;
+        query += ` AND a.alert_type = $${paramIndex}`;
         params.push(filters.alertType);
         paramIndex++;
       }
