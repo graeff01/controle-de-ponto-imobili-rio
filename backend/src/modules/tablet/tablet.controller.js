@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
 const photoService = require('../../services/photoService');
+const timeRecordsController = require('../time-records/timeRecords.controller');
 
 class TabletController {
 
@@ -83,70 +84,77 @@ class TabletController {
       }
 
       // ============================================
-      // VALIDAÇÃO DE INTERVALO MÍNIMO (1 HORA)
+      // VALIDAÇÕES DE SEQUÊNCIA
       // ============================================
-      if (record_type === 'retorno_intervalo') {
-        const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
+      const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
+      const dateCondition = validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`;
 
+      if (record_type === 'retorno_intervalo') {
         const lastIntervalExit = await db.query(`
-          SELECT timestamp
-          FROM time_records
-          WHERE user_id = $1
-            AND record_type = 'saida_intervalo'
-            AND DATE(timestamp) = ${validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`}
-          ORDER BY timestamp DESC
-          LIMIT 1
+          SELECT timestamp FROM time_records
+          WHERE user_id = $1 AND record_type = 'saida_intervalo'
+            AND DATE(timestamp) = ${dateCondition}
+          ORDER BY timestamp DESC LIMIT 1
         `, [user.id]);
 
-        if (lastIntervalExit.rows.length > 0) {
-          const saidaIntervalo = new Date(lastIntervalExit.rows[0].timestamp);
-          const agora = new Date();
-          const diferencaMinutos = (agora - saidaIntervalo) / 1000 / 60;
+        if (lastIntervalExit.rows.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Você precisa registrar saída para intervalo antes de registrar o retorno.'
+          });
+        }
 
-          if (diferencaMinutos < 60) {
-            const tempoRestante = Math.ceil(60 - diferencaMinutos);
-            return res.status(400).json({
-              success: false,
-              error: `Intervalo mínimo é de 1 hora. Você ainda precisa aguardar ${tempoRestante} minuto(s).`,
-              minutes_remaining: tempoRestante
-            });
-          }
+        const saidaIntervalo = new Date(lastIntervalExit.rows[0].timestamp);
+        const agora = new Date();
+        const diferencaMinutos = (agora - saidaIntervalo) / 1000 / 60;
+
+        if (diferencaMinutos < 60) {
+          const tempoRestante = Math.ceil(60 - diferencaMinutos);
+          return res.status(400).json({
+            success: false,
+            error: `Intervalo mínimo é de 1 hora. Você ainda precisa aguardar ${tempoRestante} minuto(s).`,
+            minutes_remaining: tempoRestante
+          });
         }
       }
 
-      // ============================================
-      // VALIDAÇÃO: NÃO PODE BATER ENTRADA 2X
-      // ============================================
+      if (record_type === 'saida_intervalo') {
+        const temEntrada = await db.query(`
+          SELECT id FROM time_records
+          WHERE user_id = $1 AND record_type = 'entrada'
+            AND DATE(timestamp) = ${dateCondition}
+          LIMIT 1
+        `, [user.id]);
+
+        if (temEntrada.rows.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Você precisa registrar entrada antes de registrar saída para intervalo.'
+          });
+        }
+      }
+
       if (record_type === 'entrada') {
-        const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
         const jaTemEntrada = await db.query(`
-          SELECT id
-          FROM time_records
-          WHERE user_id = $1
-            AND record_type = 'entrada'
-            AND DATE(timestamp) = ${validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`}
+          SELECT id FROM time_records
+          WHERE user_id = $1 AND record_type = 'entrada'
+            AND DATE(timestamp) = ${dateCondition}
           LIMIT 1
         `, [user.id]);
 
         if (jaTemEntrada.rows.length > 0) {
           return res.status(400).json({
             success: false,
-            error: 'Você já registrou entrada hoje. Selecione outro tipo de registro.'
+            error: 'Você já registrou entrada hoje.'
           });
         }
       }
 
-      // ============================================
-      // VALIDAÇÃO: NÃO PODE BATER SAÍDA FINAL SEM ENTRADA
-      // ============================================
       if (record_type === 'saida_final') {
-        const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
         const temEntrada = await db.query(`
-          SELECT id
-          FROM time_records
-          WHERE user_id = $1
-            AND record_type = 'entrada'
-            AND DATE(timestamp) = ${validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`}
+          SELECT id FROM time_records
+          WHERE user_id = $1 AND record_type = 'entrada'
+            AND DATE(timestamp) = ${dateCondition}
           LIMIT 1
         `, [user.id]);
 
@@ -164,12 +172,7 @@ class TabletController {
         try {
           const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
           photoData = base64Data;
-
-          // ← ADICIONE ESTE LOG:
-          logger.info('📸 Foto processada', {
-            photoLength: base64Data.length,
-            preview: base64Data.substring(0, 50)
-          });
+          logger.info('📸 Foto processada base64');
         } catch (err) {
           logger.error('Erro ao processar foto', { error: err.message });
         }
@@ -177,10 +180,10 @@ class TabletController {
 
       // Inserir registro
       const result = await db.query(`
-  INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
-  VALUES ($1, $2, COALESCE($3, NOW()), $4, NOW())
-  RETURNING id, user_id, record_type, timestamp, photo_data
-`, [user.id, record_type, timestamp, photoData]);
+        INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
+        VALUES ($1, $2, COALESCE($3, NOW()), $4, NOW())
+        RETURNING id, user_id, record_type, timestamp
+      `, [user.id, record_type, timestamp, photoData]);
 
       logger.success('Ponto registrado via tablet', {
         matricula,
@@ -188,6 +191,13 @@ class TabletController {
         record_type,
         record_id: result.rows[0].id
       });
+
+      // Recalcular banco de horas imediatamente
+      try {
+        await timeRecordsController.atualizarBancoHoras(user.id, result.rows[0].timestamp);
+      } catch (bhError) {
+        logger.error('Erro ao atualizar banco de horas (totem)', { error: bhError.message });
+      }
 
       res.status(201).json({
         success: true,
@@ -253,7 +263,7 @@ class TabletController {
         RETURNING id, user_id, record_type, timestamp
       `, [user_id, record_type, photoData]);
 
-      logger.success('Ponto registrado via tablet', {
+      logger.success('Ponto registrado via tablet (legacy)', {
         user_id,
         record_type,
         record_id: result.rows[0].id
@@ -273,20 +283,14 @@ class TabletController {
       });
     }
   }
+
   // Verificar tipo de usuário (para mostrar interface correta)
   async checkUserType(req, res) {
     try {
       const { matricula } = req.params;
 
       const result = await db.query(`
-        SELECT 
-          id, 
-          matricula, 
-          nome, 
-          cargo, 
-          status,
-          user_type,
-          is_duty_shift_only
+        SELECT id, matricula, nome, cargo, status, user_type, is_duty_shift_only
         FROM users
         WHERE matricula = $1 AND status = 'ativo'
       `, [matricula]);

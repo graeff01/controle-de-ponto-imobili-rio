@@ -366,6 +366,30 @@ export default function Tablet() {
     return 'Boa noite';
   };
 
+  const getMensagemSucesso = (tipo) => {
+    const hora = currentTime.getHours();
+
+    if (tipo === 'ENTRADA') {
+      if (hora < 12) return 'BOM DIA E BOM TRABALHO!';
+      return 'BOA TARDE E BOM TRABALHO!';
+    }
+
+    if (tipo === 'SAÍDA INTERVALO') {
+      return 'BOM APETITE E BOM DESCANSO!';
+    }
+
+    if (tipo === 'RETORNO INTERVALO') {
+      return 'BOM RETORNO AO TRABALHO!';
+    }
+
+    if (tipo === 'SAÍDA FINAL') {
+      if (hora < 18) return 'BOM DESCANSO E ATÉ AMANHÃ!';
+      return 'BOA NOITE E BOM DESCANSO!';
+    }
+
+    return 'REGISTRO REALIZADO COM SUCESSO!';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="container mx-auto px-4 py-8">
@@ -927,7 +951,9 @@ export default function Tablet() {
                 Sua <span className="font-bold text-slate-900">{successData?.tipo}</span> foi registrada com sucesso às <span className="font-bold text-emerald-600">{successData?.hora}</span>.
               </p>
               <div className="bg-slate-50 rounded-2xl p-6 border-2 border-slate-100">
-                <p className="text-slate-500 font-medium">BOM TRABALHO!</p>
+                <p className="text-emerald-600 font-black text-xl tracking-tight">
+                  {getMensagemSucesso(successData?.tipo)}
+                </p>
               </div>
               <p className="mt-8 text-slate-400 text-sm">Esta tela fechará automaticamente...</p>
             </motion.div>
