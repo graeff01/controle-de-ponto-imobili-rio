@@ -170,11 +170,20 @@ class AdjustmentsService {
 
   // Auxiliar para aplicar mudança
   async applyAdjustmentToRecord(adjustment) {
-    await db.query(`
-      UPDATE time_records 
-      SET timestamp = $1, record_type = $2, updated_at = NOW()
-      WHERE id = $3
-    `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
+    if (adjustment.is_addition || !adjustment.time_record_id) {
+      // Inserir NOVO registro
+      await db.query(`
+        INSERT INTO time_records (user_id, timestamp, record_type, created_at, updated_at)
+        VALUES ($1, $2, $3, NOW(), NOW())
+      `, [adjustment.user_id, adjustment.adjusted_timestamp, adjustment.adjusted_type]);
+    } else {
+      // Atualizar registro EXISTENTE
+      await db.query(`
+        UPDATE time_records 
+        SET timestamp = $1, record_type = $2, updated_at = NOW()
+        WHERE id = $3
+      `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
+    }
 
     // Recalcular banco de horas para o dia do ajuste
     const adjustmentDate = new Date(adjustment.adjusted_timestamp);

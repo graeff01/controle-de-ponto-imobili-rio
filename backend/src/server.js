@@ -142,6 +142,13 @@ const startServer = async () => {
       ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP
     `);
 
+    // 3. Corrigir tabela de ajustes para suportar "Novos Registros" (Ponto Esquecido)
+    await db.query(`
+      ALTER TABLE time_adjustments ALTER COLUMN time_record_id DROP NOT NULL;
+      ALTER TABLE time_adjustments ADD COLUMN IF NOT EXISTS is_addition BOOLEAN DEFAULT FALSE;
+      ALTER TABLE time_adjustments ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+    `);
+
     // 3. Garantir que o token do tablet existe
     await db.query(`
       INSERT INTO system_config (key, value, description)

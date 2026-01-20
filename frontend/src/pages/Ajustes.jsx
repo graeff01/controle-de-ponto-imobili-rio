@@ -54,17 +54,17 @@ export default function Ajustes() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
       const timestamp = `${formData.date}T${formData.time}:00`;
-      
+
       await api.post('/time-records/manual', {
         user_id: formData.user_id,
         record_type: formData.record_type,
         timestamp: timestamp,
         manual_reason: formData.reason
       });
-      
+
       setShowModal(false);
       carregarDados();
       alert('Ajuste registrado com sucesso!');
@@ -83,11 +83,14 @@ export default function Ajustes() {
   };
 
   const rejeitarAjuste = async (id) => {
+    const reason = prompt('Por favor, informe o motivo da rejeição:');
+    if (!reason) return;
+
     try {
-      await api.post(`/adjustments/${id}/reject`);
+      await api.post(`/adjustments/${id}/reject`, { reason });
       carregarDados();
     } catch (err) {
-      alert('Erro ao rejeitar ajuste');
+      alert(err.response?.data?.error || 'Erro ao rejeitar ajuste');
     }
   };
 
@@ -121,7 +124,7 @@ export default function Ajustes() {
 
   return (
     <Layout title="Ajustes Manuais" subtitle="Adicionar ou corrigir registros de ponto">
-      
+
       <div className="flex justify-end mb-6">
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -182,18 +185,24 @@ export default function Ajustes() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium">
-                      {getTipoLabel(ajuste.record_type)}
+                      {getTipoLabel(ajuste.adjusted_type)}
+                      {ajuste.is_addition && (
+                        <span className="block text-[10px] text-blue-600 font-bold uppercase mt-1">➕ Inclusão</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-slate-600">
                         <Calendar size={16} className="text-slate-400" />
-                        <span className="text-sm">{new Date(ajuste.timestamp).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-sm">{new Date(ajuste.adjusted_timestamp).toLocaleDateString('pt-BR')}</span>
                         <Clock size={16} className="text-slate-400 ml-2" />
-                        <span className="text-sm">{new Date(ajuste.timestamp).toLocaleTimeString('pt-BR')}</span>
+                        <span className="text-sm">{new Date(ajuste.adjusted_timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-slate-900 max-w-xs line-clamp-2">{ajuste.reason}</p>
+                      <p className="text-sm text-slate-900 max-w-xs">{ajuste.reason}</p>
+                      {ajuste.rejection_reason && (
+                        <p className="text-xs text-red-500 mt-1 italic">Refutado: {ajuste.rejection_reason}</p>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={getStatusVariant(ajuste.status)}>
@@ -251,13 +260,13 @@ export default function Ajustes() {
                 <X size={24} />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Funcionário</label>
                 <select
                   value={formData.user_id}
-                  onChange={(e) => setFormData({...formData, user_id: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   required
                 >
@@ -273,14 +282,14 @@ export default function Ajustes() {
                   label="Data"
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />
                 <Input
                   label="Horário"
                   type="time"
                   value={formData.time}
-                  onChange={(e) => setFormData({...formData, time: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                   required
                 />
               </div>
@@ -289,7 +298,7 @@ export default function Ajustes() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Tipo de Registro</label>
                 <select
                   value={formData.record_type}
-                  onChange={(e) => setFormData({...formData, record_type: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, record_type: e.target.value })}
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   required
                 >
@@ -304,7 +313,7 @@ export default function Ajustes() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Motivo do Ajuste</label>
                 <textarea
                   value={formData.reason}
-                  onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   rows="3"
                   placeholder="Ex: Esqueceu de registrar, problema técnico, etc"

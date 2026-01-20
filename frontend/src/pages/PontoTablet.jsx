@@ -23,6 +23,10 @@ export default function Tablet() {
   const [showTerms, setShowTerms] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(!!localStorage.getItem('tablet_token'));
   const [tempToken, setTempToken] = useState('');
+  const [inconsistencyData, setInconsistencyData] = useState(null);
+  const [showAdjustmentForm, setShowAdjustmentForm] = useState(false);
+  const [adjustmentTime, setAdjustmentTime] = useState('');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
   const [successData, setSuccessData] = useState(null);
   const debounceTimer = useRef(null);
 
@@ -163,14 +167,19 @@ export default function Tablet() {
     if (matricula.length < 3) return;
 
     try {
-      const response = await api.get(`/users/matricula/${matricula}`);
+      const response = await api.get(`/tablet/user/matricula/${matricula}`);
       const user = response.data.data;
       setUserData(user);
 
-      if (!user.terms_accepted_at) {
+      // Verificação de Ponto Esquecido
+      if (user.pendingInconsistency) {
+        setInconsistencyData(user.pendingInconsistency);
+        setShowCamera(false);
+      } else if (!user.terms_accepted_at) {
         setShowTerms(true);
         setShowCamera(false);
       } else {
+        setInconsistencyData(null);
         setShowCamera(true);
       }
     } catch (err) {
@@ -324,6 +333,34 @@ export default function Tablet() {
 
     } catch (err) {
       showMessage(err.response?.data?.error || 'Erro ao marcar presença', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const enviarAjuste = async () => {
+    if (!adjustmentTime || adjustmentReason.length < 10) {
+      showMessage('Informe o horário e uma justificativa válida (mín. 10 caracteres)', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.post('/tablet/request-adjustment', {
+        user_id: userData.id,
+        record_id: inconsistencyData.id,
+        adjusted_time: adjustmentTime,
+        reason: adjustmentReason
+      });
+
+      showMessage('Solicitação de ajuste enviada com sucesso!', 'success');
+      setTimeout(() => {
+        resetForm();
+        setInconsistencyData(null);
+        setShowAdjustmentForm(false);
+      }, 3000);
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Erro ao enviar ajuste', 'error');
     } finally {
       setLoading(false);
     }
@@ -555,31 +592,121 @@ export default function Tablet() {
             </motion.div>
           )}
 
-          {/* Input Matrícula */}
-          <div className={`mb-6 ${!userData ? 'text-center py-12' : ''}`}>
-            <label className={`block font-semibold text-slate-700 mb-4 ${!userData ? 'text-lg' : 'text-sm'}`}>
-              Digite sua matrícula para começar
-            </label>
-            <input
-              type="text"
-              value={matricula}
-              onChange={(e) => setMatricula(e.target.value.toUpperCase())}
-              placeholder="000000, CORR001 ou GESTOR001"
-              maxLength={10}
-              className={`
+          {/* CARTÃO AMARELO - Ponto Esquecido */}
+          {inconsistencyData && !showAdjustmentForm && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-8 text-center mb-6"
+            >
+              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="text-amber-600" size={40} />
+              </div>
+              <h2 className="text-2xl font-bold text-amber-900 mb-2">Ponto em Aberto!</h2>
+              <p className="text-amber-800 mb-6">
+                Olá, {userData.nome.split(' ')[0]}! Notamos que você esqueceu de registrar sua <strong>saída</strong> no dia <strong>{new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}</strong>.
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowAdjustmentForm(true)}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 rounded-xl transition-all"
+                >
+                  Informar Saída agora
+                </button>
+                <button
+                  onClick={resetForm}
+                  className="px-8 bg-white text-amber-900 border-2 border-amber-200 font-bold py-4 rounded-xl hover:bg-amber-100 transition-all"
+                >
+                  Voltar
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* FORMULÁRIO DE AJUSTE */}
+          {showAdjustmentForm && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white border-2 border-slate-200 rounded-2xl p-8 mb-6"
+            >
+              <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <FileText className="text-blue-600" />
+                Ajuste de Ponto Esquecido
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Que horas você saiu no dia {new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}?
+                  </label>
+                  <input
+                    type="time"
+                    value={adjustmentTime}
+                    onChange={(e) => setAdjustmentTime(e.target.value)}
+                    className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-2xl font-bold text-center focus:border-blue-600 outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Justificativa do esquecimento
+                  </label>
+                  <textarea
+                    value={adjustmentReason}
+                    onChange={(e) => setAdjustmentReason(e.target.value)}
+                    placeholder="Ex: Esqueci de bater a saída ao final do expediente..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-blue-600 outline-none transition-all"
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button
+                    onClick={enviarAjuste}
+                    disabled={loading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl disabled:bg-slate-300 transition-all"
+                  >
+                    {loading ? 'Enviando...' : 'Enviar para Aprovação'}
+                  </button>
+                  <button
+                    onClick={() => setShowAdjustmentForm(false)}
+                    className="px-8 bg-white text-slate-700 border-2 border-slate-200 font-bold py-4 rounded-xl hover:bg-slate-50 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Input Matrícula (Esconder se estiver em ajuste) */}
+          {!showAdjustmentForm && !inconsistencyData && (
+            <div className={`mb-6 ${!userData ? 'text-center py-12' : ''}`}>
+              <label className={`block font-semibold text-slate-700 mb-4 ${!userData ? 'text-lg' : 'text-sm'}`}>
+                Digite sua matrícula para começar
+              </label>
+              <input
+                type="text"
+                value={matricula}
+                onChange={(e) => setMatricula(e.target.value.toUpperCase())}
+                placeholder="000000, CORR001 ou GESTOR001"
+                maxLength={10}
+                className={`
                 px-6 py-4 text-center font-bold
                 bg-slate-50 border-2 border-slate-200
                 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10
                 rounded-2xl outline-none transition-all
                 placeholder:text-slate-300
                 ${!userData
-                  ? 'w-full max-w-md mx-auto text-4xl tracking-wider'
-                  : 'w-full text-2xl'
-                }
+                    ? 'w-full max-w-md mx-auto text-4xl tracking-wider'
+                    : 'w-full text-2xl'
+                  }
               `}
-              autoFocus
-            />
-          </div>
+                autoFocus
+              />
+            </div>
+          )}
 
           {/* ===== INTERFACE PARA CLT ===== */}
           {userData && !userData.is_duty_shift_only && (

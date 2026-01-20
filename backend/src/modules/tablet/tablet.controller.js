@@ -16,18 +16,40 @@ class TabletController {
         WHERE matricula = $1 AND status = 'ativo'
       `, [matricula]);
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: 'Matrícula não encontrada ou usuário inativo'
-        });
+      const user = result.rows[0];
+
+      // --- VERIFICAR PONTOS ESQUECIDOS (INCONSISTÊNCIAS) ---
+      // Busca o último registro de dias anteriores que não teve uma saída correspondente
+      const inconsistencia = await db.query(`
+        SELECT id, timestamp, record_type 
+        FROM time_records 
+        WHERE user_id = $1 
+        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') < CURRENT_DATE
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `, [user.id]);
+
+      let pendingInconsistency = null;
+      if (inconsistencia.rows.length > 0) {
+        const last = inconsistencia.rows[0];
+        // Se o último registro não foi uma 'saida_final', temos um problema
+        if (last.record_type !== 'saida_final') {
+          pendingInconsistency = {
+            id: last.id,
+            date: last.timestamp,
+            type: last.record_type
+          };
+        }
       }
 
-      logger.info('Usuário encontrado para tablet', { matricula });
+      logger.info('Usuário encontrado para tablet', { matricula, hasInconsistency: !!pendingInconsistency });
 
       res.json({
         success: true,
-        data: result.rows[0]
+        data: {
+          ...user,
+          pendingInconsistency
+        }
       });
 
     } catch (error) {
@@ -304,16 +326,36 @@ class TabletController {
 
       const user = result.rows[0];
 
-      return res.json({
+      // --- VERIFICAR PONTOS ESQUECIDOS (INCONSISTÊNCIAS) ---
+      const inconsistencia = await db.query(`
+        SELECT id, timestamp, record_type 
+        FROM time_records 
+        WHERE user_id = $1 
+        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') < CURRENT_DATE
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `, [user.id]);
+
+      let pendingInconsistency = null;
+      if (inconsistencia.rows.length > 0) {
+        const last = inconsistencia.rows[0];
+        if (last.record_type !== 'saida_final') {
+          pendingInconsistency = {
+            id: last.id,
+            date: last.timestamp,
+            type: last.record_type
+          };
+        }
+      }
+
+      logger.info('Usuário encontrado para tablet', { matricula, hasInconsistency: !!pendingInconsistency });
+
+      res.json({
         success: true,
         data: {
-          id: user.id,
-          matricula: user.matricula,
-          nome: user.nome,
-          cargo: user.cargo,
-          user_type: user.user_type,
-          is_duty_shift_only: user.is_duty_shift_only,
-          interface_type: user.is_duty_shift_only ? 'DUTY_SHIFT' : 'FULL_TIME'
+          ...user,
+          interface_type: user.is_duty_shift_only ? 'DUTY_SHIFT' : 'FULL_TIME',
+          pendingInconsistency
         }
       });
 
@@ -323,6 +365,45 @@ class TabletController {
         success: false,
         error: 'Erro ao verificar usuário'
       });
+    }
+  }
+  // ✅ NOVO: Solicitar Ajuste de Ponto Esquecido via Totem
+  async requestAdjustment(req, res) {
+    try {
+      const { user_id, record_id, adjusted_time, reason } = req.body;
+
+      if (!user_id || !record_id || !adjusted_time || !reason) {
+        return res.status(400).json({ success: false, error: 'Todos os campos são obrigatórios.' });
+      }
+
+      // 1. Busca o registro original
+      const recordResult = await db.query('SELECT * FROM time_records WHERE id = $1', [record_id]);
+      if (recordResult.rows.length === 0) return res.status(404).json({ error: 'Registro não encontrado' });
+      const original = recordResult.rows[0];
+
+      // 2. Cria a data ajustada (mesmo dia do registro original, mas com a hora informada)
+      const datePart = new Date(original.timestamp).toISOString().split('T')[0];
+      const adjustedTimestamp = `${datePart}T${adjusted_time}:00`;
+
+      // 3. Insere na tabela de ajustes como PENDENTE (e marca como ADIÇÃO)
+      const result = await db.query(`
+        INSERT INTO time_adjustments 
+        (time_record_id, user_id, original_timestamp, original_type, 
+         adjusted_timestamp, adjusted_type, reason, adjusted_by, status, is_addition)
+        VALUES ($1, $2, $3, $4, $5, 'saida_final', $6, $2, 'pending', true)
+        RETURNING id
+      `, [record_id, user_id, original.timestamp, original.record_type, adjustedTimestamp, reason]);
+
+      logger.success('Solicitação de ajuste enviada pelo Totem', { userId: user_id, adjustmentId: result.rows[0].id });
+
+      res.json({
+        success: true,
+        message: 'Sua solicitação foi enviada ao RH para aprovação.'
+      });
+
+    } catch (error) {
+      logger.error('Erro ao solicitar ajuste via totem', { error: error.message });
+      res.status(500).json({ error: 'Erro ao processar solicitação' });
     }
   }
 }
