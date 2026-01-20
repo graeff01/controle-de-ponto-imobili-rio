@@ -3,6 +3,7 @@ const validators = require('../../utils/validators');
 const logger = require('../../utils/logger');
 const db = require('../../config/database');
 const dateHelper = require('../../utils/dateHelper');
+const config = require('../../config/database'); // Reutilizando para queries rápidas
 
 class TimeRecordsController {
 
@@ -72,14 +73,13 @@ class TimeRecordsController {
 
       // Buscar horário esperado do usuário
       const userResult = await db.query(
-        'SELECT expected_daily_hours FROM users WHERE id = $1',
+        'SELECT expected_daily_hours, work_hours_start, work_hours_end FROM users WHERE id = $1',
         [userId]
       );
-
-      const horasEsperadas = parseFloat(userResult.rows[0]?.expected_daily_hours || 8);
+      const user = userResult.rows[0];
+      const horasEsperadas = parseFloat(user?.expected_daily_hours || 8);
 
       // Calcular horas trabalhadas do dia usando a view corrigida ou cálculo manual direto
-      // Para ser mais robusto, vamos usar a query que considera qualquer registro
       const registros = await db.query(`
         SELECT record_type, timestamp 
         FROM time_records 
@@ -91,22 +91,64 @@ class TimeRecordsController {
 
       if (registros.rows.length >= 2) {
         const registrosDia = registros.rows;
-        const entrada = registrosDia.find(r => r.record_type === 'entrada');
-        const saidaFinal = registrosDia.find(r => r.record_type === 'saida_final');
+        let entrada = registrosDia.find(r => r.record_type === 'entrada');
+        let saidaFinal = registrosDia.find(r => r.record_type === 'saida_final');
 
         if (entrada && saidaFinal) {
-          let totalMs = new Date(saidaFinal.timestamp) - new Date(entrada.timestamp);
+          const tsEntrada = new Date(entrada.timestamp);
+          const tsSaida = new Date(saidaFinal.timestamp);
 
-          // Descontar intervalo se houver
-          const saidaIntervalo = registrosDia.find(r => r.record_type === 'saida_intervalo');
-          const retornoIntervalo = registrosDia.find(r => r.record_type === 'retorno_intervalo');
+          // --- IMPLEMENTAÇÃO DA REGRA DE TOLERÂNCIA (CLT) ---
+          // Se o usuário tem horários fixos definidos
+          if (user.work_hours_start && user.work_hours_end) {
+            const [hE, mE] = user.work_hours_start.split(':');
+            const [hS, mS] = user.work_hours_end.split(':');
 
-          if (saidaIntervalo && retornoIntervalo) {
-            const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
-            if (pausaMs > 0) totalMs -= pausaMs;
+            const expectedEntrada = new Date(tsEntrada);
+            expectedEntrada.setHours(parseInt(hE), parseInt(mE), 0, 0);
+
+            const expectedSaida = new Date(tsSaida);
+            expectedSaida.setHours(parseInt(hS), parseInt(mS), 0, 0);
+
+            // Tolerância de 5 min na entrada
+            const diffEntrada = Math.abs(tsEntrada - expectedEntrada) / 1000 / 60;
+            let entradaEfetiva = tsEntrada;
+            if (diffEntrada <= 5) entradaEfetiva = expectedEntrada;
+
+            // Tolerância de 5 min na saída
+            const diffSaida = Math.abs(tsSaida - expectedSaida) / 1000 / 60;
+            let saidaEfetiva = tsSaida;
+            if (diffSaida <= 5) saidaEfetiva = expectedSaida;
+
+            // Limite total de 10 min de variação diária (Soma das folgas)
+            const variacaoTotal = diffEntrada + diffSaida;
+
+            let totalMs;
+            if (variacaoTotal <= 10) {
+              totalMs = saidaEfetiva - entradaEfetiva;
+            } else {
+              totalMs = tsSaida - tsEntrada;
+            }
+
+            // Descontar intervalo
+            const saidaIntervalo = registrosDia.find(r => r.record_type === 'saida_intervalo');
+            const retornoIntervalo = registrosDia.find(r => r.record_type === 'retorno_intervalo');
+            if (saidaIntervalo && retornoIntervalo) {
+              const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
+              if (pausaMs > 0) totalMs -= pausaMs;
+            }
+            horasTrabalhadas = totalMs / 1000 / 60 / 60;
+          } else {
+            // Cálculo padrão se não tiver horário fixo
+            let totalMs = tsSaida - tsEntrada;
+            const saidaIntervalo = registrosDia.find(r => r.record_type === 'saida_intervalo');
+            const retornoIntervalo = registrosDia.find(r => r.record_type === 'retorno_intervalo');
+            if (saidaIntervalo && retornoIntervalo) {
+              const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
+              if (pausaMs > 0) totalMs -= pausaMs;
+            }
+            horasTrabalhadas = totalMs / 1000 / 60 / 60;
           }
-
-          horasTrabalhadas = totalMs / 1000 / 60 / 60;
         }
       }
 

@@ -21,6 +21,8 @@ export default function Tablet() {
   const [showFlash, setShowFlash] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(!!localStorage.getItem('tablet_token'));
+  const [tempToken, setTempToken] = useState('');
   const [successData, setSuccessData] = useState(null);
   const debounceTimer = useRef(null);
 
@@ -389,6 +391,51 @@ export default function Tablet() {
 
     return 'REGISTRO REALIZADO COM SUCESSO!';
   };
+
+  const handleAuthorize = () => {
+    if (tempToken === 'JDL-TOTEM-2026') {
+      localStorage.setItem('tablet_token', tempToken);
+      setIsAuthorized(true);
+      showMessage('Dispositivo autorizado com sucesso!', 'success');
+    } else {
+      showMessage('Token de autorização inválido.', 'error');
+    }
+  };
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center"
+        >
+          <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Cloud className="text-slate-400" size={40} />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Configuração do Totem</h2>
+          <p className="text-slate-500 mb-8">
+            Este dispositivo ainda não está autorizado. Digite a chave de segurança da agência para ativar o ponto.
+          </p>
+
+          <input
+            type="password"
+            value={tempToken}
+            onChange={(e) => setTempToken(e.target.value)}
+            placeholder="Chave de Segurança"
+            className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl mb-4 text-center text-xl font-bold focus:border-slate-800 transition-all outline-none"
+          />
+
+          <button
+            onClick={handleAuthorize}
+            className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all"
+          >
+            Autorizar Dispositivo
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">

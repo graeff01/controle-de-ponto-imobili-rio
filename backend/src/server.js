@@ -132,7 +132,15 @@ const startServer = async () => {
       ALTER TABLE users 
       ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP
     `);
-    logger.info('✅ Verificação de colunas concluída');
+
+    // Garantir que o token do tablet existe
+    await db.query(`
+      INSERT INTO system_config (key, value, description)
+      VALUES ('authorized_tablet_token', '{"token": "JDL-TOTEM-2026"}', 'Token de autenticação para o Totem/Tablet')
+      ON CONFLICT (key) DO NOTHING
+    `);
+
+    logger.info('✅ Verificação de colunas e configurações concluída');
 
     // Inicia jobs agendados
     if (process.env.NODE_ENV === 'production') {

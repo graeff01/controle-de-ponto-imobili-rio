@@ -21,8 +21,12 @@ api.interceptors.request.use((config) => {
 
   // Adicionar API Key para rotas do tablet
   // Isso permite que o tablet funcione sem login, mas com autenticação
-  if (config.url && (config.url.includes('/tablet') || config.url.includes('/duty-shifts'))) {
+  const tabletToken = localStorage.getItem('tablet_token');
+  if (config.url && (config.url.includes('/tablet') || config.url.includes('/duty-shifts') || config.url.includes('/matricula'))) {
     config.headers['X-Tablet-API-Key'] = TABLET_API_KEY;
+    if (tabletToken) {
+      config.headers['X-Tablet-Token'] = tabletToken;
+    }
   }
 
   return config;
