@@ -2,11 +2,11 @@ const db = require('../config/database');
 const logger = require('../utils/logger');
 const holidaysService = require('../modules/holidays/holidays.service');
 
+const dateHelper = require('../utils/dateHelper');
+
 async function dailyClosing() {
     try {
-        const now = new Date();
-        // Ajuste para garantir que estamos processando o dia correto (rodar 23h)
-        const todayDate = now.toISOString().split('T')[0];
+        const todayDate = dateHelper.getLocalDate();
 
         logger.info(`🔒 Iniciando fechamento diário do ponto: ${todayDate}`);
 
@@ -40,16 +40,34 @@ async function dailyClosing() {
                 }
 
                 // 4. Calcular horas trabalhadas no dia
-                // Usamos a view hours_worked_daily para facilitar
+                // Buscamos diretamente nos registros para evitar dependência da View SQL
                 const workedResult = await db.query(`
-          SELECT hours_worked 
-          FROM hours_worked_daily 
-          WHERE user_id = $1 AND date = $2
-        `, [user.id, todayDate]);
+                    SELECT record_type, timestamp 
+                    FROM time_records 
+                    WHERE user_id = $1 AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+                    ORDER BY timestamp ASC
+                `, [user.id, todayDate]);
 
                 let hoursWorked = 0;
-                if (workedResult.rows.length > 0 && workedResult.rows[0].hours_worked) {
-                    hoursWorked = parseFloat(workedResult.rows[0].hours_worked);
+                if (workedResult.rows.length >= 2) {
+                    const registros = workedResult.rows;
+                    const entrada = registros.find(r => r.record_type === 'entrada');
+                    const saidaFinal = registros.find(r => r.record_type === 'saida_final');
+
+                    if (entrada && saidaFinal) {
+                        let totalMs = new Date(saidaFinal.timestamp) - new Date(entrada.timestamp);
+
+                        // Descontar intervalo
+                        const saidaIntervalo = registros.find(r => r.record_type === 'saida_intervalo');
+                        const retornoIntervalo = registros.find(r => r.record_type === 'retorno_intervalo');
+
+                        if (saidaIntervalo && retornoIntervalo) {
+                            const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
+                            if (pausaMs > 0) totalMs -= pausaMs;
+                        }
+
+                        hoursWorked = totalMs / 1000 / 60 / 60;
+                    }
                 }
 
                 // 5. Calcular saldo

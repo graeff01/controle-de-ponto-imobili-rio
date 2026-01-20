@@ -250,7 +250,7 @@ class ReportsService {
 
       return result.rows.map(r => ({
         nome: r.nome,
-        horas_extras: (r.saldo_minutos / 60).toFixed(2)
+        horas_extras: parseFloat(r.saldo_minutos || 0).toFixed(2)
       }));
     } catch (error) {
       logger.error('Erro stats overtime', error);

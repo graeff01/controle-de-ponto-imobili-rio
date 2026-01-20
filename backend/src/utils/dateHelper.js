@@ -86,9 +86,15 @@
     return day !== 0 && day !== 6;
   }
 
-  // Retorna data no formato ISO (para banco)
-  toISOString(date) {
-    return new Date(date).toISOString();
+  // Retorna a data no formato YYYY-MM-DD considerando o fuso de Brasília
+  getLocalDate(date = new Date()) {
+    // Força o fuso de Brasília (UTC-3)
+    return new Date(date).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  }
+
+  // Retorna o objeto Date ajustado para o fuso de Brasília
+  getNowInBR() {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
   }
 }
 

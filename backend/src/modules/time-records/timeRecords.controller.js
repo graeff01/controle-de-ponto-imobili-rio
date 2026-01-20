@@ -2,6 +2,7 @@
 const validators = require('../../utils/validators');
 const logger = require('../../utils/logger');
 const db = require('../../config/database');
+const dateHelper = require('../../utils/dateHelper');
 
 class TimeRecordsController {
 
@@ -40,15 +41,17 @@ class TimeRecordsController {
         photoData = photo.buffer;
       }
 
+      const dataBR = dateHelper.getNowInBR();
+
       // Inserir registro
       const result = await db.query(`
       INSERT INTO time_records (user_id, record_type, timestamp, photo_data, ip_address, user_agent)
-      VALUES ($1, $2, NOW(), $3, $4, $5)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, user_id, record_type, timestamp
-    `, [user_id, record_type, photoData, req.ip, req.get('user-agent')]);
+    `, [user_id, record_type, dataBR, photoData, req.ip, req.get('user-agent')]);
 
       // Atualizar banco de horas - NOVO!
-      await this.atualizarBancoHoras(user_id, new Date());
+      await this.atualizarBancoHoras(user_id, dataBR);
 
       logger.success('Ponto registrado', { record_id: result.rows[0].id });
 
@@ -65,7 +68,7 @@ class TimeRecordsController {
   // ADICIONAR ESTA NOVA FUNÇÃO NA CLASSE
   async atualizarBancoHoras(userId, date) {
     try {
-      const dataFormatada = date.toISOString().split('T')[0];
+      const dataFormatada = dateHelper.getLocalDate(date);
 
       // Buscar horário esperado do usuário
       const userResult = await db.query(
@@ -73,46 +76,52 @@ class TimeRecordsController {
         [userId]
       );
 
-      const horasEsperadas = userResult.rows[0]?.expected_daily_hours || 8;
+      const horasEsperadas = parseFloat(userResult.rows[0]?.expected_daily_hours || 8);
 
-      // Calcular horas trabalhadas do dia
+      // Calcular horas trabalhadas do dia usando a view corrigida ou cálculo manual direto
+      // Para ser mais robusto, vamos usar a query que considera qualquer registro
       const registros = await db.query(`
-      SELECT record_type, timestamp 
-      FROM time_records 
-      WHERE user_id = $1 AND DATE(timestamp) = $2
-      ORDER BY timestamp ASC
-    `, [userId, dataFormatada]);
+        SELECT record_type, timestamp 
+        FROM time_records 
+        WHERE user_id = $1 AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+        ORDER BY timestamp ASC
+      `, [userId, dataFormatada]);
 
       let horasTrabalhadas = 0;
 
       if (registros.rows.length >= 2) {
-        const entrada = registros.rows.find(r => r.record_type === 'entrada');
-        const saidaFinal = registros.rows.find(r => r.record_type === 'saida_final');
+        const registrosDia = registros.rows;
+        const entrada = registrosDia.find(r => r.record_type === 'entrada');
+        const saidaFinal = registrosDia.find(r => r.record_type === 'saida_final');
 
         if (entrada && saidaFinal) {
-          const diff = new Date(saidaFinal.timestamp) - new Date(entrada.timestamp);
-          horasTrabalhadas = diff / 1000 / 60 / 60; // converter para horas
+          let totalMs = new Date(saidaFinal.timestamp) - new Date(entrada.timestamp);
 
-          // Descontar intervalo
-          const saidaIntervalo = registros.rows.find(r => r.record_type === 'saida_intervalo');
-          const retornoIntervalo = registros.rows.find(r => r.record_type === 'retorno_intervalo');
+          // Descontar intervalo se houver
+          const saidaIntervalo = registrosDia.find(r => r.record_type === 'saida_intervalo');
+          const retornoIntervalo = registrosDia.find(r => r.record_type === 'retorno_intervalo');
 
           if (saidaIntervalo && retornoIntervalo) {
-            const intervalo = (new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp)) / 1000 / 60 / 60;
-            horasTrabalhadas -= intervalo;
+            const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
+            if (pausaMs > 0) totalMs -= pausaMs;
           }
+
+          horasTrabalhadas = totalMs / 1000 / 60 / 60;
         }
       }
 
-      // Inserir ou atualizar banco de horas
+      // Inserir ou atualizar banco de horas (o balance é calculado automaticamente pela coluna GENERATED)
       await db.query(`
-      INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (user_id, date) 
-      DO UPDATE SET 
-        hours_worked = $3,
-        updated_at = NOW()
-    `, [userId, dataFormatada, horasTrabalhadas.toFixed(2), horasEsperadas]);
+        INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, date) 
+        DO UPDATE SET 
+          hours_worked = $3,
+          hours_expected = $4,
+          updated_at = NOW()
+      `, [userId, dataFormatada, horasTrabalhadas.toFixed(2), horasEsperadas]);
+
+      logger.info('Banco de horas atualizado', { userId, date: dataFormatada, horasTrabalhadas: horasTrabalhadas.toFixed(2) });
 
     } catch (error) {
       logger.error('Erro ao atualizar banco de horas', { error: error.message });

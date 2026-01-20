@@ -11,16 +11,22 @@ SELECT
 FROM time_records
 GROUP BY user_id, DATE(timestamp);
 
--- View: Horas trabalhadas por dia
+-- View: Horas trabalhadas por dia (Fuso Brasília AT TIME ZONE)
 CREATE OR REPLACE VIEW hours_worked_daily AS
 SELECT 
   user_id,
   date,
   CASE 
-    WHEN entrada IS NOT NULL AND saida_intervalo IS NOT NULL 
-         AND retorno_intervalo IS NOT NULL AND saida_final IS NOT NULL THEN
-      EXTRACT(EPOCH FROM (saida_intervalo - entrada))/3600 +
-      EXTRACT(EPOCH FROM (saida_final - retorno_intervalo))/3600
+    -- Se tem entrada e saída final, calcula. Se tem intervalo, desconta.
+    WHEN entrada IS NOT NULL AND saida_final IS NOT NULL THEN
+      (EXTRACT(EPOCH FROM (saida_final - entrada))/3600) - 
+      COALESCE(
+        CASE 
+          WHEN retorno_intervalo IS NOT NULL AND saida_intervalo IS NOT NULL THEN 
+            EXTRACT(EPOCH FROM (retorno_intervalo - saida_intervalo))/3600 
+          ELSE 0 
+        END, 0
+      )
     ELSE NULL
   END as hours_worked,
   CASE 
