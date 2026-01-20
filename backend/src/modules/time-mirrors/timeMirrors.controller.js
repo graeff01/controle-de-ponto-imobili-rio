@@ -1,4 +1,7 @@
 const timeMirrorsService = require('./timeMirrors.service');
+const reportsService = require('../reports/reports.service');
+const pdfGenerator = require('../../services/pdfGeneratorService');
+const db = require('../../config/database');
 
 class TimeMirrorsController {
 
@@ -59,36 +62,58 @@ class TimeMirrorsController {
     async downloadPdf(req, res, next) {
         try {
             const { id } = req.params;
-            const pdfService = require('../../services/pdfService'); // Lazy load
-            const db = require('../../config/database');
 
-            // Busca dados
-            const result = await db.query(`
-        SELECT tm.*, u.nome, u.matricula, u.cargo 
-        FROM time_mirrors tm
-        JOIN users u ON tm.user_id = u.id
-        WHERE tm.id = $1
-      `, [id]);
+            // 1. Busca dados do espelho e usuário
+            const mirrorResult = await db.query(`
+                SELECT tm.*, u.id as user_id, u.nome, u.matricula, u.cargo, u.status,
+                       EXTRACT(YEAR FROM tm.period_start) as year,
+                       EXTRACT(MONTH FROM tm.period_start) as month
+                FROM time_mirrors tm
+                JOIN users u ON tm.user_id = u.id
+                WHERE tm.id = $1
+            `, [id]);
 
-            if (result.rows.length === 0) {
-                return res.status(404).json({ error: 'Espelho não encontrado' });
+            if (mirrorResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Espelho de ponto não encontrado' });
             }
 
-            const mirror = result.rows[0];
+            const mirror = mirrorResult.rows[0];
 
-            // Validação de acesso (apenas próprio usuário ou admin/gestor)
+            // 2. Validação de acesso (apenas próprio usuário ou admin/gestor)
             if (req.userRole === 'funcionario' && mirror.user_id !== req.userId) {
                 return res.status(403).json({ error: 'Acesso negado' });
             }
 
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=espelho-${mirror.period_start.toISOString().slice(0, 7)}.pdf`);
+            // 3. Busca dados detalhados do relatório para o mês
+            const reportData = await reportsService.getMonthlyReport(mirror.user_id, mirror.year, mirror.month);
 
-            await pdfService.generateMirrorPdf(mirror, {
-                nome: mirror.nome,
-                matricula: mirror.matricula,
-                cargo: mirror.cargo
-            }, res);
+            const userData = {
+                user: {
+                    nome: mirror.nome,
+                    matricula: mirror.matricula,
+                    cargo: mirror.cargo,
+                    status: mirror.status
+                },
+                period: {
+                    month: mirror.month,
+                    year: mirror.year
+                }
+            };
+
+            const signatureData = mirror.status === 'signed' ? {
+                hash: mirror.signature_hash,
+                date: mirror.signed_at,
+                ip: mirror.ip_address || 'N/A'
+            } : null;
+
+            // 4. Gera e envia o Stream do PDF
+            const pdfDoc = await pdfGenerator.generateTimeMirror(userData, reportData, signatureData);
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=espelho-${mirror.year}-${mirror.month}.pdf`);
+
+            pdfDoc.pipe(res);
+            pdfDoc.end();
 
         } catch (error) {
             next(error);

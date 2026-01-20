@@ -287,20 +287,39 @@ export default function RelatorioMensal() {
           </motion.button>
 
           {relatorio && (
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={exportarExcel}
-              className="
-                px-6 bg-emerald-600 hover:bg-emerald-700
-                text-white font-bold py-3 rounded-xl
-                flex items-center gap-2
-                transition-all
-              "
-            >
-              <Download size={20} />
-              Exportar Excel
-            </motion.button>
+            <div className="flex gap-3">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={exportarExcel}
+                className="
+                  px-6 bg-emerald-600 hover:bg-emerald-700
+                  text-white font-bold py-3 rounded-xl
+                  flex items-center gap-2
+                  transition-all
+                "
+              >
+                <Download size={20} />
+                Excel
+              </motion.button>
+
+              {tipoRelatorio === 'individual' && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => gerarPDFAssinado(null)}
+                  className="
+                    px-6 bg-slate-600 hover:bg-slate-500
+                    text-white font-bold py-3 rounded-xl
+                    flex items-center gap-2
+                    transition-all
+                  "
+                >
+                  <FileText size={20} />
+                  Baixar PDF
+                </motion.button>
+              )}
+            </div>
           )}
         </div>
       </Card>
