@@ -37,4 +37,7 @@ router.delete('/:id', authMiddleware, rolesMiddleware.isAdmin, usersController.d
 // ✅ Reativar (Apenas Admin)
 router.post('/:id/reactivate', authMiddleware, rolesMiddleware.isAdmin, usersController.reactivate);
 
+// ✅ Aceitar termos de uso
+router.post('/:id/accept-terms', usersController.acceptTerms);
+
 module.exports = router;

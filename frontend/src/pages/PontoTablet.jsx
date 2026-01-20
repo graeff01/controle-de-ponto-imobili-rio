@@ -16,9 +16,12 @@ export default function Tablet() {
   const [message, setMessage] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showCamera, setShowCamera] = useState(false);
-  const [location, setLocation] = useState(null); // ✅ Estado para GPS
-  const [countdown, setCountdown] = useState(null); // ✅ Estado para Contagem
-  const [showFlash, setShowFlash] = useState(null); // ✅ Estado para Flash (guarda a cor)
+  const [location, setLocation] = useState(null);
+  const [countdown, setCountdown] = useState(null);
+  const [showFlash, setShowFlash] = useState(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [successData, setSuccessData] = useState(null);
   const debounceTimer = useRef(null);
 
   const videoRef = useRef(null);
@@ -159,11 +162,29 @@ export default function Tablet() {
 
     try {
       const response = await api.get(`/users/matricula/${matricula}`);
-      setUserData(response.data.data);
-      setShowCamera(true); // ✅ Ativa câmera para TODOS
+      const user = response.data.data;
+      setUserData(user);
+
+      if (!user.terms_accepted_at) {
+        setShowTerms(true);
+        setShowCamera(false);
+      } else {
+        setShowCamera(true);
+      }
     } catch (err) {
       setUserData(null);
       setShowCamera(false);
+    }
+  };
+
+  const aceitarTermos = async () => {
+    try {
+      await api.post(`/users/${userData.id}/accept-terms`);
+      setUserData({ ...userData, terms_accepted_at: new Date() });
+      setShowTerms(false);
+      setShowCamera(true);
+    } catch (err) {
+      showMessage('Erro ao aceitar termos', 'error');
     }
   };
 
@@ -207,7 +228,7 @@ export default function Tablet() {
     }
 
     try {
-      await api.post('/tablet/register', {
+      const response = await api.post('/tablet/register', {
         matricula: userData.matricula,
         record_type: recordType,
         photo,
@@ -216,11 +237,19 @@ export default function Tablet() {
         accuracy: location?.accuracy  // ✅ GPS
       });
 
-      showMessage('Ponto registrado com sucesso!', 'success');
+      setSuccessData({
+        nome: userData.nome,
+        hora: formatTime(new Date()),
+        tipo: recordType === 'entrada' ? 'ENTRADA' :
+          recordType === 'saida_final' ? 'SAÍDA FINAL' :
+            recordType === 'saida_intervalo' ? 'SAÍDA INTERVALO' : 'RETORNO INTERVALO'
+      });
+      setShowSuccess(true);
 
       setTimeout(() => {
         resetForm();
-      }, 2000);
+        setShowSuccess(false);
+      }, 4000);
 
     } catch (err) {
       showMessage(err.response?.data?.error || 'Erro ao registrar ponto', 'error');
@@ -279,11 +308,17 @@ export default function Tablet() {
         accuracy: location?.accuracy  // ✅ GPS
       });
 
-      showMessage(`Presença registrada! Bem-vindo(a), ${userData.nome.split(' ')[0]}`, 'success');
+      setSuccessData({
+        nome: userData.nome,
+        hora: formatTime(new Date()),
+        tipo: 'PRESENÇA NO PLANTÃO'
+      });
+      setShowSuccess(true);
 
       setTimeout(() => {
         resetForm();
-      }, 2000);
+        setShowSuccess(false);
+      }, 4000);
 
     } catch (err) {
       showMessage(err.response?.data?.error || 'Erro ao marcar presença', 'error');
@@ -867,6 +902,90 @@ export default function Tablet() {
           )}
         </div>
       </div>
+
+      {/* ✅ MODAL DE SUCESSO (TELA CHEIA) */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-6 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl border-b-[12px] border-emerald-500"
+            >
+              <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8">
+                <Clock size={48} strokeWidth={3} />
+              </div>
+              <h2 className="text-4xl font-black text-slate-900 mb-4">
+                Olá, {successData?.nome.split(' ')[0]}!
+              </h2>
+              <p className="text-2xl text-slate-600 mb-8">
+                Sua <span className="font-bold text-slate-900">{successData?.tipo}</span> foi registrada com sucesso às <span className="font-bold text-emerald-600">{successData?.hora}</span>.
+              </p>
+              <div className="bg-slate-50 rounded-2xl p-6 border-2 border-slate-100">
+                <p className="text-slate-500 font-medium">BOM TRABALHO!</p>
+              </div>
+              <p className="mt-8 text-slate-400 text-sm">Esta tela fechará automaticamente...</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ✅ MODAL DE TERMOS DE USO (JURÍDICO) */}
+      <AnimatePresence>
+        {showTerms && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ y: 50 }}
+              animate={{ y: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                <Cloud size={32} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">Termos de Uso e Privacidade</h2>
+              <div className="bg-slate-50 rounded-xl p-4 mb-6 max-h-64 overflow-y-auto text-sm text-slate-600 leading-relaxed border border-slate-200">
+                <p className="mb-4 font-bold text-slate-800">CONSENTIMENTO PARA REGISTRO DE PONTO POR MEIO DE DISPOSITIVO COMPARTILHADO (TOTEM)</p>
+                <p className="mb-3">
+                  1. Ao utilizar este dispositivo para o registro de sua jornada de trabalho, você declara estar ciente e concorda com a captura de sua imagem (fotografia) para fins exclusivos de autenticação, segurança e conformidade com a Portaria 671/MTE.
+                </p>
+                <p className="mb-3">
+                  2. Os dados coletados (foto, data, hora e geolocalização do tablet) são processados de forma segura e utilizados estritamente para fins de gestão de jornada, cálculo de banco de horas e obrigações legais da empresa.
+                </p>
+                <p className="mb-3">
+                  3. Em conformidade com a LGPD (Lei Geral de Proteção de Dados), a empresa garante a proteção de suas informações e o acesso apenas a pessoas autorizadas do RH e Gestão.
+                </p>
+                <p>
+                  Ao clicar em "Concordar e Continuar", você autoriza expressamente este procedimento para todos os futuros registros.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={aceitarTermos}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all"
+                >
+                  Concordar e Continuar
+                </button>
+                <button
+                  onClick={resetForm}
+                  className="w-full text-slate-500 font-semibold py-2"
+                >
+                  Sair
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

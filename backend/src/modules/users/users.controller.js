@@ -155,8 +155,9 @@ class UsersController {
         cargo, 
         departamento, 
         role,
-        is_duty_shift_only,  -- ✅ ADICIONAR
-        user_type             -- ✅ ADICIONAR
+        is_duty_shift_only,
+        user_type,
+        terms_accepted_at
       FROM users 
       WHERE matricula = $1 AND status = 'ativo'
     `, [matricula]);
@@ -465,6 +466,25 @@ class UsersController {
       res.json({ success: true, message: 'Usuário reativado com sucesso' });
     } catch (error) {
       logger.error('Erro ao reativar usuário', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // ✅ Aceitar termos de uso
+  async acceptTerms(req, res) {
+    try {
+      const { id } = req.params;
+
+      await db.query(
+        'UPDATE users SET terms_accepted_at = NOW(), updated_at = NOW() WHERE id = $1',
+        [id]
+      );
+
+      logger.info('Termos de uso aceitos', { user_id: id });
+
+      res.json({ success: true, message: 'Termos de uso aceitos com sucesso' });
+    } catch (error) {
+      logger.error('Erro ao aceitar termos de uso', { error: error.message });
       res.status(500).json({ error: error.message });
     }
   }
