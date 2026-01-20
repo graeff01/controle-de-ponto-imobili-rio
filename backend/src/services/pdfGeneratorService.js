@@ -1,4 +1,4 @@
-const PdfPrinter = require('pdfmake/js/printer').default;
+const PdfPrinter = require('pdfmake/js/Printer').default;
 const path = require('path');
 
 const fonts = {
