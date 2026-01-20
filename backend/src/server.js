@@ -24,6 +24,9 @@ const migrationRoutes = require('./modules/admin/migration.routes');
 // Inicializar Express
 const app = express();
 
+// Trust proxy para express-rate-limit funcionar no Railway
+app.set('trust proxy', 1);
+
 // ============================================
 // MIDDLEWARES GLOBAIS
 // ============================================
@@ -122,9 +125,14 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     // Testa conexão com banco
-    logger.info('🔍 Testando conexão com banco de dados...');
-    await db.query('SELECT NOW()');
     logger.success('✅ Banco de dados conectado com sucesso');
+
+    // Garantir que a coluna terms_accepted_at existe
+    await db.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP
+    `);
+    logger.info('✅ Verificação de colunas concluída');
 
     // Inicia jobs agendados
     if (process.env.NODE_ENV === 'production') {
