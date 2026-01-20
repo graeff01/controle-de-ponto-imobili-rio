@@ -125,22 +125,31 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     // Testa conexão com banco
-    logger.success('✅ Banco de dados conectado com sucesso');
+    // 1. Criar system_config se não existir (necessário para configurações do sistema)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS system_config (
+        key VARCHAR(100) PRIMARY KEY,
+        value JSONB NOT NULL,
+        description TEXT,
+        updated_by UUID,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-    // Garantir que a coluna terms_accepted_at existe
+    // 2. Garantir que a coluna terms_accepted_at existe em users
     await db.query(`
       ALTER TABLE users 
       ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP
     `);
 
-    // Garantir que o token do tablet existe
+    // 3. Garantir que o token do tablet existe
     await db.query(`
       INSERT INTO system_config (key, value, description)
       VALUES ('authorized_tablet_token', '{"token": "JDL-TOTEM-2026"}', 'Token de autenticação para o Totem/Tablet')
       ON CONFLICT (key) DO NOTHING
     `);
 
-    logger.info('✅ Verificação de colunas e configurações concluída');
+    logger.info('✅ Banco de dados: Tabelas e configurações verificadas');
 
     // Inicia jobs agendados
     if (process.env.NODE_ENV === 'production') {
