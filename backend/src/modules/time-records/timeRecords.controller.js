@@ -13,8 +13,22 @@ class TimeRecordsController {
     try {
       const { user_id, record_type } = req.body;
       const photo = req.file;
+      const isTablet = req.headers['x-tablet-token'] || req.headers['x-tablet-api-key'];
 
-      // Validar duplicados - NOVO!
+      // 1. Lockdown para Consultoras fora do Totem
+      const userRes = await db.query('SELECT cargo FROM users WHERE id = $1', [user_id]);
+      const cargo = userRes.rows[0]?.cargo?.toLowerCase() || '';
+      const isConsultor = cargo.includes('consultor') || cargo.includes('consutor');
+
+      if (isConsultor && !isTablet) {
+        return res.status(403).json({
+          success: false,
+          error: 'Consultoras devem utilizar a opção "Registrar Visita" quando estiverem fora da agência.',
+          code: 'EXTERNAL_PUNCH_REQUIRED'
+        });
+      }
+
+      // Validar duplicados...
       const ultimoRegistro = await db.query(`
       SELECT record_type, timestamp 
       FROM time_records 

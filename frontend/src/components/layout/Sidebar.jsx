@@ -41,7 +41,7 @@ export default function Sidebar({ isOpen, onClose }) {
     {
       title: 'PRINCIPAL',
       items: [
-        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'manager'] },
+        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'manager', 'funcionario', 'employee'] },
         { path: '/registros', icon: Clock, label: 'Registros', roles: ['admin', 'manager'] },
         { path: '/usuarios', icon: Users, label: 'Funcionários', roles: ['admin', 'manager'] }
       ]

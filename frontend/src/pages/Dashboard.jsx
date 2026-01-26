@@ -13,7 +13,8 @@ import {
   ArrowRight,
   Activity,
   CheckCircle2,
-  XCircle
+  XCircle,
+  MapPin
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import StatCard from '../components/ui/StatCard';
@@ -100,57 +101,78 @@ export default function Dashboard() {
     }
   };
 
-  // Dados do gráfico de pizza
-  const pieData = [
-    { name: 'Presentes', value: stats?.presentes || 0, color: '#10b981' },
-    { name: 'Ausentes', value: stats?.ausencias || 0, color: '#ef4444' },
-    { name: 'Sem Saída', value: stats?.sem_saida || 0, color: '#f59e0b' }
-  ];
+  const isConsultor = (u) => {
+    const cargo = u?.cargo?.toLowerCase() || '';
+    return cargo.includes('consultor') || cargo.includes('consutor');
+  };
 
   const quickActions = [
+    ...(isConsultor(user) ? [{
+      icon: MapPin,
+      label: 'Registrar Visita',
+      description: 'Ponto externo com GPS',
+      path: '/ponto-externo',
+      color: 'emerald',
+      primary: true,
+      roles: ['admin', 'manager', 'funcionario', 'employee']
+    }] : []),
     {
       icon: Clock,
-      label: 'Ver Registros',
-      description: 'Registros de hoje',
+      label: 'Meus Registros',
+      description: 'Ver meu cartão de ponto',
       path: '/registros',
-      color: 'blue'
+      color: 'blue',
+      roles: ['funcionario', 'employee']
+    },
+    {
+      icon: Clock,
+      label: 'Todos os Registros',
+      description: 'Registros da equipe',
+      path: '/registros',
+      color: 'blue',
+      roles: ['admin', 'manager']
     },
     {
       icon: Users,
       label: 'Funcionários',
       description: 'Gerenciar equipe',
       path: '/usuarios',
-      color: 'purple'
+      color: 'purple',
+      roles: ['admin', 'manager']
     },
     {
       icon: TrendingUp,
       label: 'Banco de Horas',
       description: 'Saldos e balanços',
       path: '/banco-horas',
-      color: 'green'
+      color: 'green',
+      roles: ['admin', 'manager']
     },
     {
       icon: FileText,
       label: 'Justificativas',
       description: 'Faltas e atestados',
       path: '/justificativas',
-      color: 'yellow'
+      color: 'yellow',
+      roles: ['admin', 'manager']
     },
     {
       icon: Edit,
-      label: 'Ajustes',
+      label: 'Solicitar Ajuste',
       description: 'Correções manuais',
       path: '/ajustes',
-      color: 'red'
+      color: 'red',
+      roles: ['admin', 'manager']
     },
     {
       icon: Calendar,
       label: 'Relatórios',
       description: 'Análises mensais',
       path: '/relatorio-mensal',
-      color: 'blue'
+      color: 'blue',
+      roles: ['admin', 'manager']
     }
-  ];
+  ].filter(action => !action.roles || action.roles.includes(user?.role || 'employee'));
 
   const getActivityTypeColor = (tipo) => {
     return tipo === 'plantonista' ? 'bg-blue-500' : 'bg-emerald-500';
@@ -317,6 +339,8 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {quickActions.map((action, idx) => {
             const Icon = action.icon;
+            const isPrimary = action.primary;
+
             return (
               <motion.button
                 key={idx}
@@ -326,26 +350,37 @@ export default function Dashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
-                className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-lg transition-all text-left group"
+                className={`
+                  p-6 rounded-2xl border transition-all text-left group
+                  ${isPrimary
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-xl md:col-span-2 lg:col-span-1'
+                    : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 hover:shadow-lg'
+                  }
+                `}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className={`
                       p-3 rounded-xl 
-                      ${action.color === 'blue' ? 'bg-blue-50 text-blue-600' : ''}
-                      ${action.color === 'purple' ? 'bg-purple-50 text-purple-600' : ''}
-                      ${action.color === 'green' ? 'bg-emerald-50 text-emerald-600' : ''}
-                      ${action.color === 'yellow' ? 'bg-amber-50 text-amber-600' : ''}
-                      ${action.color === 'red' ? 'bg-red-50 text-red-600' : ''}
+                      ${isPrimary ? 'bg-emerald-500 text-white' : ''}
+                      ${!isPrimary && action.color === 'blue' ? 'bg-blue-50 text-blue-600' : ''}
+                      ${!isPrimary && action.color === 'purple' ? 'bg-purple-50 text-purple-600' : ''}
+                      ${!isPrimary && action.color === 'green' ? 'bg-emerald-50 text-emerald-600' : ''}
+                      ${!isPrimary && action.color === 'yellow' ? 'bg-amber-50 text-amber-600' : ''}
+                      ${!isPrimary && action.color === 'red' ? 'bg-red-50 text-red-600' : ''}
                     `}>
-                      <Icon size={24} />
+                      <Icon size={isPrimary ? 32 : 24} />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-900 mb-1">{action.label}</h4>
-                      <p className="text-sm text-slate-500">{action.description}</p>
+                      <h4 className={`font-semibold mb-1 ${isPrimary ? 'text-lg text-white' : 'text-slate-900'}`}>
+                        {action.label}
+                      </h4>
+                      <p className={`text-sm ${isPrimary ? 'text-slate-300' : 'text-slate-500'}`}>
+                        {action.description}
+                      </p>
                     </div>
                   </div>
-                  <ArrowRight className="text-slate-400 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" size={20} />
+                  <ArrowRight className={`${isPrimary ? 'text-emerald-400' : 'text-slate-400'} group-hover:translate-x-1 transition-all`} size={24} />
                 </div>
               </motion.button>
             );
