@@ -158,6 +158,8 @@ export default function Tablet() {
 
   const startCamera = async () => {
     try {
+      addLog('🎥 Iniciando câmera...');
+
       // Limpar stream antigo se houver
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -170,14 +172,44 @@ export default function Tablet() {
           facingMode: 'user'
         }
       });
+
+      addLog('✅ Stream obtido com sucesso');
       setStream(mediaStream);
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+
+        // Aguardar o vídeo carregar metadados
+        await new Promise((resolve, reject) => {
+          videoRef.current.onloadedmetadata = () => {
+            addLog(`✅ Vídeo carregado: ${videoRef.current.videoWidth}x${videoRef.current.videoHeight}`);
+            resolve();
+          };
+          videoRef.current.onerror = (err) => {
+            addLog('❌ Erro ao carregar vídeo', 'error');
+            reject(err);
+          };
+
+          // Timeout de segurança de 5 segundos
+          setTimeout(() => {
+            if (videoRef.current && videoRef.current.videoWidth === 0) {
+              addLog('⚠️ Timeout ao carregar vídeo', 'error');
+              reject(new Error('Timeout ao carregar vídeo'));
+            }
+          }, 5000);
+        });
+
+        // Garantir que o vídeo está tocando
+        await videoRef.current.play();
+        addLog('▶️ Vídeo em reprodução');
       }
     } catch (err) {
+      addLog(`❌ Erro ao acessar câmera: ${err.message}`, 'error');
       console.error('Erro ao acessar câmera:', err);
       if (err.name === 'NotReadableError') {
         showMessage('Câmera em uso por outro aplicativo ou bloqueada. Feche outras abas e tente novamente.', 'error');
+      } else if (err.name === 'NotAllowedError') {
+        showMessage('Permissão de câmera negada. Permita o acesso à câmera.', 'error');
       } else {
         showMessage('Erro ao acessar a câmera. Verifique as permissões.', 'error');
       }
@@ -208,39 +240,63 @@ export default function Tablet() {
 
     addLog(`📸 Tentando capturar... Video: ${video ? 'OK' : 'NULL'} | Stream: ${video?.srcObject ? 'OK' : 'NULL'}`);
 
-    if (video && canvas && video.srcObject) {
-      // Ativar Shutter e Flash
-      setShowShutter(true);
-      const colors = ['#ffffff', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF'];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
-      setShowFlash(randomColor);
-
-      setTimeout(() => {
-        try {
-          canvas.width = video.videoWidth || 1280;
-          canvas.height = video.videoHeight || 720;
-          const context = canvas.getContext('2d');
-          context.drawImage(video, 0, 0);
-
-          const photoData = canvas.toDataURL('image/jpeg', 0.8);
-          if (photoData && photoData.length > 1000) {
-            setPhoto(photoData);
-            addLog('✅ Foto capturada e salva no estado.');
-          } else {
-            throw new Error('Fallback data URL too short');
-          }
-        } catch (err) {
-          addLog(`❌ Erro no processamento da imagem: ${err.message}`, 'error');
-          showMessage('Erro ao processar foto. Tente novamente.', 'error');
-        } finally {
-          setShowFlash(null);
-          setTimeout(() => setShowShutter(false), 200);
-        }
-      }, 100); // Foto tirada no auge do flash
-    } else {
-      addLog('❌ Falha: Câmera não inicializada corretamente.', 'error');
-      showMessage('Câmera indisponível. Recarregue a página.', 'error');
+    if (!video || !canvas) {
+      addLog('❌ Falha: Elementos video ou canvas não encontrados.', 'error');
+      showMessage('Erro ao acessar câmera. Recarregue a página.', 'error');
+      return;
     }
+
+    if (!video.srcObject) {
+      addLog('❌ Falha: Stream não está conectado ao vídeo.', 'error');
+      showMessage('Câmera não inicializada. Tente novamente.', 'error');
+      return;
+    }
+
+    // Verificar se o vídeo está pronto (tem dimensões)
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      addLog('⚠️ Vídeo ainda não está pronto. Aguardando...', 'error');
+      showMessage('Aguarde a câmera carregar completamente.', 'error');
+      return;
+    }
+
+    addLog(`📐 Dimensões do vídeo: ${video.videoWidth}x${video.videoHeight}`);
+
+    // Ativar Shutter e Flash
+    setShowShutter(true);
+    const colors = ['#ffffff', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    setShowFlash(randomColor);
+
+    setTimeout(() => {
+      try {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+          throw new Error('Não foi possível obter contexto 2D do canvas');
+        }
+
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        addLog(`📊 Tamanho da foto: ${photoData.length} bytes`);
+
+        if (photoData && photoData.length > 1000) {
+          setPhoto(photoData);
+          addLog('✅ Foto capturada e salva no estado.');
+          showMessage('Foto capturada com sucesso!', 'success');
+        } else {
+          throw new Error('Imagem capturada muito pequena ou inválida');
+        }
+      } catch (err) {
+        addLog(`❌ Erro no processamento da imagem: ${err.message}`, 'error');
+        showMessage('Erro ao processar foto. Tente novamente.', 'error');
+      } finally {
+        setShowFlash(null);
+        setTimeout(() => setShowShutter(false), 200);
+      }
+    }, 100); // Foto tirada no auge do flash
   };
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
