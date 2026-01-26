@@ -389,53 +389,94 @@ class TabletController {
   }
 
   // ✅ NOVO: Registrar Ponto Externo via Celular Autorizado (Consultoras)
+  // USANDO A MESMA TABELA time_records QUE O REGISTRO NORMAL
   async externalRegister(req, res, next) {
     try {
       const { record_type, latitude, longitude, reason, user_id } = req.body;
       const photo = req.file;
+
+      logger.info('📍 Registro externo iniciado', { user_id, record_type, latitude, longitude });
 
       if (!record_type || !latitude || !longitude || !reason || !user_id) {
         return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes.' });
       }
 
       // 1. Buscar usuário
-      const userRes = await db.query('SELECT id, nome, cargo FROM users WHERE id = $1', [user_id]);
-      if (userRes.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+      const userRes = await db.query('SELECT id, nome, cargo, status FROM users WHERE id = $1', [user_id]);
+      if (userRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
       const user = userRes.rows[0];
 
-      // 2. Processar Foto
-      let photoUrl = null;
-      if (photo) {
-        photoUrl = await photoService.savePhoto(photo);
+      if (user.status !== 'ativo') {
+        return res.status(403).json({ error: 'Usuário inativo' });
       }
 
-      // 3. Inserir como Pendente
-      const result = await db.query(`
-        INSERT INTO external_punch_requests 
-        (user_id, record_type, timestamp, latitude, longitude, photo_url, reason, status)
-        VALUES ($1, $2, NOW(), $3, $4, $5, $6, 'pending')
-        RETURNING id
-      `, [user.id, record_type, latitude, longitude, photoUrl, reason]);
+      // 2. Processar Foto (convertendo para base64 igual o registro normal)
+      let photoData = null;
+      if (photo) {
+        try {
+          // Se photo for um buffer, converter para base64
+          if (photo.buffer) {
+            photoData = photo.buffer.toString('base64');
+            logger.info('📸 Foto processada para base64');
+          } else if (typeof photo === 'string') {
+            // Se já for string, remover prefixo data:image se existir
+            photoData = photo.replace(/^data:image\/\w+;base64,/, '');
+          }
+        } catch (err) {
+          logger.error('Erro ao processar foto', { error: err.message });
+        }
+      }
 
-      // 4. Criar Alerta
+      // 3. Inserir na MESMA tabela time_records (igual registro normal)
+      // Usando campos de GPS e reason que já existem
+      const result = await db.query(`
+        INSERT INTO time_records
+        (user_id, record_type, timestamp, latitude, longitude, photo_data, manual_reason, is_manual, created_at)
+        VALUES ($1, $2, NOW(), $3, $4, $5, $6, true, NOW())
+        RETURNING id, user_id, record_type, timestamp
+      `, [user.id, record_type, latitude, longitude, photoData, reason]);
+
+      logger.success('✅ Ponto externo registrado', {
+        user_id: user.id,
+        record_type,
+        record_id: result.rows[0].id,
+        has_gps: true,
+        has_photo: !!photoData
+      });
+
+      // 4. Recalcular banco de horas (igual ao registro normal)
+      try {
+        await timeRecordsController.atualizarBancoHoras(user.id, result.rows[0].timestamp);
+      } catch (bhError) {
+        logger.error('Erro ao atualizar banco de horas (externo)', { error: bhError.message });
+      }
+
+      // 5. Criar Alerta para RH revisar
       try {
         const alertsService = require('../alerts/alerts.service');
         await alertsService.createAlert({
           user_id: user.id,
           alert_type: 'external_punch',
-          title: 'Nova Visita / Registro Externo',
-          message: `${user.nome} registrou uma ${record_type} externa para aprovação.`,
+          title: 'Registro Externo - Necessita Revisão',
+          message: `${user.nome} registrou ${record_type} externa. Local: ${latitude},${longitude}. Motivo: ${reason}`,
           severity: 'info',
           related_id: result.rows[0].id
         });
       } catch (err) {
-        logger.error('Erro ao criar alerta de ponto externo', err);
+        logger.error('Erro ao criar alerta de ponto externo', { error: err.message });
       }
 
       res.status(201).json({
         success: true,
-        message: 'Registro de visita enviado para aprovação.',
-        data: result.rows[0]
+        message: 'Registro de visita efetuado com sucesso!',
+        data: {
+          id: result.rows[0].id,
+          user_id: result.rows[0].user_id,
+          record_type: result.rows[0].record_type,
+          timestamp: result.rows[0].timestamp
+        }
       });
 
     } catch (error) {
