@@ -36,11 +36,16 @@ export default function Tablet() {
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    // Solicitar GPS ao carregar
+
+    // Solicitar GPS com alta precisão e monitoramento contínuo
+    let watchId = null;
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      // Pequeno truque para "acordar" o GPS imediatamente
+      navigator.geolocation.getCurrentPosition(() => { });
+
+      watchId = navigator.geolocation.watchPosition(
         (position) => {
-          console.log('📍 GPS obtido:', position.coords);
+          console.log('📍 GPS Atualizado:', position.coords.latitude, position.coords.longitude, 'Precisão:', position.coords.accuracy);
           setLocation({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -48,10 +53,17 @@ export default function Tablet() {
           });
         },
         (error) => console.error('Erro GPS:', error),
-        { enableHighAccuracy: true }
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
       );
     }
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
 
   useEffect(() => {
@@ -229,9 +241,11 @@ export default function Tablet() {
           AGENCY_COORDS.lng
         );
 
-        if (distance <= 200) {
+        console.log(`📏 Distância calculada da agência: ${distance.toFixed(2)}m`);
+
+        if (distance <= 300) {
           // Bloqueia registro no celular próprio DENTRO da agência (mesmo com chave)
-          showMessage('Dentro da agência, utilize o Tablet Oficial.', 'error');
+          showMessage(`Acesso Móvel Bloqueado: Você está muito perto da agência (${distance.toFixed(0)}m). Registre o ponto no Tablet Fixo.`, 'error');
           setMatricula('');
           return;
         } else {
