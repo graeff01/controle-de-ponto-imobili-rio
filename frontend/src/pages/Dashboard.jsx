@@ -106,6 +106,13 @@ export default function Dashboard() {
     return cargo.includes('consultor') || cargo.includes('consutor');
   };
 
+  // Dados do gráfico de pizza
+  const pieData = [
+    { name: 'Presentes', value: stats?.presentes || 0, color: '#10b981' },
+    { name: 'Ausentes', value: stats?.ausencias || 0, color: '#ef4444' },
+    { name: 'Sem Saída', value: stats?.sem_saida || 0, color: '#f59e0b' }
+  ];
+
   const quickActions = [
     ...(isConsultor(user) ? [{
       icon: MapPin,

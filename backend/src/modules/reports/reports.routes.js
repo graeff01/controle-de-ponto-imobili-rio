@@ -8,6 +8,8 @@ router.use(authMiddleware);
 router.get('/dashboard', reportsController.getDashboard);
 router.get('/weekly', reportsController.getWeekly);
 router.get('/activity', reportsController.getActivity);
+router.get('/stats/absenteismo', reportsController.getAbsenteismo);
+router.get('/stats/overtime', reportsController.getOvertimeStats);
 
 // ✅ ROTAS DE RELATÓRIO MENSAL
 router.get('/monthly/individual/:userId/:year/:month', reportsController.getMonthlyIndividual);
