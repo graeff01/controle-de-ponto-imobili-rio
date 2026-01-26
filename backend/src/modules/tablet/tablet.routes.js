@@ -8,10 +8,9 @@ const {
     tabletRegisterLimiter
 } = require('../../middleware/tabletAuth');
 
-// ============================================
-// ROTAS PROTEGIDAS - Requerem API Key
-// Header obrigatório: X-Tablet-API-Key
-// ============================================
+// Rota de validação de dispositivo (usada no setup)
+// Não passa pelo middleware de auth padrão pois o token ainda não está salvo no cliente
+router.get('/validate-device/:token', tabletController.validateDevice);
 
 // Aplicar autenticação e rate limiting a todas as rotas
 router.use(tabletAuthMiddleware);

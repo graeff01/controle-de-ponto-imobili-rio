@@ -12,18 +12,27 @@ class TimeRecordsController {
   async create(req, res, next) {
     try {
       const { user_id, record_type } = req.body;
-      const photo = req.file;
-      const isTablet = req.headers['x-tablet-token'] || req.headers['x-tablet-api-key'];
+      const tabletToken = req.headers['x-tablet-token'];
 
-      // 1. Lockdown para Consultoras fora do Totem
+      // Validar se o dispositivo é um Tablet Oficial
+      let isOfficialTablet = false;
+      if (tabletToken) {
+        const deviceRes = await db.query(
+          "SELECT device_type FROM authorized_devices WHERE token = $1",
+          [tabletToken]
+        );
+        isOfficialTablet = deviceRes.rows[0]?.device_type === 'tablet';
+      }
+
+      // 1. Lockdown para Consultoras fora do Totem Oficial
       const userRes = await db.query('SELECT cargo FROM users WHERE id = $1', [user_id]);
       const cargo = userRes.rows[0]?.cargo?.toLowerCase() || '';
       const isConsultor = cargo.includes('consultor') || cargo.includes('consutor');
 
-      if (isConsultor && !isTablet) {
+      if (isConsultor && !isOfficialTablet) {
         return res.status(403).json({
           success: false,
-          error: 'Consultoras devem utilizar a opção "Registrar Visita" quando estiverem fora da agência.',
+          error: 'Fluxo Externo: Consultoras devem utilizar a opção "Registrar Visita" no celular ou usar o Tablet da agência.',
           code: 'EXTERNAL_PUNCH_REQUIRED'
         });
       }

@@ -206,10 +206,17 @@ export default function Tablet() {
 
       const cargo = user.cargo?.toLowerCase() || '';
       const isConsultor = cargo.includes('consultor') || cargo.includes('consutor');
-      const isTabletAuthorized = !!localStorage.getItem('tablet_token');
 
-      // ✅ Lógica Consultora Mobile
-      if (isConsultor && !isTabletAuthorized) {
+      // Detalhes do dispositivo autorizado
+      const deviceInfoStr = localStorage.getItem('device_info');
+      const deviceInfo = deviceInfoStr ? JSON.parse(deviceInfoStr) : null;
+      const isOfficialTablet = deviceInfo?.device_type === 'tablet';
+
+      // ✅ Lógica Consultora 
+      if (isConsultor && !isOfficialTablet) {
+        // Se ela estiver no celular autorizado (Consultora Teste), ela pode bater ponto, 
+        // mas o backend vai exigir o fluxo de justificativa ou o GPS.
+
         if (!location) {
           showMessage('Aguardando GPS... Por favor, ative a localização.', 'error');
           return;
@@ -223,12 +230,12 @@ export default function Tablet() {
         );
 
         if (distance <= 200) {
-          // Dentro da agência no celular próprio -> BLOQUEIA
-          showMessage('Dentro da agência, utilize o Tablet Oficial para registrar.', 'error');
+          // Bloqueia registro no celular próprio DENTRO da agência (mesmo com chave)
+          showMessage('Dentro da agência, utilize o Tablet Oficial.', 'error');
           setMatricula('');
           return;
         } else {
-          // Fora da agência -> MODO EXTERNO SIMPLIFICADO
+          // Fora da agência -> MODO EXTERNO
           setUserData({ ...user, requiresExternal: true });
           setShowCamera(true);
           startCamera();
@@ -237,8 +244,8 @@ export default function Tablet() {
       }
 
       // Se NÃO for consultora e NÃO estiver no tablet autorizado -> Bloqueia geral
-      if (!isConsultor && !isTabletAuthorized) {
-        showMessage('Acesso permitido apenas pelo dispositivo oficial.', 'error');
+      if (!isConsultor && !isOfficialTablet) {
+        showMessage('Acesso permitido apenas pelo dispositivo oficial da agência.', 'error');
         setMatricula('');
         return;
       }
@@ -547,13 +554,25 @@ export default function Tablet() {
     return 'REGISTRO REALIZADO COM SUCESSO!';
   };
 
-  const handleAuthorize = () => {
-    if (tempToken === 'JDL-TOTEM-2026') {
-      localStorage.setItem('tablet_token', tempToken);
-      setIsAuthorized(true);
-      showMessage('Dispositivo autorizado com sucesso!', 'success');
-    } else {
-      showMessage('Token de autorização inválido.', 'error');
+  const handleAuthorize = async () => {
+    if (!tempToken) return;
+
+    setLoading(true);
+    try {
+      const response = await api.get(`/tablet/validate-device/${tempToken}`);
+
+      if (response.data.success) {
+        localStorage.setItem('tablet_token', tempToken);
+        // Opcional: salvar metadados do dispositivo
+        localStorage.setItem('device_info', JSON.stringify(response.data.data));
+
+        setIsAuthorized(true);
+        showMessage(`Dispositivo autorizado: ${response.data.data.name}`, 'success');
+      }
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Erro ao validar código.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 

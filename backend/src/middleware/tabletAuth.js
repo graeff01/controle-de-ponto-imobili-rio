@@ -15,31 +15,23 @@ const tabletAuthMiddleware = async (req, res, next) => {
     }
 
     const result = await db.query(
-      "SELECT value FROM system_config WHERE key = 'authorized_tablet_token'"
+      "SELECT id, name, device_type FROM authorized_devices WHERE token = $1",
+      [token]
     );
 
-    const authorizedToken = result.rows[0]?.value?.token;
-
-    if (!authorizedToken) {
-      // Se não houver token, permite apenas se for o token padrão para setup (opcional)
-      // Por agora, bloqueia
+    if (result.rows.length === 0) {
       return res.status(403).json({
         success: false,
-        error: 'Segurança do tablet não configurada no banco.'
+        error: 'Dispositivo reconhecido como não autorizado.'
       });
     }
 
-    if (token !== authorizedToken) {
-      return res.status(403).json({
-        success: false,
-        error: 'Dispositivo não autorizado.'
-      });
-    }
-
+    // Anexar info do dispositivo na requisição
+    req.device = result.rows[0];
     next();
   } catch (error) {
     logger.error('Erro no tabletAuthMiddleware', { error: error.message });
-    res.status(500).json({ error: 'Erro interno' });
+    res.status(500).json({ error: 'Erro interno ao validar dispositivo' });
   }
 };
 

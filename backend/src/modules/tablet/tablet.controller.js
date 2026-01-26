@@ -5,6 +5,33 @@ const timeRecordsController = require('../time-records/timeRecords.controller');
 
 class TabletController {
 
+  // Validar token de dispositivo (usado no setup inicial)
+  async validateDevice(req, res) {
+    try {
+      const { token } = req.params;
+
+      const result = await db.query(
+        "SELECT name, device_type FROM authorized_devices WHERE token = $1",
+        [token]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Código de autorização inválido ou expirado.'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result.rows[0]
+      });
+    } catch (error) {
+      logger.error('Erro ao validar dispositivo', { error: error.message });
+      res.status(500).json({ error: 'Erro interno ao validar' });
+    }
+  }
+
   // Buscar usuário por matrícula (SEM autenticação)
   async getByMatricula(req, res) {
     try {
