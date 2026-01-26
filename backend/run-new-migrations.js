@@ -17,7 +17,8 @@ const pool = new Pool(poolConfig);
 async function runMigrations() {
     const migrationFiles = [
         'v2-external-punch.sql',
-        'v3-authorized-devices.sql'
+        'v3-authorized-devices.sql',
+        'v4-individual-consultant-tokens.sql'
     ];
 
     try {

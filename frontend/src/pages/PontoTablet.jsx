@@ -195,7 +195,7 @@ export default function Tablet() {
     return R * c;
   };
 
-  const AGENCY_COORDS = { lat: -29.2272, lng: -51.3481 }; // Coordenadas Jardim do Lago
+  const AGENCY_COORDS = { lat: -29.9088632, lng: -51.1721065 }; // Rua Liberdade, Canoas
 
   const buscarUsuario = async () => {
     if (matricula.length < 3) return;
