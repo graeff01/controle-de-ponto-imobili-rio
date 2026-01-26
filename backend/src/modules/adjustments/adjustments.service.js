@@ -172,14 +172,41 @@ class AdjustmentsService {
   async applyAdjustmentToRecord(adjustment) {
     if (adjustment.is_addition || !adjustment.time_record_id) {
       // Inserir NOVO registro
-      await db.query(`
-        INSERT INTO time_records (user_id, timestamp, record_type, created_at, updated_at)
-        VALUES ($1, $2, $3, NOW(), NOW())
-      `, [adjustment.user_id, adjustment.adjusted_timestamp, adjustment.adjusted_type]);
+      // Se tem GPS (latitude/longitude), é um registro externo de consultora
+      const isExternalPunch = adjustment.latitude && adjustment.longitude;
+
+      if (isExternalPunch) {
+        // Registro externo: incluir GPS, foto e motivo
+        await db.query(`
+          INSERT INTO time_records
+          (user_id, timestamp, record_type, latitude, longitude, photo_data, manual_reason, is_manual, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+        `, [
+          adjustment.user_id,
+          adjustment.adjusted_timestamp,
+          adjustment.adjusted_type,
+          adjustment.latitude,
+          adjustment.longitude,
+          adjustment.photo_data,
+          adjustment.reason
+        ]);
+
+        logger.info('✅ Registro externo aprovado e inserido em time_records', {
+          user_id: adjustment.user_id,
+          has_gps: true,
+          has_photo: !!adjustment.photo_data
+        });
+      } else {
+        // Registro normal: sem GPS
+        await db.query(`
+          INSERT INTO time_records (user_id, timestamp, record_type, created_at, updated_at)
+          VALUES ($1, $2, $3, NOW(), NOW())
+        `, [adjustment.user_id, adjustment.adjusted_timestamp, adjustment.adjusted_type]);
+      }
     } else {
       // Atualizar registro EXISTENTE
       await db.query(`
-        UPDATE time_records 
+        UPDATE time_records
         SET timestamp = $1, record_type = $2, updated_at = NOW()
         WHERE id = $3
       `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
