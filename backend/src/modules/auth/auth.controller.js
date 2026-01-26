@@ -178,18 +178,18 @@ class AuthController {
       // Link de recuperação
       const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-      logger.info('Token de recuperação gerado', {
-        user_id: user.id,
-        resetUrl
-      });
+      // Enviar email
+      const emailService = require('../../services/emailService');
+      await emailService.enviarEmailRecuperacao(user, resetUrl);
 
-      // TODO: Enviar email (por enquanto retorna o link)
-      // Por segurança em produção, sempre enviar email
+      logger.info('Token de recuperação gerado e enviado por e-mail', {
+        user_id: user.id
+      });
 
       res.json({
         success: true,
-        message: 'Link de recuperação enviado para o email',
-        // REMOVER EM PRODUÇÃO - só para desenvolvimento
+        message: 'Instruções para redefinir sua senha foram enviadas para o seu e-mail.',
+        // Retornamos o link apenas em desenvolvimento para facilitar testes
         resetUrl: process.env.NODE_ENV === 'development' ? resetUrl : undefined
       });
 

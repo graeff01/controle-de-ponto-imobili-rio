@@ -1,6 +1,24 @@
 ﻿if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
+const Sentry = require("@sentry/node");
+const { nodeProfilingIntegration } = require("@sentry/profiling-node");
+
+// Inicializar Sentry (SEMPRE antes de outros imports se possível)
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    integrations: [
+      nodeProfilingIntegration(),
+    ],
+    // Performance Monitoring
+    tracesSampleRate: 1.0,
+    // Set sampling rate for profiling - this is relative to tracesSampleRate
+    profilesSampleRate: 1.0,
+    environment: process.env.NODE_ENV || 'development'
+  });
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -35,27 +53,31 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // CORS
-// CORS
+// CORS configuration
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://127.0.0.1:5173',
-  'https://jardimdolagoponto.up.railway.app', // ✅ Produção
-  process.env.FRONTEND_URL
-].filter(Boolean);
+  'https://jardimdolagoponto.up.railway.app'
+];
+
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 
 app.use(cors({
   origin: function (origin, callback) {
     // Permitir requests sem origin (como mobile apps ou curl)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+    const isAllowed = allowedOrigins.some(allowed =>
+      allowed === origin || (allowed.includes('localhost') && origin.includes('localhost'))
+    );
+
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
-      // Opcional: Permitir qualquer localhost em desenvolvimento
-      if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
-        return callback(null, true);
-      }
+      logger.warn('CORS Blocked', { origin });
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -101,8 +123,8 @@ app.use('/api/hours-bank', require('./modules/hours-bank/hours-bank.routes'));
 app.use('/api/audit', require('./modules/audit/audit.routes'));
 app.use('/api/duty-shifts', require('./modules/duty-shifts/dutyShifts.routes'));
 app.use('/api/holidays', require('./modules/holidays/holidays.routes'));
-app.use('/api/time-mirrors', require('./modules/time-mirrors/timeMirrors.routes')); // ✅ Nova rota Fase 6
-app.use('/api/admin', migrationRoutes); // ✅ Rota para migrações
+app.use('/api/time-mirrors', require('./modules/time-mirrors/timeMirrors.routes'));
+app.use('/api/admin', migrationRoutes);
 
 // ============================================
 // ROTA 404
@@ -117,6 +139,12 @@ app.use('*', (req, res) => {
 // ============================================
 // ERROR HANDLER (deve ser o último middleware)
 // ============================================
+
+// The error handler must be registered before any other error middleware and after all controllers
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
+
 app.use(errorHandler);
 
 // ============================================
@@ -125,53 +153,21 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     // Testa conexão com banco
-    // 1. Criar system_config se não existir (necessário para configurações do sistema)
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS system_config (
-        key VARCHAR(100) PRIMARY KEY,
-        value JSONB NOT NULL,
-        description TEXT,
-        updated_by UUID,
-        updated_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-    // 2. Garantir que a coluna terms_accepted_at existe em users
-    await db.query(`
-      ALTER TABLE users 
-      ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP
-    `);
-
-    // 3. Corrigir tabela de ajustes para suportar "Novos Registros" (Ponto Esquecido)
-    await db.query(`
-      ALTER TABLE time_adjustments ALTER COLUMN time_record_id DROP NOT NULL;
-      ALTER TABLE time_adjustments ADD COLUMN IF NOT EXISTS is_addition BOOLEAN DEFAULT FALSE;
-      ALTER TABLE time_adjustments ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
-    `);
-
-    // 3. Garantir que o token do tablet existe
-    await db.query(`
-      INSERT INTO system_config (key, value, description)
-      VALUES ('authorized_tablet_token', '{"token": "JDL-TOTEM-2026"}', 'Token de autenticação para o Totem/Tablet')
-      ON CONFLICT (key) DO NOTHING
-    `);
-
-    logger.info('✅ Banco de dados: Tabelas e configurações verificadas');
+    await db.query('SELECT NOW()');
+    logger.info('✅ Banco de dados conectado');
 
     // Inicia jobs agendados
     if (process.env.NODE_ENV === 'production') {
       startAllJobs();
+      logger.info('🚀 Jobs agendados iniciados');
     } else {
       logger.info('⚠️ Jobs agendados desabilitados em desenvolvimento');
     }
 
-    app.listen(
-      Number(process.env.PORT) || 5000,
-      '0.0.0.0',
-      () => {
-        logger.success(`Servidor rodando na porta ${process.env.PORT || 5000}`);
-      }
-    );
+    const port = Number(process.env.PORT) || 5000;
+    app.listen(port, '0.0.0.0', () => {
+      logger.success(`Servidor rodando na porta ${port}`);
+    });
 
   } catch (error) {
     logger.error('❌ Erro ao iniciar servidor', { error: error.message });

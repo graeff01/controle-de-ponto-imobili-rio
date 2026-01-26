@@ -9,11 +9,11 @@ class EmailService {
     try {
       // Verificar se email está habilitado
       if (!resend) {
-        logger.warn('📧 Email não enviado (Resend não configurado)', { 
-          to, 
-          subject 
+        logger.warn('📧 Email não enviado (Resend não configurado)', {
+          to,
+          subject
         });
-        
+
         // Registra log mesmo sem enviar
         try {
           await db.query(`
@@ -24,7 +24,7 @@ class EmailService {
         } catch (err) {
           // Ignora erro de log
         }
-        
+
         return { success: false, message: 'Email desabilitado' };
       }
 
@@ -171,6 +171,58 @@ class EmailService {
       'ponto_registrado',
       usuario.id,
       registro.id
+    );
+  }
+
+  async enviarEmailRecuperacao(usuario, resetUrl) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1a202c; }
+          .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+          .card { background: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; overflow: hidden; }
+          .header { background: #1a202c; color: white; padding: 32px; text-align: center; }
+          .content { padding: 40px; }
+          .footer { padding: 24px; text-align: center; font-size: 13px; color: #718096; background: #f7fafc; }
+          .button { display: inline-block; padding: 16px 32px; background: #3182ce; color: white !important; text-decoration: none; border-radius: 12px; font-weight: bold; margin-top: 24px; }
+          .warning { font-size: 12px; color: #a0aec0; margin-top: 24px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="card">
+            <div class="header">
+              <h2 style="margin:0">Recuperação de Senha</h2>
+            </div>
+            <div class="content">
+              <p>Olá, <strong>${usuario.nome}</strong>,</p>
+              <p>Recebemos uma solicitação para redefinir a senha da sua conta no <strong>Sistema de Ponto Jardim do Lago</strong>.</p>
+              <p>Clique no botão abaixo para escolher uma nova senha. Este link expira em 1 hora.</p>
+              
+              <div style="text-align: center">
+                <a href="${resetUrl}" class="button">Redefinir minha senha</a>
+              </div>
+
+              <p class="warning">Se você não solicitou isso, pode ignorar este e-mail com segurança. Sua senha não será alterada.</p>
+            </div>
+            <div class="footer">
+              <p>Jardim do Lago Imobiliária - Gestão de Ponto</p>
+              <p>Este é um e-mail automático, por favor não responda.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return await this.enviarEmail(
+      usuario.email,
+      '🔑 Recuperação de senha - Sistema de Ponto',
+      html,
+      'password_reset',
+      usuario.id
     );
   }
 

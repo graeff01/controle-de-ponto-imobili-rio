@@ -24,7 +24,6 @@ router.get('/user/matricula/:matricula', tabletController.getByMatricula);
 router.get('/user/type/:matricula', tabletController.checkUserType);
 
 // Registrar ponto (com rate limiting adicional)
-router.post('/record', tabletRegisterLimiter, upload.single('photo'), tabletController.registerRecord);
 router.post('/register', tabletRegisterLimiter, tabletController.register);
 router.post('/request-adjustment', tabletRegisterLimiter, tabletController.requestAdjustment);
 

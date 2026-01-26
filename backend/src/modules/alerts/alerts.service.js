@@ -3,6 +3,35 @@ const logger = require('../../utils/logger');
 
 class AlertsService {
 
+  async createAlert(data) {
+    try {
+      const { user_id, alert_type, title, message, severity, related_id } = data;
+
+      const result = await db.query(`
+        INSERT INTO alerts 
+        (user_id, alert_type, title, message, severity, related_id, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'unread', NOW())
+        RETURNING *
+      `, [user_id, alert_type, title, message, severity || 'info', related_id]);
+
+      logger.info('Novo alerta criado', { alertId: result.rows[0].id, type: alert_type });
+
+      // Se for crítico, poderíamos disparar e-mail aqui também
+      if (severity === 'critical' || severity === 'error') {
+        const emailService = require('../../services/emailService');
+        const gestores = await emailService.obterEmailsGestores();
+        if (gestores.length > 0) {
+          await emailService.enviarAlertaGestor(result.rows[0], gestores[0]);
+        }
+      }
+
+      return result.rows[0];
+    } catch (error) {
+      logger.error('Erro ao criar alerta', { error: error.message });
+      throw error;
+    }
+  }
+
   async getAlerts(filters = {}) {
     try {
       let query = `

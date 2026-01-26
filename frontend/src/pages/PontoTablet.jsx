@@ -28,6 +28,7 @@ export default function Tablet() {
   const [adjustmentTime, setAdjustmentTime] = useState('');
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [successData, setSuccessData] = useState(null);
+  const [showShutter, setShowShutter] = useState(false);
   const debounceTimer = useRef(null);
 
   const videoRef = useRef(null);
@@ -146,8 +147,9 @@ export default function Tablet() {
     const canvas = canvasRef.current;
 
     if (video && canvas) {
-      // Ativar Flash
-      const colors = ['#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF'];
+      // Ativar Shutter e Flash
+      setShowShutter(true);
+      const colors = ['#ffffff', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF'];
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
       setShowFlash(randomColor);
 
@@ -159,7 +161,8 @@ export default function Tablet() {
         const photoData = canvas.toDataURL('image/jpeg', 0.8);
         setPhoto(photoData);
         setShowFlash(null);
-      }, 50); // Foto tirada no auge do flash
+        setTimeout(() => setShowShutter(false), 200);
+      }, 100); // Foto tirada no auge do flash
     }
   };
 
@@ -839,6 +842,18 @@ export default function Tablet() {
                       )}
                     </AnimatePresence>
 
+                    {/* ✅ SHUTTER EFFECT */}
+                    <AnimatePresence>
+                      {showShutter && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 z-[40] bg-white pointer-events-none"
+                        />
+                      )}
+                    </AnimatePresence>
+
                     {/* ✅ FLASH DE AUTENTICIDADE */}
                     <AnimatePresence>
                       {showFlash && (
@@ -1000,6 +1015,18 @@ export default function Tablet() {
                             {countdown}
                           </span>
                         </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* ✅ SHUTTER EFFECT */}
+                    <AnimatePresence>
+                      {showShutter && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 z-[40] bg-white pointer-events-none"
+                        />
                       )}
                     </AnimatePresence>
 

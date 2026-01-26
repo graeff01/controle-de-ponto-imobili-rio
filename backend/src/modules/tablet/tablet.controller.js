@@ -241,70 +241,6 @@ class TabletController {
     }
   }
 
-  // Registrar ponto com user_id (MANTIDO PARA COMPATIBILIDADE)
-  async registerRecord(req, res) {
-    try {
-      const { user_id, record_type } = req.body;
-      const photo = req.file;
-
-      if (!user_id || !record_type) {
-        return res.status(400).json({
-          success: false,
-          error: 'user_id e record_type são obrigatórios'
-        });
-      }
-
-      const validTypes = ['entrada', 'saida_intervalo', 'retorno_intervalo', 'saida_final'];
-      if (!validTypes.includes(record_type)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Tipo de registro inválido'
-        });
-      }
-
-      const userCheck = await db.query(
-        'SELECT id, nome, status FROM users WHERE id = $1',
-        [user_id]
-      );
-
-      if (userCheck.rows.length === 0 || userCheck.rows[0].status !== 'ativo') {
-        return res.status(404).json({
-          success: false,
-          error: 'Usuário não encontrado ou inativo'
-        });
-      }
-
-      let photoData = null;
-      if (photo) {
-        photoData = await photoService.processAndSavePhoto(photo.buffer);
-      }
-
-      const result = await db.query(`
-        INSERT INTO time_records (user_id, record_type, timestamp, photo_data, created_at)
-        VALUES ($1, $2, NOW(), $3, NOW())
-        RETURNING id, user_id, record_type, timestamp
-      `, [user_id, record_type, photoData]);
-
-      logger.success('Ponto registrado via tablet (legacy)', {
-        user_id,
-        record_type,
-        record_id: result.rows[0].id
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Ponto registrado com sucesso',
-        data: result.rows[0]
-      });
-
-    } catch (error) {
-      logger.error('Erro ao registrar ponto via tablet', { error: error.message });
-      res.status(500).json({
-        success: false,
-        error: 'Erro ao registrar ponto'
-      });
-    }
-  }
 
   // Verificar tipo de usuário (para mostrar interface correta)
   async checkUserType(req, res) {
@@ -393,6 +329,24 @@ class TabletController {
         VALUES ($1, $2, $3, $4, $5, 'saida_final', $6, $2, 'pending', true)
         RETURNING id
       `, [record_id, user_id, original.timestamp, original.record_type, adjustedTimestamp, reason]);
+
+      // 4. Criar Alerta para o Gestor
+      try {
+        const alertsService = require('../alerts/alerts.service');
+        const userRes = await db.query('SELECT nome FROM users WHERE id = $1', [user_id]);
+        const userName = userRes.rows[0]?.nome || 'Funcionário';
+
+        await alertsService.createAlert({
+          user_id: user_id,
+          alert_type: 'adjustment_request',
+          title: 'Solicitação de Ajuste (Totem)',
+          message: `${userName} solicitou ajuste de ponto esquecido para o dia ${datePart}.`,
+          severity: 'warning',
+          related_id: result.rows[0].id
+        });
+      } catch (alertError) {
+        logger.error('Erro ao criar alerta de ajuste', { error: alertError.message });
+      }
 
       logger.success('Solicitação de ajuste enviada pelo Totem', { userId: user_id, adjustmentId: result.rows[0].id });
 
