@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, LogIn, Coffee, RotateCcw, LogOut, Clock, Wifi, WifiOff, Cloud } from 'lucide-react';
+import { Camera, LogIn, Coffee, RotateCcw, LogOut, Clock, Wifi, WifiOff, Cloud, FileText } from 'lucide-react';
 import api from '../services/api';
 import { useSync } from '../services/syncService';
 import { offlineStorage } from '../services/offlineStorage';
@@ -769,7 +769,7 @@ export default function Tablet() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-slate-900">
-                      {getSaudacao()}, {userData.nome.split(' ')[0]}
+                      {getSaudacao()}, {userData?.nome?.split(' ')[0]}
                     </p>
                     <p className="text-slate-600 flex items-center gap-2">
                       {userData.cargo}
@@ -798,7 +798,7 @@ export default function Tablet() {
                 </div>
                 <h2 className="text-2xl font-bold text-amber-900 mb-2">Ponto em Aberto!</h2>
                 <p className="text-amber-800 mb-6">
-                  Olá, {userData.nome.split(' ')[0]}! Notamos que você esqueceu de registrar sua <strong>saída</strong> no dia <strong>{new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}</strong>.
+                  Olá, {userData?.nome?.split(' ')[0]}! Notamos que você esqueceu de registrar sua <strong>saída</strong> no dia <strong>{new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}</strong>.
                 </p>
                 <div className="flex gap-4">
                   <button
@@ -1441,7 +1441,7 @@ export default function Tablet() {
       </div >
 
       {/* ✅ MODAL DE SUCESSO (TELA CHEIA) */}
-      < AnimatePresence >
+      <AnimatePresence>
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1458,7 +1458,7 @@ export default function Tablet() {
                 <Clock size={48} strokeWidth={3} />
               </div>
               <h2 className="text-4xl font-black text-slate-900 mb-4">
-                Olá, {successData?.nome.split(' ')[0]}!
+                Olá, {successData?.nome?.split(' ')[0]}!
               </h2>
               <p className="text-2xl text-slate-600 mb-8">
                 Sua <span className="font-bold text-slate-900">{successData?.tipo}</span> foi registrada com sucesso às <span className="font-bold text-emerald-600">{successData?.hora}</span>.
@@ -1472,10 +1472,10 @@ export default function Tablet() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence >
+      </AnimatePresence>
 
       {/* ✅ MODAL DE TERMOS DE USO (JURÍDICO) */}
-      < AnimatePresence >
+      <AnimatePresence>
         {showTerms && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1524,7 +1524,7 @@ export default function Tablet() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence >
+      </AnimatePresence>
     </div>
   );
 }
