@@ -139,8 +139,17 @@ export default function Tablet() {
 
   const startCamera = async () => {
     try {
+      // Limpar stream antigo se houver
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: 'user' }
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user'
+        }
       });
       setStream(mediaStream);
       if (videoRef.current) {
@@ -148,7 +157,11 @@ export default function Tablet() {
       }
     } catch (err) {
       console.error('Erro ao acessar câmera:', err);
-      showMessage('Erro ao acessar a câmera', 'error');
+      if (err.name === 'NotReadableError') {
+        showMessage('Câmera em uso por outro aplicativo ou bloqueada. Feche outras abas e tente novamente.', 'error');
+      } else {
+        showMessage('Erro ao acessar a câmera. Verifique as permissões.', 'error');
+      }
     }
   };
 
@@ -919,9 +932,45 @@ export default function Tablet() {
                 ) : (
                   <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                 )}
-                {/* Flash e Shutter effects... */}
+
+                {/* ✅ MÁSCARA DE ENQUADRAMENTO */}
+                {!photo && !countdown && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="w-32 h-44 border-2 border-dashed border-white/20 rounded-full"></div>
+                  </div>
+                )}
+
+                {/* ✅ CONTAGEM REGRESSIVA */}
+                <AnimatePresence>
+                  {countdown && (
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1.2, opacity: 1 }}
+                      exit={{ scale: 2, opacity: 0 }}
+                      key={countdown}
+                      className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                    >
+                      <span className="text-7xl font-black text-white drop-shadow-2xl">
+                        {countdown}
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* ✅ SHUTTER EFFECT */}
                 <AnimatePresence>
                   {showShutter && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[40] bg-white pointer-events-none" />}
+                </AnimatePresence>
+
+                {/* ✅ FLASH DE AUTENTICIDADE */}
+                <AnimatePresence>
+                  {showFlash && (
+                    <motion.div
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 z-30 pointer-events-none"
+                      style={{ backgroundColor: showFlash }}
+                    />
+                  )}
                 </AnimatePresence>
               </div>
 
