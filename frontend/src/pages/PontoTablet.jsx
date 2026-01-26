@@ -381,13 +381,14 @@ export default function Tablet() {
       const blob = await response.blob();
 
       const formData = new FormData();
+      formData.append('user_id', userData.id);
       formData.append('record_type', recordType);
       formData.append('latitude', location.latitude);
       formData.append('longitude', location.longitude);
       formData.append('reason', adjustmentReason);
       formData.append('photo', blob, 'externo.jpg');
 
-      await api.post('/time-records/external', formData, {
+      await api.post('/tablet/external-register', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 

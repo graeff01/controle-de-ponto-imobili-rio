@@ -387,6 +387,62 @@ class TabletController {
       res.status(500).json({ error: 'Erro ao processar solicitação' });
     }
   }
+
+  // ✅ NOVO: Registrar Ponto Externo via Celular Autorizado (Consultoras)
+  async externalRegister(req, res, next) {
+    try {
+      const { record_type, latitude, longitude, reason, user_id } = req.body;
+      const photo = req.file;
+
+      if (!record_type || !latitude || !longitude || !reason || !user_id) {
+        return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes.' });
+      }
+
+      // 1. Buscar usuário
+      const userRes = await db.query('SELECT id, nome, cargo FROM users WHERE id = $1', [user_id]);
+      if (userRes.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+      const user = userRes.rows[0];
+
+      // 2. Processar Foto
+      let photoUrl = null;
+      if (photo) {
+        photoUrl = await photoService.savePhoto(photo);
+      }
+
+      // 3. Inserir como Pendente
+      const result = await db.query(`
+        INSERT INTO external_punch_requests 
+        (user_id, record_type, timestamp, latitude, longitude, photo_url, reason, status)
+        VALUES ($1, $2, NOW(), $3, $4, $5, $6, 'pending')
+        RETURNING id
+      `, [user.id, record_type, latitude, longitude, photoUrl, reason]);
+
+      // 4. Criar Alerta
+      try {
+        const alertsService = require('../alerts/alerts.service');
+        await alertsService.createAlert({
+          user_id: user.id,
+          alert_type: 'external_punch',
+          title: 'Nova Visita / Registro Externo',
+          message: `${user.nome} registrou uma ${record_type} externa para aprovação.`,
+          severity: 'info',
+          related_id: result.rows[0].id
+        });
+      } catch (err) {
+        logger.error('Erro ao criar alerta de ponto externo', err);
+      }
+
+      res.status(201).json({
+        success: true,
+        message: 'Registro de visita enviado para aprovação.',
+        data: result.rows[0]
+      });
+
+    } catch (error) {
+      logger.error('Erro no registro externo via tablet/mobile', error);
+      res.status(500).json({ success: false, error: 'Erro ao processar registro de visita.' });
+    }
+  }
 }
 
 module.exports = new TabletController();
