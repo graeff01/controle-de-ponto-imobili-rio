@@ -66,6 +66,75 @@ class TimeRecordsController {
     }
   }
 
+  async createExternal(req, res, next) {
+    try {
+      const { record_type, latitude, longitude, reason } = req.body;
+      const photo = req.file;
+      const userId = req.userId;
+
+      // 1. Verificar se o usuário é consultora (ou tem permissão)
+      const userRes = await db.query('SELECT cargo FROM users WHERE id = $1', [userId]);
+      const cargo = userRes.rows[0]?.cargo?.toLowerCase() || '';
+
+      if (!cargo.includes('consultor')) {
+        return res.status(403).json({
+          error: 'Apenas consultoras podem realizar registro de ponto externo.'
+        });
+      }
+
+      if (!latitude || !longitude || !reason) {
+        return res.status(400).json({
+          error: 'Localização (GPS) e justificativa são obrigatórios para ponto externo.'
+        });
+      }
+
+      // 2. Criar solicitação de ajuste (Pendente)
+      const timestamp = dateHelper.getNowInBR();
+
+      const result = await db.query(`
+        INSERT INTO time_adjustments 
+        (user_id, adjusted_timestamp, adjusted_type, reason, adjusted_by, status, is_addition, latitude, longitude, photo_data)
+        VALUES ($1, $2, $3, $4, $1, 'pending', true, $5, $6, $7)
+        RETURNING id
+      `, [
+        userId,
+        timestamp,
+        record_type,
+        `PONTO EXTERNO (APP): ${reason}`,
+        latitude,
+        longitude,
+        photo ? photo.buffer.toString('base64') : null
+      ]);
+
+      // 3. Notificar Gestor
+      try {
+        const alertsService = require('../alerts/alerts.service');
+        const userNameRes = await db.query('SELECT nome FROM users WHERE id = $1', [userId]);
+        const nome = userNameRes.rows[0]?.nome;
+
+        await alertsService.createAlert({
+          user_id: userId,
+          alert_type: 'external_punch',
+          title: 'Ponto Externo Pendente',
+          message: `${nome} registrou um ponto externo via celular às ${dateHelper.formatTime(timestamp)}. Requer aprovação.`,
+          severity: 'info',
+          related_id: result.rows[0].id
+        });
+      } catch (err) {
+        logger.error('Erro ao alertar ponto externo', { error: err.message });
+      }
+
+      res.status(201).json({
+        success: true,
+        message: 'Registro externo enviado para aprovação do gestor.',
+        data: result.rows[0]
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // ADICIONAR ESTA NOVA FUNÇÃO NA CLASSE
   async atualizarBancoHoras(userId, date) {
     try {

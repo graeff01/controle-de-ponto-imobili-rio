@@ -15,7 +15,8 @@ import {
   ChevronRight,
   User,
   CheckCircle,
-  Menu
+  Menu,
+  MapPin
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -54,6 +55,18 @@ export default function Sidebar({ isOpen, onClose }) {
         { path: '/aprovacoes', icon: CheckCircle, label: 'Aprovações', roles: ['admin', 'manager'] },
         { path: '/feriados', icon: Calendar, label: 'Feriados', roles: ['admin'] }, // Apenas Admin
         { path: '/relatorio-mensal', icon: Calendar, label: 'Relatório Mensal', roles: ['admin', 'manager'] }
+      ]
+    },
+    {
+      title: 'MEU PONTO',
+      items: [
+        {
+          path: '/ponto-externo',
+          icon: MapPin,
+          label: 'Ponto Externo',
+          roles: ['admin', 'manager', 'funcionario', 'employee'],
+          check: (user) => user?.cargo?.toLowerCase().includes('consultor')
+        }
       ]
     },
     {
@@ -149,10 +162,12 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Menu */}
         <div className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
           {menuSections.map((section, idx) => {
-            // Filter items based on user role
-            const filteredItems = section.items.filter(item =>
-              !item.roles || item.roles.includes(user?.role || 'employee')
-            );
+            // Filter items based on user role and custom check
+            const filteredItems = section.items.filter(item => {
+              const roleMatch = !item.roles || item.roles.includes(user?.role || 'employee');
+              const checkMatch = !item.check || item.check(user);
+              return roleMatch && checkMatch;
+            });
 
             // If no items in section, don't render section
             if (filteredItems.length === 0) return null;

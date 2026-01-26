@@ -16,6 +16,7 @@ import Feriados from './pages/Feriados'; // ✅ Novo
 import Aprovacoes from './pages/Aprovacoes'; // ✅ Corrigido (sem acento)
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import PontoExterno from './pages/PontoExterno';
 
 // Componente para proteger rotas
 function ProtectedRoute({ children }) {
@@ -130,6 +131,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Aprovacoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ponto-externo"
+              element={
+                <ProtectedRoute>
+                  <PontoExterno />
                 </ProtectedRoute>
               }
             />

@@ -10,6 +10,7 @@ router.use(authMiddleware);
 
 // Rotas para funcionários (próprios registros)
 router.post('/', upload.single('photo'), timeRecordsController.create);
+router.post('/external', upload.single('photo'), timeRecordsController.createExternal);
 router.get('/my-records', timeRecordsController.getMyRecords);
 router.get('/my-journey/:date', timeRecordsController.getMyDailyJourney);
 router.get('/my-journey/:year/:month', timeRecordsController.getMyMonthlyJourney);

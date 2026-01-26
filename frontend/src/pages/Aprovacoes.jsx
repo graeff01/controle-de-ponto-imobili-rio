@@ -82,24 +82,41 @@ const Aprovacoes = () => {
                                 <div className="bg-gray-50 p-2 rounded text-sm text-gray-700 italic border border-gray-100">
                                     "{adj.reason}"
                                 </div>
+                                {adj.latitude && adj.longitude && (
+                                    <a
+                                        href={`https://www.google.com/maps?q=${adj.latitude},${adj.longitude}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:underline mt-2 flex items-center gap-1"
+                                    >
+                                        📍 Ver Localização no Mapa
+                                    </a>
+                                )}
                                 <p className="text-xs text-gray-400 mt-2">
                                     Solicitado por: {adj.adjusted_by_name} em {new Date(adj.adjusted_at).toLocaleDateString()}
                                 </p>
                             </div>
 
-                            <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
-                                <button
-                                    onClick={() => handleApprove(adj.id)}
-                                    className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700 transition"
-                                >
-                                    <CheckCircle size={18} /> Aprovar
-                                </button>
-                                <button
-                                    onClick={() => handleReject(adj.id)}
-                                    className="bg-red-100 text-red-700 px-4 py-2 rounded flex items-center gap-2 hover:bg-red-200 transition"
-                                >
-                                    <XCircle size={18} /> Rejeitar
-                                </button>
+                            <div className="flex flex-col md:flex-row gap-4 items-center">
+                                {adj.photo_data && (
+                                    <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                        <img src={`data:image/jpeg;base64,${adj.photo_data}`} alt="Comprovante" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                                <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto">
+                                    <button
+                                        onClick={() => handleApprove(adj.id)}
+                                        className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700 transition"
+                                    >
+                                        <CheckCircle size={18} /> Aprovar
+                                    </button>
+                                    <button
+                                        onClick={() => handleReject(adj.id)}
+                                        className="bg-red-100 text-red-700 px-4 py-2 rounded flex items-center gap-2 hover:bg-red-200 transition"
+                                    >
+                                        <XCircle size={18} /> Rejeitar
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}

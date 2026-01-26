@@ -1,10 +1,17 @@
 ﻿const cron = require('node-cron');
 const { checkLateArrivals, checkMissingExits } = require('./checkLateArrivals');
 const dailyClosing = require('./dailyClosing'); // ✅ Novo job Fase 4
+const runWeeklyDigest = require('./weeklyDigest');
 const logger = require('../utils/logger');
 
 function startAllJobs() {
   logger.info('🕐 Iniciando jobs agendados...');
+
+  // Digest Semanal Automático (Domingo 20:00)
+  cron.schedule('0 20 * * 0', async () => {
+    logger.info('Executando digest semanal...');
+    await runWeeklyDigest();
+  });
 
   // Verificar atrasos a cada 15 minutos (das 8h às 10h)
   cron.schedule('*/15 8-10 * * 1-5', async () => {

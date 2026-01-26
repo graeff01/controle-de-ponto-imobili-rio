@@ -66,6 +66,22 @@ export default function Tablet() {
   }, [showCamera]);
 
   useEffect(() => {
+    // Timer de auto-reset por inatividade (25 segundos)
+    let inactivityTimer;
+
+    if (matricula || userData || showCamera) {
+      inactivityTimer = setTimeout(() => {
+        console.log('⏱️ Auto-reset por inatividade');
+        resetForm();
+      }, 25000); // 25 segundos
+    }
+
+    return () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+    };
+  }, [matricula, userData, showCamera, photo]);
+
+  useEffect(() => {
     // Limpar timer anterior
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
