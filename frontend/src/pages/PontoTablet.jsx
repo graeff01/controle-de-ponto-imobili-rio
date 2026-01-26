@@ -266,7 +266,15 @@ export default function Tablet() {
     } catch (err) {
       setUserData(null);
       setShowCamera(false);
-      showMessage('Matrícula não encontrada', 'error');
+
+      if (err.response?.status === 403) {
+        showMessage('Dispositivo desautorizado ou chave inválida.', 'error');
+        localStorage.removeItem('tablet_token');
+        localStorage.removeItem('device_info');
+        setTimeout(() => setIsAuthorized(false), 2000);
+      } else {
+        showMessage(err.response?.data?.error || 'Matrícula não encontrada', 'error');
+      }
     }
   };
 
