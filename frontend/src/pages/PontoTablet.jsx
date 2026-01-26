@@ -241,11 +241,18 @@ export default function Tablet() {
           AGENCY_COORDS.lng
         );
 
-        console.log(`📏 Distância calculada da agência: ${distance.toFixed(2)}m`);
+        // Lógica Inteligente: Considera a margem de erro (accuracy)
+        // Se a distância mínima possível (distância - precisão) for menor que 200m, bloqueia.
+        const minPossibleDistance = Math.max(0, distance - location.accuracy);
 
-        if (distance <= 300) {
-          // Bloqueia registro no celular próprio DENTRO da agência (mesmo com chave)
-          showMessage(`Acesso Móvel Bloqueado: Você está muito perto da agência (${distance.toFixed(0)}m). Registre o ponto no Tablet Fixo.`, 'error');
+        console.log(`📏 Distância Real: ${distance.toFixed(2)}m`);
+        console.log(`🎯 Margem de Erro GPS: ${location.accuracy.toFixed(2)}m`);
+        console.log(`🚧 Distância Mínima Provável: ${minPossibleDistance.toFixed(2)}m`);
+
+        // Bloqueia se a distância mínima provável for muito perto da agência
+        // Ou se o GPS estiver muito impreciso (mais de 1.5km de erro) dentro da empresa
+        if (minPossibleDistance <= 250 || (location.accuracy > 1500 && distance < 1000)) {
+          showMessage(`Acesso Móvel Bloqueado: O sistema detectou que você pode estar na agência ou o GPS está muito impreciso (${location.accuracy.toFixed(0)}m). Use o Tablet Oficial.`, 'error');
           setMatricula('');
           return;
         } else {
