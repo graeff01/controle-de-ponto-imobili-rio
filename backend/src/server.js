@@ -49,42 +49,29 @@ app.set('trust proxy', 1);
 // MIDDLEWARES GLOBAIS
 // ============================================
 
-// CORS configuration (ABERTO PARA DIAGNÓSTICO DEFINITIVO)
-app.use(cors({
-  origin: function (origin, callback) {
-    // Para resolver o erro do usuário imediatamente, vamos permitir tudo
-    // e registrar no log quem está tentando conectar.
-    if (origin) logger.info('🔌 Request Origin:', { origin });
-    callback(null, true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'X-Tablet-Token',
-    'X-Tablet-API-Key',
-    'X-Tablet-Key',
-    'x-tablet-token',
-    'x-tablet-api-key'
-  ],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
-}));
+// CRÍTICO: CORS DEVE SER O PRIMEIRO MIDDLEWARE
+// Configuração ultra-permissiva para resolver problema de CORS
+app.use((req, res, next) => {
+  const origin = req.headers.origin || req.headers.referer || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Tablet-Token, X-Tablet-API-Key, X-Tablet-Key, x-tablet-token, x-tablet-api-key');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
-// Pre-flight explícito para todas as rotas
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Tablet-Token, X-Tablet-API-Key, X-Tablet-Key');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  next();
 });
 
 // Segurança (Ajustado para não conflitar com CORS)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" }
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  crossOriginEmbedderPolicy: false
 }));
 
 // Body parsing
