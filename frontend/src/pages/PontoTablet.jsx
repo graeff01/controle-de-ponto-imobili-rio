@@ -179,29 +179,37 @@ export default function Tablet() {
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
 
-        // Aguardar o vídeo carregar metadados
-        await new Promise((resolve, reject) => {
-          videoRef.current.onloadedmetadata = () => {
-            addLog(`✅ Vídeo carregado: ${videoRef.current.videoWidth}x${videoRef.current.videoHeight}`);
-            resolve();
-          };
-          videoRef.current.onerror = (err) => {
-            addLog('❌ Erro ao carregar vídeo', 'error');
-            reject(err);
-          };
+        // Tentar carregar metadados (mas não bloquear se falhar)
+        try {
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              addLog('⚠️ Metadados demorando, mas continuando...', 'info');
+              resolve(); // Resolve mesmo sem metadados
+            }, 3000);
 
-          // Timeout de segurança de 5 segundos
-          setTimeout(() => {
-            if (videoRef.current && videoRef.current.videoWidth === 0) {
-              addLog('⚠️ Timeout ao carregar vídeo', 'error');
-              reject(new Error('Timeout ao carregar vídeo'));
-            }
-          }, 5000);
-        });
+            videoRef.current.onloadedmetadata = () => {
+              clearTimeout(timeout);
+              addLog(`✅ Vídeo carregado: ${videoRef.current.videoWidth}x${videoRef.current.videoHeight}`);
+              resolve();
+            };
+
+            videoRef.current.onerror = (err) => {
+              clearTimeout(timeout);
+              addLog('❌ Erro ao carregar vídeo', 'error');
+              reject(err);
+            };
+          });
+        } catch (metadataErr) {
+          addLog('⚠️ Erro nos metadados, mas stream está ativo', 'info');
+        }
 
         // Garantir que o vídeo está tocando
-        await videoRef.current.play();
-        addLog('▶️ Vídeo em reprodução');
+        try {
+          await videoRef.current.play();
+          addLog('▶️ Vídeo em reprodução');
+        } catch (playErr) {
+          addLog(`⚠️ Erro ao reproduzir: ${playErr.message}`, 'info');
+        }
       }
     } catch (err) {
       addLog(`❌ Erro ao acessar câmera: ${err.message}`, 'error');
@@ -252,14 +260,11 @@ export default function Tablet() {
       return;
     }
 
-    // Verificar se o vídeo está pronto (tem dimensões)
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      addLog('⚠️ Vídeo ainda não está pronto. Aguardando...', 'error');
-      showMessage('Aguarde a câmera carregar completamente.', 'error');
-      return;
-    }
+    // Obter dimensões (com fallback se forem 0)
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
 
-    addLog(`📐 Dimensões do vídeo: ${video.videoWidth}x${video.videoHeight}`);
+    addLog(`📐 Dimensões do vídeo: ${video.videoWidth}x${video.videoHeight} (usando ${width}x${height})`);
 
     // Ativar Shutter e Flash
     setShowShutter(true);
@@ -269,16 +274,19 @@ export default function Tablet() {
 
     setTimeout(() => {
       try {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Configurar canvas
+        canvas.width = width;
+        canvas.height = height;
         const context = canvas.getContext('2d');
 
         if (!context) {
           throw new Error('Não foi possível obter contexto 2D do canvas');
         }
 
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Desenhar vídeo no canvas
+        context.drawImage(video, 0, 0, width, height);
 
+        // Converter para data URL
         const photoData = canvas.toDataURL('image/jpeg', 0.8);
         addLog(`📊 Tamanho da foto: ${photoData.length} bytes`);
 
