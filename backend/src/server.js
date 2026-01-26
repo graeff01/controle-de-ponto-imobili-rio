@@ -49,52 +49,43 @@ app.set('trust proxy', 1);
 // MIDDLEWARES GLOBAIS
 // ============================================
 
-// CORS configuration (DEVE VIR ANTES DE TUDO)
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5173',
-  'https://jardimdolagoponto.up.railway.app',
-  'https://vibrant-reprieve-production.up.railway.app'
-];
-
-if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL.replace(/\/$/, ""));
-}
-
-const corsOptions = {
+// CORS configuration (ABERTO PARA DIAGNÓSTICO DEFINITIVO)
+app.use(cors({
   origin: function (origin, callback) {
-    // Permitir requests sem origin (como mobile apps ou curl)
-    if (!origin) return callback(null, true);
-
-    const normalizedOrigin = origin.replace(/\/$/, "").toLowerCase();
-
-    const isAllowed = allowedOrigins.some(allowed => {
-      const normalizedAllowed = allowed.replace(/\/$/, "").toLowerCase();
-      return normalizedAllowed === normalizedOrigin ||
-        (normalizedAllowed.includes('localhost') && normalizedOrigin.includes('localhost'));
-    });
-
-    if (isAllowed || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      logger.warn('⚠️ CORS BLOQUEADO', { origin, normalizedOrigin });
-      // Para diagnosticar melhor, não vamos travar o request aqui, 
-      // mas o navegador ainda vai falhar se o header não bater.
-      // Em produção, voltaremos a ser restritivos se necessário.
-      callback(null, true); // Tentativa de bypass para teste
-    }
+    // Para resolver o erro do usuário imediatamente, vamos permitir tudo
+    // e registrar no log quem está tentando conectar.
+    if (origin) logger.info('🔌 Request Origin:', { origin });
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Tablet-Token', 'X-Tablet-API-Key', 'X-Tablet-Key']
-};
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-Tablet-Token',
+    'X-Tablet-API-Key',
+    'X-Tablet-Key',
+    'x-tablet-token',
+    'x-tablet-api-key'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
+}));
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Pre-flight explícito
+// Pre-flight explícito para todas as rotas
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Tablet-Token, X-Tablet-API-Key, X-Tablet-Key');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
 
-// Segurança (Abaixo do CORS)
-app.use(helmet());
+// Segurança (Ajustado para não conflitar com CORS)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "unsafe-none" }
+}));
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
