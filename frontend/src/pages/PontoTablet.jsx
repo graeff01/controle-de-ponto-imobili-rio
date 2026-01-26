@@ -182,15 +182,69 @@ export default function Tablet() {
     }
   };
 
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const AGENCY_COORDS = { lat: -29.2272, lng: -51.3481 }; // Coordenadas Jardim do Lago
+
   const buscarUsuario = async () => {
     if (matricula.length < 3) return;
 
     try {
       const response = await api.get(`/tablet/user/matricula/${matricula}`);
       const user = response.data.data;
-      setUserData(user);
 
-      // Verificação de Ponto Esquecido
+      const cargo = user.cargo?.toLowerCase() || '';
+      const isConsultor = cargo.includes('consultor') || cargo.includes('consutor');
+      const isTabletAuthorized = !!localStorage.getItem('tablet_token');
+
+      // ✅ Lógica Consultora Mobile
+      if (isConsultor && !isTabletAuthorized) {
+        if (!location) {
+          showMessage('Aguardando GPS... Por favor, ative a localização.', 'error');
+          return;
+        }
+
+        const distance = calculateDistance(
+          location.latitude,
+          location.longitude,
+          AGENCY_COORDS.lat,
+          AGENCY_COORDS.lng
+        );
+
+        if (distance <= 200) {
+          // Dentro da agência no celular próprio -> BLOQUEIA
+          showMessage('Dentro da agência, utilize o Tablet Oficial para registrar.', 'error');
+          setMatricula('');
+          return;
+        } else {
+          // Fora da agência -> MODO EXTERNO SIMPLIFICADO
+          setUserData({ ...user, requiresExternal: true });
+          setShowCamera(true);
+          startCamera();
+          return;
+        }
+      }
+
+      // Se NÃO for consultora e NÃO estiver no tablet autorizado -> Bloqueia geral
+      if (!isConsultor && !isTabletAuthorized) {
+        showMessage('Acesso permitido apenas pelo dispositivo oficial.', 'error');
+        setMatricula('');
+        return;
+      }
+
+      setUserData(user);
+      // Verificação de Ponto Esquecido...
       if (user.pendingInconsistency) {
         setInconsistencyData(user.pendingInconsistency);
         setShowCamera(false);
@@ -200,21 +254,12 @@ export default function Tablet() {
       } else {
         setInconsistencyData(null);
         setShowCamera(true);
+        startCamera();
       }
     } catch (err) {
       setUserData(null);
       setShowCamera(false);
-    }
-  };
-
-  const aceitarTermos = async () => {
-    try {
-      await api.post(`/users/${userData.id}/accept-terms`);
-      setUserData({ ...userData, terms_accepted_at: new Date() });
-      setShowTerms(false);
-      setShowCamera(true);
-    } catch (err) {
-      showMessage('Erro ao aceitar termos', 'error');
+      showMessage('Matrícula não encontrada', 'error');
     }
   };
 
@@ -262,9 +307,9 @@ export default function Tablet() {
         matricula: userData.matricula,
         record_type: recordType,
         photo,
-        latitude: location?.latitude, // ✅ GPS
-        longitude: location?.longitude, // ✅ GPS
-        accuracy: location?.accuracy  // ✅ GPS
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        accuracy: location?.accuracy
       });
 
       setSuccessData({
@@ -285,6 +330,58 @@ export default function Tablet() {
       showMessage(err.response?.data?.error || 'Erro ao registrar ponto', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const registrarPontoExternoTotem = async () => {
+    if (!adjustmentReason || !photo) {
+      showMessage('Preencha o motivo e tire a foto', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(photo);
+      const blob = await response.blob();
+
+      const formData = new FormData();
+      formData.append('record_type', recordType);
+      formData.append('latitude', location.latitude);
+      formData.append('longitude', location.longitude);
+      formData.append('reason', adjustmentReason);
+      formData.append('photo', blob, 'externo.jpg');
+
+      await api.post('/time-records/external', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setSuccessData({
+        nome: userData.nome,
+        tipo: recordType === 'entrada' ? 'Entrada (Visita)' : 'Saída (Visita)',
+        hora: currentTime.toLocaleTimeString('pt-BR')
+      });
+
+      setShowSuccess(true);
+      setTimeout(() => {
+        resetForm();
+        setShowSuccess(false);
+      }, 5000);
+
+    } catch (err) {
+      showMessage(err.response?.data?.error || 'Erro ao registrar visita', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const aceitarTermos = async () => {
+    try {
+      await api.post(`/users/${userData.id}/accept-terms`);
+      setUserData({ ...userData, terms_accepted_at: new Date() });
+      setShowTerms(false);
+      setShowCamera(true);
+    } catch (err) {
+      showMessage('Erro ao aceitar termos', 'error');
     }
   };
 
@@ -390,6 +487,8 @@ export default function Tablet() {
     setUserData(null);
     setRecordType('entrada');
     setPhoto(null);
+    setAdjustmentReason('');
+    setAdjustmentTime('');
     setShowCamera(false);
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -727,8 +826,83 @@ export default function Tablet() {
             </div>
           )}
 
+          {/* ===== INTERFACE PARA PONTO EXTERNO (CONSULTORAS MOBILE) ===== */}
+          {userData && userData.requiresExternal && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center">
+                <p className="text-amber-800 font-bold">📍 Registro Externo Detectado</p>
+                <p className="text-amber-700 text-xs">Você está fora da agência. Justifique sua visita para registrar.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Tipo de Registro</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setRecordType('entrada')}
+                    className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'entrada' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
+                  >
+                    Entrada
+                  </button>
+                  <button
+                    onClick={() => setRecordType('saida_final')}
+                    className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'saida_final' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
+                  >
+                    Saída Final
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Justificativa / Visita</label>
+                <textarea
+                  value={adjustmentReason}
+                  onChange={(e) => setAdjustmentReason(e.target.value)}
+                  placeholder="Ex: Visita ao imóvel Rua X, cliente Y..."
+                  rows={2}
+                  className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-slate-900 outline-none text-sm"
+                />
+              </div>
+
+              {/* Camera Preview (Reutilizando UI existente) */}
+              <div className="relative bg-slate-900 rounded-3xl overflow-hidden border-2 border-slate-200 aspect-video">
+                {photo ? (
+                  <img src={photo} className="w-full h-full object-cover" />
+                ) : (
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                )}
+                {/* Flash e Shutter effects... */}
+                <AnimatePresence>
+                  {showShutter && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[40] bg-white pointer-events-none" />}
+                </AnimatePresence>
+              </div>
+
+              <div className="flex gap-3">
+                {!photo ? (
+                  <button onClick={capturePhoto} className="flex-1 bg-slate-900 text-white font-bold py-4 rounded-xl">
+                    Capturar Foto
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => setPhoto(null)} className="px-6 bg-white text-slate-700 border-2 border-slate-200 font-bold py-4 rounded-xl">
+                      Refazer
+                    </button>
+                    <button
+                      onClick={registrarPontoExternoTotem}
+                      disabled={loading || !adjustmentReason}
+                      className="flex-1 bg-emerald-600 text-white font-bold py-4 rounded-xl disabled:bg-slate-300 shadow-lg"
+                    >
+                      {loading ? 'Enviando...' : 'Confirmar Visita'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <button onClick={resetForm} className="w-full text-slate-500 font-semibold py-2">Cancelar</button>
+            </motion.div>
+          )}
+
           {/* ===== INTERFACE PARA CLT ===== */}
-          {userData && !userData.is_duty_shift_only && (
+          {userData && !userData.is_duty_shift_only && !userData.requiresExternal && (
             <>
               {/* Tipo de Registro */}
               <motion.div
@@ -967,8 +1141,7 @@ export default function Tablet() {
           )}
 
           {/* ===== INTERFACE PARA PLANTONISTA ===== */}
-          {/* ===== INTERFACE PARA PLANTONISTA ===== */}
-          {userData && userData.is_duty_shift_only && (
+          {userData && userData.is_duty_shift_only && !userData.requiresExternal && (
             <>
               {/* Badge Plantonista */}
               <motion.div
