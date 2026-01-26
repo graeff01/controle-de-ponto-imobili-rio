@@ -1018,6 +1018,7 @@ export default function Tablet() {
                   ) : (
                     <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                   )}
+                  <canvas ref={canvasRef} className="hidden" />
 
                   {/* ✅ MÁSCARA DE ENQUADRAMENTO */}
                   {!photo && !countdown && (
