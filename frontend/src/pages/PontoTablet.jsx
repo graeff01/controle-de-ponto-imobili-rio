@@ -483,6 +483,11 @@ export default function Tablet() {
       return;
     }
 
+    if (!location) {
+      showMessage('Aguardando localização GPS. Tente novamente em alguns segundos.', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(photo);
@@ -513,6 +518,7 @@ export default function Tablet() {
       }, 5000);
 
     } catch (err) {
+      console.error('Erro ao registrar ponto externo:', err);
       showMessage(err.response?.data?.error || 'Erro ao registrar visita', 'error');
     } finally {
       setLoading(false);
