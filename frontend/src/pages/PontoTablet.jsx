@@ -33,6 +33,8 @@ export default function Tablet() {
   const [debugLogs, setDebugLogs] = useState([]);
   const [tapCount, setTapCount] = useState(0);
   const debounceTimer = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const addLog = (msg, type = 'info') => {
     const time = new Date().toLocaleTimeString();
