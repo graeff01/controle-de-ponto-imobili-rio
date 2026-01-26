@@ -29,10 +29,17 @@ export default function Tablet() {
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [successData, setSuccessData] = useState(null);
   const [showShutter, setShowShutter] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
+  const [debugLogs, setDebugLogs] = useState([]);
+  const [tapCount, setTapCount] = useState(0);
   const debounceTimer = useRef(null);
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const addLog = (msg, type = 'info') => {
+    const time = new Date().toLocaleTimeString();
+    setDebugLogs(prev => [`[${time}] ${msg}`, ...prev].slice(0, 20));
+    if (type === 'error') console.error(msg);
+    else console.log(msg);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -45,14 +52,14 @@ export default function Tablet() {
 
       watchId = navigator.geolocation.watchPosition(
         (position) => {
-          console.log('📍 GPS Atualizado:', position.coords.latitude, position.coords.longitude, 'Precisão:', position.coords.accuracy);
+          addLog(`📍 GPS: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)} (Prec: ${position.coords.accuracy.toFixed(0)}m)`);
           setLocation({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy
           });
         },
-        (error) => console.error('Erro GPS:', error),
+        (error) => addLog(`❌ Erro GPS: ${error.message}`, 'error'),
         {
           enableHighAccuracy: true,
           timeout: 10000,
@@ -65,6 +72,16 @@ export default function Tablet() {
       if (watchId) navigator.geolocation.clearWatch(watchId);
     };
   }, []);
+
+  const handleTitleTap = () => {
+    setTapCount(prev => {
+      if (prev + 1 >= 5) {
+        setDebugMode(!debugMode);
+        return 0;
+      }
+      return prev + 1;
+    });
+  };
 
   useEffect(() => {
     if (showCamera && !stream) {
@@ -187,7 +204,9 @@ export default function Tablet() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    if (video && canvas) {
+    addLog(`📸 Tentando capturar... Video: ${video ? 'OK' : 'NULL'} | Stream: ${video?.srcObject ? 'OK' : 'NULL'}`);
+
+    if (video && canvas && video.srcObject) {
       // Ativar Shutter e Flash
       setShowShutter(true);
       const colors = ['#ffffff', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF'];
@@ -195,15 +214,30 @@ export default function Tablet() {
       setShowFlash(randomColor);
 
       setTimeout(() => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0);
-        const photoData = canvas.toDataURL('image/jpeg', 0.8);
-        setPhoto(photoData);
-        setShowFlash(null);
-        setTimeout(() => setShowShutter(false), 200);
+        try {
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const context = canvas.getContext('2d');
+          context.drawImage(video, 0, 0);
+
+          const photoData = canvas.toDataURL('image/jpeg', 0.8);
+          if (photoData && photoData.length > 1000) {
+            setPhoto(photoData);
+            addLog('✅ Foto capturada e salva no estado.');
+          } else {
+            throw new Error('Fallback data URL too short');
+          }
+        } catch (err) {
+          addLog(`❌ Erro no processamento da imagem: ${err.message}`, 'error');
+          showMessage('Erro ao processar foto. Tente novamente.', 'error');
+        } finally {
+          setShowFlash(null);
+          setTimeout(() => setShowShutter(false), 200);
+        }
       }, 100); // Foto tirada no auge do flash
+    } else {
+      addLog('❌ Falha: Câmera não inicializada corretamente.', 'error');
+      showMessage('Câmera indisponível. Recarregue a página.', 'error');
     }
   };
 
@@ -239,10 +273,10 @@ export default function Tablet() {
 
       // ✅ Lógica Consultora 
       if (isConsultor && !isOfficialTablet) {
-        // Se ela estiver no celular autorizado (Consultora Teste), ela pode bater ponto, 
-        // mas o backend vai exigir o fluxo de justificativa ou o GPS.
+        addLog(`👩‍💼 Consultora Detectada. Validando Localização...`);
 
         if (!location) {
+          addLog('🟡 GPS ainda não obtido. Impedindo entrada.');
           showMessage('Aguardando GPS... Por favor, ative a localização.', 'error');
           return;
         }
@@ -254,25 +288,20 @@ export default function Tablet() {
           AGENCY_COORDS.lng
         );
 
-        // Lógica Inteligente: Considera a margem de erro (accuracy)
-        // Se a distância mínima possível (distância - precisão) for menor que 200m, bloqueia.
         const minPossibleDistance = Math.max(0, distance - location.accuracy);
+        addLog(`📏 Dist: ${distance.toFixed(0)}m | Prec: ${location.accuracy.toFixed(0)}m | Min: ${minPossibleDistance.toFixed(0)}m`);
 
-        console.log(`📏 Distância Real: ${distance.toFixed(2)}m`);
-        console.log(`🎯 Margem de Erro GPS: ${location.accuracy.toFixed(2)}m`);
-        console.log(`🚧 Distância Mínima Provável: ${minPossibleDistance.toFixed(2)}m`);
-
-        // Bloqueia se a distância mínima provável for muito perto da agência
-        // Ou se o GPS estiver muito impreciso (mais de 1.5km de erro) dentro da empresa
         if (minPossibleDistance <= 250 || (location.accuracy > 1500 && distance < 1000)) {
-          showMessage(`Acesso Móvel Bloqueado: O sistema detectou que você pode estar na agência ou o GPS está muito impreciso (${location.accuracy.toFixed(0)}m). Use o Tablet Oficial.`, 'error');
+          addLog('🛑 BLOQUEADO: Muito perto da agência.', 'error');
+          showMessage(`Acesso Móvel Bloqueado: O sistema detectou que você está na agência ou o GPS está impreciso (${location.accuracy.toFixed(0)}m).`, 'error');
           setMatricula('');
           return;
         } else {
-          // Fora da agência -> MODO EXTERNO
+          addLog('✅ LIBERADO: Fora da agência.');
           setUserData({ ...user, requiresExternal: true });
           setShowCamera(true);
           startCamera();
+          addLog('📸 Câmera Iniciada.');
           return;
         }
       }
@@ -655,529 +684,522 @@ export default function Tablet() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-slate-50">
+      {/* Console de Debug (Apenas quando tapCount >= 5) */}
+      <AnimatePresence>
+        {debugMode && (
+          <motion.div
+            initial={{ y: 300 }}
+            animate={{ y: 0 }}
+            exit={{ y: 300 }}
+            className="fixed bottom-0 left-0 right-0 z-[200] bg-slate-900 text-slate-100 p-4 font-mono text-[10px] h-64 overflow-y-auto shadow-2xl border-t-2 border-slate-700"
+          >
+            <div className="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
+              <span className="font-bold text-blue-400">CONSOLE DE DIAGNÓSTICO</span>
+              <button onClick={() => setDebugLogs([])} className="text-red-400 font-bold uppercase">Limpar</button>
+            </div>
+            {debugLogs.map((log, i) => (
+              <div key={i} className="mb-1 border-l-2 border-slate-700 pl-2 py-0.5">{log}</div>
+            ))}
+            {debugLogs.length === 0 && <div className="text-slate-500 italic">Nenhum log registrado ainda.</div>}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Mensagens */}
+      <div className="container mx-auto px-4 py-8">
+        {/* Mensagens (Alertas) */}
         <AnimatePresence>
           {message && (
             <motion.div
-              initial={{ opacity: 0, y: -50 }}
+              initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className={`
-                fixed top-6 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl
-                ${message.type === 'success'
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-red-500 text-white'
-                }
-              `}
+              exit={{ opacity: 0, y: -20 }}
+              className={`fixed top-4 left-4 right-4 z-[150] p-4 rounded-2xl shadow-2xl text-white font-bold text-center flex items-center justify-center gap-3 ${message.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}
             >
-              <p className="font-semibold">{message.text}</p>
+              {message.text}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-6 max-w-4xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center">
-                <Clock className="text-white" size={32} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Sistema de Presença - Jardim do Lago</h1>
-                <p className="text-slate-600">Registro de presença</p>
-              </div>
+        {/* Header com Trigger de Debug */}
+        <div className="text-center mb-8" onClick={handleTitleTap}>
+          <div className="flex items-center justify-center gap-3 mb-2 cursor-pointer select-none active:scale-95 transition-transform">
+            <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center shadow-lg">
+              <Clock size={28} />
             </div>
-
-            <div className="text-right">
-              <div className="text-4xl font-bold text-slate-900 tabular-nums">
-                {formatTime(currentTime)}
-              </div>
-              <p className="text-sm text-slate-600 capitalize mb-1">
-                {formatDate(currentTime)}
-              </p>
-
-              <div className="flex flex-col items-end gap-1">
-                {location ? (
-                  <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
-                    <span>📍 GPS Ativo</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 text-red-400 text-xs font-medium">
-                    <span>⚠️ Sem GPS</span>
-                  </div>
-                )}
-
-                {isOnline ? (
-                  <div className="flex items-center gap-1 text-emerald-600 text-xs font-medium">
-                    <Wifi size={14} />
-                    <span>Online</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 text-red-500 text-xs font-medium">
-                    <WifiOff size={14} />
-                    <span>Offline</span>
-                  </div>
-                )}
-
-                {pendingCount > 0 && (
-                  <div className="flex items-center gap-1 text-orange-500 text-xs font-medium animate-pulse">
-                    <Cloud size={14} />
-                    <span>{pendingCount} Pendentes</span>
-                  </div>
-                )}
-              </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              Sistema de Presença - Jardim do Lago
+            </h1>
+          </div>
+          <p className="text-slate-500 font-medium">Registro de presença</p>
+          <div className="flex items-center justify-center gap-4 mt-3">
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${location ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${location ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              {location ? 'GPS Ativo' : 'Aguardando GPS...'}
+            </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isOnline ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+              {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
+              {isOnline ? 'Online' : 'Modo Offline'}
             </div>
           </div>
         </div>
 
         {/* Card Principal */}
-        <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mx-auto transition-all ${userData ? 'max-w-4xl' : 'max-w-2xl'}`}>
+        <div className={`max-w-xl mx-auto bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-8 border border-slate-100 transition-all ${userData ? 'max-w-4xl' : 'max-w-xl'}`}>
 
           {/* Saudação */}
-          {userData && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-2xl p-6 mb-6 ${userData.is_duty_shift_only
-                ? 'bg-blue-50'
-                : 'bg-slate-50'
-                }`}
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${userData.is_duty_shift_only
-                  ? 'bg-blue-600'
-                  : 'bg-slate-800'
-                  }`}>
-                  <span className="text-white text-2xl font-bold">
-                    {userData.nome.charAt(0)}
-                  </span>
+          {
+            userData && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`rounded-2xl p-6 mb-6 ${userData.is_duty_shift_only
+                  ? 'bg-blue-50'
+                  : 'bg-slate-50'
+                  }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${userData.is_duty_shift_only
+                    ? 'bg-blue-600'
+                    : 'bg-slate-800'
+                    }`}>
+                    <span className="text-white text-2xl font-bold">
+                      {userData.nome.charAt(0)}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {getSaudacao()}, {userData.nome.split(' ')[0]}
+                    </p>
+                    <p className="text-slate-600 flex items-center gap-2">
+                      {userData.cargo}
+                      {userData.is_duty_shift_only && (
+                        <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-semibold">
+                          📋 Plantonista
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {getSaudacao()}, {userData.nome.split(' ')[0]}
-                  </p>
-                  <p className="text-slate-600 flex items-center gap-2">
-                    {userData.cargo}
-                    {userData.is_duty_shift_only && (
-                      <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-semibold">
-                        📋 Plantonista
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )
+          }
 
           {/* CARTÃO AMARELO - Ponto Esquecido */}
-          {inconsistencyData && !showAdjustmentForm && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-8 text-center mb-6"
-            >
-              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Clock className="text-amber-600" size={40} />
-              </div>
-              <h2 className="text-2xl font-bold text-amber-900 mb-2">Ponto em Aberto!</h2>
-              <p className="text-amber-800 mb-6">
-                Olá, {userData.nome.split(' ')[0]}! Notamos que você esqueceu de registrar sua <strong>saída</strong> no dia <strong>{new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}</strong>.
-              </p>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setShowAdjustmentForm(true)}
-                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 rounded-xl transition-all"
-                >
-                  Informar Saída agora
-                </button>
-                <button
-                  onClick={resetForm}
-                  className="px-8 bg-white text-amber-900 border-2 border-amber-200 font-bold py-4 rounded-xl hover:bg-amber-100 transition-all"
-                >
-                  Voltar
-                </button>
-              </div>
-            </motion.div>
-          )}
+          {
+            inconsistencyData && !showAdjustmentForm && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-8 text-center mb-6"
+              >
+                <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="text-amber-600" size={40} />
+                </div>
+                <h2 className="text-2xl font-bold text-amber-900 mb-2">Ponto em Aberto!</h2>
+                <p className="text-amber-800 mb-6">
+                  Olá, {userData.nome.split(' ')[0]}! Notamos que você esqueceu de registrar sua <strong>saída</strong> no dia <strong>{new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}</strong>.
+                </p>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowAdjustmentForm(true)}
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 rounded-xl transition-all"
+                  >
+                    Informar Saída agora
+                  </button>
+                  <button
+                    onClick={resetForm}
+                    className="px-8 bg-white text-amber-900 border-2 border-amber-200 font-bold py-4 rounded-xl hover:bg-amber-100 transition-all"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              </motion.div>
+            )
+          }
 
           {/* FORMULÁRIO DE AJUSTE */}
-          {showAdjustmentForm && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white border-2 border-slate-200 rounded-2xl p-8 mb-6"
-            >
-              <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <FileText className="text-blue-600" />
-                Ajuste de Ponto Esquecido
-              </h2>
+          {
+            showAdjustmentForm && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border-2 border-slate-200 rounded-2xl p-8 mb-6"
+              >
+                <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <FileText className="text-blue-600" />
+                  Ajuste de Ponto Esquecido
+                </h2>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Que horas você saiu no dia {new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}?
-                  </label>
-                  <input
-                    type="time"
-                    value={adjustmentTime}
-                    onChange={(e) => setAdjustmentTime(e.target.value)}
-                    className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-2xl font-bold text-center focus:border-blue-600 outline-none transition-all"
-                  />
-                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Que horas você saiu no dia {new Date(inconsistencyData.date).toLocaleDateString('pt-BR')}?
+                    </label>
+                    <input
+                      type="time"
+                      value={adjustmentTime}
+                      onChange={(e) => setAdjustmentTime(e.target.value)}
+                      className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-2xl font-bold text-center focus:border-blue-600 outline-none transition-all"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Justificativa do esquecimento
-                  </label>
-                  <textarea
-                    value={adjustmentReason}
-                    onChange={(e) => setAdjustmentReason(e.target.value)}
-                    placeholder="Ex: Esqueci de bater a saída ao final do expediente..."
-                    rows={3}
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-blue-600 outline-none transition-all"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Justificativa do esquecimento
+                    </label>
+                    <textarea
+                      value={adjustmentReason}
+                      onChange={(e) => setAdjustmentReason(e.target.value)}
+                      placeholder="Ex: Esqueci de bater a saída ao final do expediente..."
+                      rows={3}
+                      className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-blue-600 outline-none transition-all"
+                    />
+                  </div>
 
-                <div className="flex gap-4 pt-4">
-                  <button
-                    onClick={enviarAjuste}
-                    disabled={loading}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl disabled:bg-slate-300 transition-all"
-                  >
-                    {loading ? 'Enviando...' : 'Enviar para Aprovação'}
-                  </button>
-                  <button
-                    onClick={() => setShowAdjustmentForm(false)}
-                    className="px-8 bg-white text-slate-700 border-2 border-slate-200 font-bold py-4 rounded-xl hover:bg-slate-50 transition-all"
-                  >
-                    Cancelar
-                  </button>
+                  <div className="flex gap-4 pt-4">
+                    <button
+                      onClick={enviarAjuste}
+                      disabled={loading}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl disabled:bg-slate-300 transition-all"
+                    >
+                      {loading ? 'Enviando...' : 'Enviar para Aprovação'}
+                    </button>
+                    <button
+                      onClick={() => setShowAdjustmentForm(false)}
+                      className="px-8 bg-white text-slate-700 border-2 border-slate-200 font-bold py-4 rounded-xl hover:bg-slate-50 transition-all"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )
+          }
 
           {/* Input Matrícula (Esconder se estiver em ajuste) */}
-          {!showAdjustmentForm && !inconsistencyData && (
-            <div className={`mb-6 ${!userData ? 'text-center py-12' : ''}`}>
-              <label className={`block font-semibold text-slate-700 mb-4 ${!userData ? 'text-lg' : 'text-sm'}`}>
-                Digite sua matrícula para começar
-              </label>
-              <input
-                type="text"
-                value={matricula}
-                onChange={(e) => setMatricula(e.target.value.toUpperCase())}
-                placeholder="000000, CORR001 ou GESTOR001"
-                maxLength={10}
-                className={`
+          {
+            !showAdjustmentForm && !inconsistencyData && (
+              <div className={`mb-6 ${!userData ? 'text-center py-12' : ''}`}>
+                <label className={`block font-semibold text-slate-700 mb-4 ${!userData ? 'text-lg' : 'text-sm'}`}>
+                  Digite sua matrícula para começar
+                </label>
+                <input
+                  type="text"
+                  value={matricula}
+                  onChange={(e) => setMatricula(e.target.value.toUpperCase())}
+                  placeholder="000000, CORR001 ou GESTOR001"
+                  maxLength={10}
+                  className={`
                 px-6 py-4 text-center font-bold
                 bg-slate-50 border-2 border-slate-200
                 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10
                 rounded-2xl outline-none transition-all
                 placeholder:text-slate-300
                 ${!userData
-                    ? 'w-full max-w-md mx-auto text-4xl tracking-wider'
-                    : 'w-full text-2xl'
-                  }
+                      ? 'w-full max-w-md mx-auto text-4xl tracking-wider'
+                      : 'w-full text-2xl'
+                    }
               `}
-                autoFocus
-              />
-            </div>
-          )}
-
-          {/* ===== INTERFACE PARA PONTO EXTERNO (CONSULTORAS MOBILE) ===== */}
-          {userData && userData.requiresExternal && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center">
-                <p className="text-amber-800 font-bold">📍 Registro Externo Detectado</p>
-                <p className="text-amber-700 text-xs">Você está fora da agência. Justifique sua visita para registrar.</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Tipo de Registro</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setRecordType('entrada')}
-                    className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'entrada' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
-                  >
-                    Entrada
-                  </button>
-                  <button
-                    onClick={() => setRecordType('saida_final')}
-                    className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'saida_final' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
-                  >
-                    Saída Final
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Justificativa / Visita</label>
-                <textarea
-                  value={adjustmentReason}
-                  onChange={(e) => setAdjustmentReason(e.target.value)}
-                  placeholder="Ex: Visita ao imóvel Rua X, cliente Y..."
-                  rows={2}
-                  className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-slate-900 outline-none text-sm"
+                  autoFocus
                 />
               </div>
+            )
+          }
 
-              {/* Camera Preview (Reutilizando UI existente) */}
-              <div className="relative bg-slate-900 rounded-3xl overflow-hidden border-2 border-slate-200 aspect-video">
-                {photo ? (
-                  <img src={photo} className="w-full h-full object-cover" />
-                ) : (
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                )}
+          {/* ===== INTERFACE PARA PONTO EXTERNO (CONSULTORAS MOBILE) ===== */}
+          {
+            userData && userData.requiresExternal && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center">
+                  <p className="text-amber-800 font-bold">📍 Registro Externo Detectado</p>
+                  <p className="text-amber-700 text-xs">Você está fora da agência. Justifique sua visita para registrar.</p>
+                </div>
 
-                {/* ✅ MÁSCARA DE ENQUADRAMENTO */}
-                {!photo && !countdown && (
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="w-32 h-44 border-2 border-dashed border-white/20 rounded-full"></div>
-                  </div>
-                )}
-
-                {/* ✅ CONTAGEM REGRESSIVA */}
-                <AnimatePresence>
-                  {countdown && (
-                    <motion.div
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1.2, opacity: 1 }}
-                      exit={{ scale: 2, opacity: 0 }}
-                      key={countdown}
-                      className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Tipo de Registro</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setRecordType('entrada')}
+                      className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'entrada' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
                     >
-                      <span className="text-7xl font-black text-white drop-shadow-2xl">
-                        {countdown}
-                      </span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* ✅ SHUTTER EFFECT */}
-                <AnimatePresence>
-                  {showShutter && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[40] bg-white pointer-events-none" />}
-                </AnimatePresence>
-
-                {/* ✅ FLASH DE AUTENTICIDADE */}
-                <AnimatePresence>
-                  {showFlash && (
-                    <motion.div
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                      className="absolute inset-0 z-30 pointer-events-none"
-                      style={{ backgroundColor: showFlash }}
-                    />
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <div className="flex gap-3">
-                {!photo ? (
-                  <button onClick={capturePhoto} className="flex-1 bg-slate-900 text-white font-bold py-4 rounded-xl">
-                    Capturar Foto
-                  </button>
-                ) : (
-                  <>
-                    <button onClick={() => setPhoto(null)} className="px-6 bg-white text-slate-700 border-2 border-slate-200 font-bold py-4 rounded-xl">
-                      Refazer
+                      Entrada
                     </button>
                     <button
-                      onClick={registrarPontoExternoTotem}
-                      disabled={loading || !adjustmentReason}
-                      className="flex-1 bg-emerald-600 text-white font-bold py-4 rounded-xl disabled:bg-slate-300 shadow-lg"
+                      onClick={() => setRecordType('saida_final')}
+                      className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'saida_final' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
                     >
-                      {loading ? 'Enviando...' : 'Confirmar Visita'}
+                      Saída Final
                     </button>
-                  </>
-                )}
-              </div>
+                  </div>
+                </div>
 
-              <button onClick={resetForm} className="w-full text-slate-500 font-semibold py-2">Cancelar</button>
-            </motion.div>
-          )}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Justificativa / Visita</label>
+                  <textarea
+                    value={adjustmentReason}
+                    onChange={(e) => setAdjustmentReason(e.target.value)}
+                    placeholder="Ex: Visita ao imóvel Rua X, cliente Y..."
+                    rows={2}
+                    className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-slate-900 outline-none text-sm"
+                  />
+                </div>
+
+                {/* Camera Preview (Reutilizando UI existente) */}
+                <div className="relative bg-slate-900 rounded-3xl overflow-hidden border-2 border-slate-200 aspect-video">
+                  {photo ? (
+                    <img src={photo} className="w-full h-full object-cover" />
+                  ) : (
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                  )}
+
+                  {/* ✅ MÁSCARA DE ENQUADRAMENTO */}
+                  {!photo && !countdown && (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="w-32 h-44 border-2 border-dashed border-white/20 rounded-full"></div>
+                    </div>
+                  )}
+
+                  {/* ✅ CONTAGEM REGRESSIVA */}
+                  <AnimatePresence>
+                    {countdown && (
+                      <motion.div
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1.2, opacity: 1 }}
+                        exit={{ scale: 2, opacity: 0 }}
+                        key={countdown}
+                        className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                      >
+                        <span className="text-7xl font-black text-white drop-shadow-2xl">
+                          {countdown}
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* ✅ SHUTTER EFFECT */}
+                  <AnimatePresence>
+                    {showShutter && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[40] bg-white pointer-events-none" />}
+                  </AnimatePresence>
+
+                  {/* ✅ FLASH DE AUTENTICIDADE */}
+                  <AnimatePresence>
+                    {showFlash && (
+                      <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-30 pointer-events-none"
+                        style={{ backgroundColor: showFlash }}
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex gap-3">
+                  {!photo ? (
+                    <button onClick={capturePhoto} className="flex-1 bg-slate-900 text-white font-bold py-4 rounded-xl">
+                      Capturar Foto
+                    </button>
+                  ) : (
+                    <>
+                      <button onClick={() => setPhoto(null)} className="px-6 bg-white text-slate-700 border-2 border-slate-200 font-bold py-4 rounded-xl">
+                        Refazer
+                      </button>
+                      <button
+                        onClick={registrarPontoExternoTotem}
+                        disabled={loading || !adjustmentReason}
+                        className="flex-1 bg-emerald-600 text-white font-bold py-4 rounded-xl disabled:bg-slate-300 shadow-lg"
+                      >
+                        {loading ? 'Enviando...' : 'Confirmar Visita'}
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                <button onClick={resetForm} className="w-full text-slate-500 font-semibold py-2">Cancelar</button>
+              </motion.div>
+            )
+          }
 
           {/* ===== INTERFACE PARA CLT ===== */}
-          {userData && !userData.is_duty_shift_only && !userData.requiresExternal && (
-            <>
-              {/* Tipo de Registro */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mb-6"
-              >
-                <label className="block text-sm font-semibold text-slate-700 mb-3">
-                  Selecione o tipo de registro
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setRecordType('entrada')}
-                    className={`
-                      px-6 py-4 rounded-xl font-semibold
-                      border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
-                      ${recordType === 'entrada'
-                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }
-                    `}
-                  >
-                    <LogIn size={20} />
-                    Entrada
-                  </button>
-                  <button
-                    onClick={() => setRecordType('saida_intervalo')}
-                    className={`
-                      px-6 py-4 rounded-xl font-semibold
-                      border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
-                      ${recordType === 'saida_intervalo'
-                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }
-                    `}
-                  >
-                    <Coffee size={20} />
-                    Saída Intervalo
-                  </button>
-                  <button
-                    onClick={() => setRecordType('retorno_intervalo')}
-                    className={`
-                      px-6 py-4 rounded-xl font-semibold
-                      border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
-                      ${recordType === 'retorno_intervalo'
-                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }
-                    `}
-                  >
-                    <RotateCcw size={20} />
-                    Retorno Intervalo
-                  </button>
-                  <button
-                    onClick={() => setRecordType('saida_final')}
-                    className={`
-                      px-6 py-4 rounded-xl font-semibold
-                      border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
-                      ${recordType === 'saida_final'
-                        ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
-                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }
-                    `}
-                  >
-                    <LogOut size={20} />
-                    Saída Final
-                  </button>
-                </div>
-              </motion.div>
-
-              {/* Webcam Preview */}
-              {showCamera && (
+          {
+            userData && !userData.is_duty_shift_only && !userData.requiresExternal && (
+              <>
+                {/* Tipo de Registro */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="mb-6"
                 >
-                  <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-inner">
-                    {photo ? (
-                      <img src={photo} alt="Preview" className="w-full" />
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-64 object-cover"
-                      />
-                    )}
-                    <canvas ref={canvasRef} className="hidden" />
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
+                    Selecione o tipo de registro
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setRecordType('entrada')}
+                      className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'entrada'
+                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }
+                    `}
+                    >
+                      <LogIn size={20} />
+                      Entrada
+                    </button>
+                    <button
+                      onClick={() => setRecordType('saida_intervalo')}
+                      className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'saida_intervalo'
+                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }
+                    `}
+                    >
+                      <Coffee size={20} />
+                      Saída Intervalo
+                    </button>
+                    <button
+                      onClick={() => setRecordType('retorno_intervalo')}
+                      className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'retorno_intervalo'
+                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }
+                    `}
+                    >
+                      <RotateCcw size={20} />
+                      Retorno Intervalo
+                    </button>
+                    <button
+                      onClick={() => setRecordType('saida_final')}
+                      className={`
+                      px-6 py-4 rounded-xl font-semibold
+                      border-2 transition-all duration-200
+                      flex items-center justify-center gap-2
+                      ${recordType === 'saida_final'
+                          ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }
+                    `}
+                    >
+                      <LogOut size={20} />
+                      Saída Final
+                    </button>
+                  </div>
+                </motion.div>
 
-                    {/* ✅ MÁSCARA DE ENQUADRAMENTO (Só aparece se não houver foto e não estiver em contagem) */}
-                    {!photo && !countdown && (
-                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                        <svg className="w-48 h-64 text-white/30" viewBox="0 0 100 100">
-                          <path d="M50,10 C30,10 15,30 15,50 C15,70 30,90 50,90 C70,90 85,70 85,50 C85,30 70,10 50,10 Z M50,15 C68,15 80,32 80,50 C80,68 68,85 50,85 C32,85 20,68 20,50 C20,32 32,15 50,15 Z" fill="currentColor" />
-                          <path d="M30,45 C30,40 35,35 40,35 C45,35 50,40 50,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          <path d="M50,45 C50,40 55,35 60,35 C65,35 70,40 70,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          <path d="M40,70 C40,75 60,75 60,70" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <div className="absolute top-4 left-0 right-0 text-center">
-                          <span className="bg-black/50 text-white text-[10px] px-2 py-1 rounded-full uppercase tracking-widest font-bold">
-                            Alinhe seu rosto
-                          </span>
+                {/* Webcam Preview */}
+                {showCamera && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mb-6"
+                  >
+                    <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-inner">
+                      {photo ? (
+                        <img src={photo} alt="Preview" className="w-full" />
+                      ) : (
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-64 object-cover"
+                        />
+                      )}
+                      <canvas ref={canvasRef} className="hidden" />
+
+                      {/* ✅ MÁSCARA DE ENQUADRAMENTO (Só aparece se não houver foto e não estiver em contagem) */}
+                      {!photo && !countdown && (
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                          <svg className="w-48 h-64 text-white/30" viewBox="0 0 100 100">
+                            <path d="M50,10 C30,10 15,30 15,50 C15,70 30,90 50,90 C70,90 85,70 85,50 C85,30 70,10 50,10 Z M50,15 C68,15 80,32 80,50 C80,68 68,85 50,85 C32,85 20,68 20,50 C20,32 32,15 50,15 Z" fill="currentColor" />
+                            <path d="M30,45 C30,40 35,35 40,35 C45,35 50,40 50,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <path d="M50,45 C50,40 55,35 60,35 C65,35 70,40 70,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <path d="M40,70 C40,75 60,75 60,70" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                          <div className="absolute top-4 left-0 right-0 text-center">
+                            <span className="bg-black/50 text-white text-[10px] px-2 py-1 rounded-full uppercase tracking-widest font-bold">
+                              Alinhe seu rosto
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* ✅ CONTAGEM REGRESSIVA */}
-                    <AnimatePresence>
-                      {countdown && (
-                        <motion.div
-                          initial={{ scale: 0.5, opacity: 0 }}
-                          animate={{ scale: 1.2, opacity: 1 }}
-                          exit={{ scale: 2, opacity: 0 }}
-                          key={countdown}
-                          className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
-                        >
-                          <span className="text-8xl font-black text-white drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]">
-                            {countdown}
-                          </span>
-                        </motion.div>
                       )}
-                    </AnimatePresence>
 
-                    {/* ✅ SHUTTER EFFECT */}
-                    <AnimatePresence>
-                      {showShutter && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 z-[40] bg-white pointer-events-none"
-                        />
-                      )}
-                    </AnimatePresence>
+                      {/* ✅ CONTAGEM REGRESSIVA */}
+                      <AnimatePresence>
+                        {countdown && (
+                          <motion.div
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1.2, opacity: 1 }}
+                            exit={{ scale: 2, opacity: 0 }}
+                            key={countdown}
+                            className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                          >
+                            <span className="text-8xl font-black text-white drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                              {countdown}
+                            </span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-                    {/* ✅ FLASH DE AUTENTICIDADE */}
-                    <AnimatePresence>
-                      {showFlash && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 z-30 pointer-events-none"
-                          style={{ backgroundColor: showFlash }}
-                        />
-                      )}
-                    </AnimatePresence>
+                      {/* ✅ SHUTTER EFFECT */}
+                      <AnimatePresence>
+                        {showShutter && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-[40] bg-white pointer-events-none"
+                          />
+                        )}
+                      </AnimatePresence>
 
-                    {photo && (
-                      <button
-                        onClick={() => setPhoto(null)}
-                        className="
+                      {/* ✅ FLASH DE AUTENTICIDADE */}
+                      <AnimatePresence>
+                        {showFlash && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-30 pointer-events-none"
+                            style={{ backgroundColor: showFlash }}
+                          />
+                        )}
+                      </AnimatePresence>
+
+                      {photo && (
+                        <button
+                          onClick={() => setPhoto(null)}
+                          className="
                           absolute top-4 right-4
                           bg-slate-800/90 hover:bg-slate-700
                           text-white px-4 py-2 rounded-lg
                           font-semibold transition-all duration-200
                         "
-                      >
-                        ✕ Remover
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
+                        >
+                          ✕ Remover
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
 
-              {/* Botões de Ação (CLT) */}
-              {!photo ? (
-                <button
-                  onClick={capturePhoto}
-                  disabled={countdown !== null}
-                  className={`
+                {/* Botões de Ação (CLT) */}
+                {!photo ? (
+                  <button
+                    onClick={capturePhoto}
+                    disabled={countdown !== null}
+                    className={`
                     w-full text-white font-bold text-lg
                     rounded-2xl px-8 py-5 mb-3
                     shadow-lg hover:shadow-xl
@@ -1186,15 +1208,15 @@ export default function Tablet() {
                     flex items-center justify-center gap-3
                     ${countdown !== null ? 'bg-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'}
                   `}
-                >
-                  <Camera size={24} />
-                  {countdown !== null ? `Aguarde (${countdown})...` : 'Capturar Foto'}
-                </button>
-              ) : (
-                <button
-                  onClick={registrarPonto}
-                  disabled={loading}
-                  className="
+                  >
+                    <Camera size={24} />
+                    {countdown !== null ? `Aguarde (${countdown})...` : 'Capturar Foto'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={registrarPonto}
+                    disabled={loading}
+                    className="
                     w-full bg-emerald-600 hover:bg-emerald-700
                     disabled:bg-slate-300 disabled:cursor-not-allowed
                     text-white font-bold text-lg
@@ -1204,155 +1226,157 @@ export default function Tablet() {
                     transition-all duration-200
                     flex items-center justify-center gap-3
                   "
-                >
-                  {loading ? (
-                    <>
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="w-5 h-5 border-3 border-white border-t-transparent rounded-full"
-                      />
-                      Registrando...
-                    </>
-                  ) : (
-                    <>
-                      <Camera size={24} />
-                      Registrar Ponto
-                    </>
-                  )}
-                </button>
-              )}
+                  >
+                    {loading ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-5 h-5 border-3 border-white border-t-transparent rounded-full"
+                        />
+                        Registrando...
+                      </>
+                    ) : (
+                      <>
+                        <Camera size={24} />
+                        Registrar Ponto
+                      </>
+                    )}
+                  </button>
+                )}
 
-              <button
-                onClick={resetForm}
-                className="
+                <button
+                  onClick={resetForm}
+                  className="
                   w-full bg-white hover:bg-slate-50
                   text-slate-700 font-semibold
                   border-2 border-slate-200
                   rounded-2xl px-6 py-3
                   transition-all duration-200
                 "
-              >
-                Cancelar
-              </button>
-            </>
-          )}
+                >
+                  Cancelar
+                </button>
+              </>
+            )
+          }
 
           {/* ===== INTERFACE PARA PLANTONISTA ===== */}
-          {userData && userData.is_duty_shift_only && !userData.requiresExternal && (
-            <>
-              {/* Badge Plantonista */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 text-center"
-              >
-                <p className="text-blue-900 font-bold text-lg mb-2">
-                  📋 Corretor Plantonista (PJ)
-                </p>
-                <p className="text-blue-700 text-sm">
-                  Tire uma foto e confirme sua presença no plantão de hoje
-                </p>
-              </motion.div>
-
-              {/* Webcam Preview */}
-              {showCamera && (
+          {
+            userData && userData.is_duty_shift_only && !userData.requiresExternal && (
+              <>
+                {/* Badge Plantonista */}
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mb-6"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 text-center"
                 >
-                  <div className="relative bg-gradient-to-br from-blue-800 to-blue-900 rounded-2xl overflow-hidden border-2 border-blue-700 shadow-inner">
-                    {photo ? (
-                      <img src={photo} alt="Preview" className="w-full" />
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-64 object-cover"
-                      />
-                    )}
-                    <canvas ref={canvasRef} className="hidden" />
+                  <p className="text-blue-900 font-bold text-lg mb-2">
+                    📋 Corretor Plantonista (PJ)
+                  </p>
+                  <p className="text-blue-700 text-sm">
+                    Tire uma foto e confirme sua presença no plantão de hoje
+                  </p>
+                </motion.div>
 
-                    {/* ✅ MÁSCARA DE ENQUADRAMENTO */}
-                    {!photo && !countdown && (
-                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                        <svg className="w-48 h-64 text-white/30" viewBox="0 0 100 100">
-                          <path d="M50,10 C30,10 15,30 15,50 C15,70 30,90 50,90 C70,90 85,70 85,50 C85,30 70,10 50,10 Z M50,15 C68,15 80,32 80,50 C80,68 68,85 50,85 C32,85 20,68 20,50 C20,32 32,15 50,15 Z" fill="currentColor" />
-                          <path d="M30,45 C30,40 35,35 40,35 C45,35 50,40 50,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          <path d="M50,45 C50,40 55,35 60,35 C65,35 70,40 70,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          <path d="M40,70 C40,75 60,75 60,70" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </div>
-                    )}
-
-                    {/* ✅ CONTAGEM REGRESSIVA */}
-                    <AnimatePresence>
-                      {countdown && (
-                        <motion.div
-                          initial={{ scale: 0.5, opacity: 0 }}
-                          animate={{ scale: 1.2, opacity: 1 }}
-                          exit={{ scale: 2, opacity: 0 }}
-                          key={countdown}
-                          className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
-                        >
-                          <span className="text-8xl font-black text-white drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]">
-                            {countdown}
-                          </span>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* ✅ SHUTTER EFFECT */}
-                    <AnimatePresence>
-                      {showShutter && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 z-[40] bg-white pointer-events-none"
+                {/* Webcam Preview */}
+                {showCamera && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mb-6"
+                  >
+                    <div className="relative bg-gradient-to-br from-blue-800 to-blue-900 rounded-2xl overflow-hidden border-2 border-blue-700 shadow-inner">
+                      {photo ? (
+                        <img src={photo} alt="Preview" className="w-full" />
+                      ) : (
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-64 object-cover"
                         />
                       )}
-                    </AnimatePresence>
+                      <canvas ref={canvasRef} className="hidden" />
 
-                    {/* ✅ FLASH DE AUTENTICIDADE */}
-                    <AnimatePresence>
-                      {showFlash && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 z-30 pointer-events-none"
-                          style={{ backgroundColor: showFlash }}
-                        />
+                      {/* ✅ MÁSCARA DE ENQUADRAMENTO */}
+                      {!photo && !countdown && (
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                          <svg className="w-48 h-64 text-white/30" viewBox="0 0 100 100">
+                            <path d="M50,10 C30,10 15,30 15,50 C15,70 30,90 50,90 C70,90 85,70 85,50 C85,30 70,10 50,10 Z M50,15 C68,15 80,32 80,50 C80,68 68,85 50,85 C32,85 20,68 20,50 C20,32 32,15 50,15 Z" fill="currentColor" />
+                            <path d="M30,45 C30,40 35,35 40,35 C45,35 50,40 50,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <path d="M50,45 C50,40 55,35 60,35 C65,35 70,40 70,45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <path d="M40,70 C40,75 60,75 60,70" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        </div>
                       )}
-                    </AnimatePresence>
 
-                    {photo && (
-                      <button
-                        onClick={() => setPhoto(null)}
-                        className="
+                      {/* ✅ CONTAGEM REGRESSIVA */}
+                      <AnimatePresence>
+                        {countdown && (
+                          <motion.div
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1.2, opacity: 1 }}
+                            exit={{ scale: 2, opacity: 0 }}
+                            key={countdown}
+                            className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                          >
+                            <span className="text-8xl font-black text-white drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                              {countdown}
+                            </span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* ✅ SHUTTER EFFECT */}
+                      <AnimatePresence>
+                        {showShutter && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-[40] bg-white pointer-events-none"
+                          />
+                        )}
+                      </AnimatePresence>
+
+                      {/* ✅ FLASH DE AUTENTICIDADE */}
+                      <AnimatePresence>
+                        {showFlash && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-30 pointer-events-none"
+                            style={{ backgroundColor: showFlash }}
+                          />
+                        )}
+                      </AnimatePresence>
+
+                      {photo && (
+                        <button
+                          onClick={() => setPhoto(null)}
+                          className="
                           absolute top-4 right-4
                           bg-blue-800/90 hover:bg-blue-700
                           text-white px-4 py-2 rounded-lg
                           font-semibold transition-all duration-200
                         "
-                      >
-                        ✕ Remover
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
+                        >
+                          ✕ Remover
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
 
-              {/* Botões de Ação (Plantonista) */}
-              {!photo ? (
-                <button
-                  onClick={capturePhoto}
-                  disabled={countdown !== null}
-                  className={`
+                {/* Botões de Ação (Plantonista) */}
+                {!photo ? (
+                  <button
+                    onClick={capturePhoto}
+                    disabled={countdown !== null}
+                    className={`
                     w-full text-white font-bold text-lg
                     rounded-2xl px-8 py-5 mb-3
                     shadow-lg hover:shadow-xl
@@ -1361,15 +1385,15 @@ export default function Tablet() {
                     flex items-center justify-center gap-3
                     ${countdown !== null ? 'bg-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
                   `}
-                >
-                  <Camera size={24} />
-                  {countdown !== null ? `Aguarde (${countdown})...` : 'Capturar Foto'}
-                </button>
-              ) : (
-                <button
-                  onClick={marcarPresenca}
-                  disabled={loading}
-                  className="
+                  >
+                    <Camera size={24} />
+                    {countdown !== null ? `Aguarde (${countdown})...` : 'Capturar Foto'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={marcarPresenca}
+                    disabled={loading}
+                    className="
                     w-full bg-blue-600 hover:bg-blue-700
                     disabled:bg-slate-300 disabled:cursor-not-allowed
                     text-white font-bold text-xl
@@ -1379,44 +1403,45 @@ export default function Tablet() {
                     transition-all duration-200
                     flex items-center justify-center gap-3
                   "
-                >
-                  {loading ? (
-                    <>
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="w-6 h-6 border-3 border-white border-t-transparent rounded-full"
-                      />
-                      Registrando presença...
-                    </>
-                  ) : (
-                    <>
-                      <Clock size={28} />
-                      ✓ Marcar Presença no Plantão
-                    </>
-                  )}
-                </button>
-              )}
+                  >
+                    {loading ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-6 h-6 border-3 border-white border-t-transparent rounded-full"
+                        />
+                        Registrando presença...
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={28} />
+                        ✓ Marcar Presença no Plantão
+                      </>
+                    )}
+                  </button>
+                )}
 
-              <button
-                onClick={resetForm}
-                className="
+                <button
+                  onClick={resetForm}
+                  className="
                   w-full bg-white hover:bg-slate-50
                   text-slate-700 font-semibold
                   border-2 border-slate-200
                   rounded-2xl px-6 py-3
                   transition-all duration-200
                 "
-              >
-                Cancelar
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+                >
+                  Cancelar
+                </button>
+              </>
+            )
+          }
+        </div >
+      </div >
 
       {/* ✅ MODAL DE SUCESSO (TELA CHEIA) */}
-      <AnimatePresence>
+      < AnimatePresence >
         {showSuccess && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1447,10 +1472,10 @@ export default function Tablet() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence >
 
       {/* ✅ MODAL DE TERMOS DE USO (JURÍDICO) */}
-      <AnimatePresence>
+      < AnimatePresence >
         {showTerms && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1499,7 +1524,7 @@ export default function Tablet() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence >
     </div>
   );
 }
