@@ -451,7 +451,7 @@ class TabletController {
           user_id: user.id,
           alert_type: 'external_punch_pending',
           title: '🔔 Registro Externo Aguardando Aprovação',
-          message: `${user.nome} registrou ${record_type} externa e aguarda aprovação. Local: ${latitude.toFixed(6)},${longitude.toFixed(6)}. Motivo: ${reason}`,
+          message: `${user.nome} registrou ${record_type} externa e aguarda aprovação. Local: ${parseFloat(latitude).toFixed(6)},${parseFloat(longitude).toFixed(6)}. Motivo: ${reason}`,
           severity: 'warning',
           related_id: result.rows[0].id
         });

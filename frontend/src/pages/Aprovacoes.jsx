@@ -65,35 +65,71 @@ const Aprovacoes = () => {
                 </div>
             ) : (
                 <div className="grid gap-4">
-                    {adjustments.map((adj) => (
-                        <div key={adj.id} className="bg-white p-6 rounded-lg shadow border-l-4 border-orange-500 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div>
+                    {adjustments.map((adj) => {
+                        const isExternalPunch = adj.is_addition && adj.latitude && adj.longitude;
+
+                        return (
+                        <div key={adj.id} className={`bg-white p-6 rounded-lg shadow border-l-4 ${isExternalPunch ? 'border-blue-500' : 'border-orange-500'} flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+                            <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
+                                    {isExternalPunch && (
+                                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded font-semibold">
+                                            📍 REGISTRO EXTERNO
+                                        </span>
+                                    )}
                                     <User size={16} className="text-gray-400" />
                                     <span className="font-semibold text-gray-800">{adj.user_name}</span>
                                     <span className="text-sm text-gray-500">({adj.matricula})</span>
                                 </div>
-                                <p className="text-sm text-gray-600 mb-1">
-                                    <strong>Data Original:</strong> {new Date(adj.original_timestamp).toLocaleString('pt-BR')} ({adj.original_type})
-                                </p>
-                                <p className="text-sm text-gray-600 mb-2">
-                                    <strong>Para:</strong> {new Date(adj.adjusted_timestamp).toLocaleString('pt-BR')} ({adj.adjusted_type})
-                                </p>
-                                <div className="bg-gray-50 p-2 rounded text-sm text-gray-700 italic border border-gray-100">
-                                    "{adj.reason}"
-                                </div>
-                                {adj.latitude && adj.longitude && (
-                                    <a
-                                        href={`https://www.google.com/maps?q=${adj.latitude},${adj.longitude}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-blue-600 hover:underline mt-2 flex items-center gap-1"
-                                    >
-                                        📍 Ver Localização no Mapa
-                                    </a>
+
+                                {isExternalPunch ? (
+                                    // Registro Externo (consultoras)
+                                    <>
+                                        <p className="text-sm text-gray-600 mb-2">
+                                            <strong>Tipo:</strong> {adj.adjusted_type === 'entrada' ? 'Entrada' : 'Saída'}
+                                        </p>
+                                        <p className="text-sm text-gray-600 mb-2">
+                                            <strong>Data/Hora:</strong> {new Date(adj.adjusted_timestamp).toLocaleString('pt-BR')}
+                                        </p>
+                                        <div className="bg-blue-50 p-2 rounded text-sm text-gray-700 italic border border-blue-100 mb-2">
+                                            <strong>Motivo:</strong> {adj.reason}
+                                        </div>
+                                        <a
+                                            href={`https://www.google.com/maps?q=${adj.latitude},${adj.longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-blue-600 hover:underline flex items-center gap-1 font-semibold"
+                                        >
+                                            📍 Ver Localização GPS ({parseFloat(adj.latitude).toFixed(6)}, {parseFloat(adj.longitude).toFixed(6)})
+                                        </a>
+                                    </>
+                                ) : (
+                                    // Ajuste Normal
+                                    <>
+                                        <p className="text-sm text-gray-600 mb-1">
+                                            <strong>Data Original:</strong> {adj.original_timestamp ? new Date(adj.original_timestamp).toLocaleString('pt-BR') : 'N/A'} {adj.original_type ? `(${adj.original_type})` : ''}
+                                        </p>
+                                        <p className="text-sm text-gray-600 mb-2">
+                                            <strong>Para:</strong> {new Date(adj.adjusted_timestamp).toLocaleString('pt-BR')} ({adj.adjusted_type})
+                                        </p>
+                                        <div className="bg-gray-50 p-2 rounded text-sm text-gray-700 italic border border-gray-100">
+                                            "{adj.reason}"
+                                        </div>
+                                        {adj.latitude && adj.longitude && (
+                                            <a
+                                                href={`https://www.google.com/maps?q=${adj.latitude},${adj.longitude}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-blue-600 hover:underline mt-2 flex items-center gap-1"
+                                            >
+                                                📍 Ver Localização no Mapa
+                                            </a>
+                                        )}
+                                    </>
                                 )}
+
                                 <p className="text-xs text-gray-400 mt-2">
-                                    Solicitado por: {adj.adjusted_by_name} em {new Date(adj.adjusted_at).toLocaleDateString()}
+                                    Solicitado em {new Date(adj.adjusted_at).toLocaleDateString('pt-BR')} às {new Date(adj.adjusted_at).toLocaleTimeString('pt-BR')}
                                 </p>
                             </div>
 
@@ -119,7 +155,7 @@ const Aprovacoes = () => {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    );})}
                 </div>
             )}
         </Layout>

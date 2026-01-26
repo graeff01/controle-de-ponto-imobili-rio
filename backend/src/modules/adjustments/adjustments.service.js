@@ -244,15 +244,18 @@ class AdjustmentsService {
   async getAllAdjustments(filters = {}) {
     try {
       let query = `
-        SELECT ta.*, 
+        SELECT ta.*,
                u.nome as user_name,
                u.matricula,
                adj.nome as adjusted_by_name,
-               app.nome as approved_by_name
+               app.nome as approved_by_name,
+               tr.timestamp as original_timestamp,
+               tr.record_type as original_type
         FROM time_adjustments ta
         JOIN users u ON ta.user_id = u.id
-        JOIN users adj ON ta.adjusted_by = adj.id
+        LEFT JOIN users adj ON ta.adjusted_by = adj.id
         LEFT JOIN users app ON ta.approved_by = app.id
+        LEFT JOIN time_records tr ON ta.time_record_id = tr.id
         WHERE 1=1
       `;
 
