@@ -58,11 +58,12 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://127.0.0.1:5173',
-  'https://jardimdolagoponto.up.railway.app'
+  'https://jardimdolagoponto.up.railway.app',
+  'https://vibrant-reprieve-production.up.railway.app'
 ];
 
 if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
+  allowedOrigins.push(process.env.FRONTEND_URL.replace(/\/$/, ""));
 }
 
 app.use(cors({
@@ -70,18 +71,25 @@ app.use(cors({
     // Permitir requests sem origin (como mobile apps ou curl)
     if (!origin) return callback(null, true);
 
-    const isAllowed = allowedOrigins.some(allowed =>
-      allowed === origin || (allowed.includes('localhost') && origin.includes('localhost'))
-    );
+    // Limpar origin e allowedOrigins de barras finais para comparação segura
+    const normalizedOrigin = origin.replace(/\/$/, "");
+
+    const isAllowed = allowedOrigins.some(allowed => {
+      const normalizedAllowed = allowed.replace(/\/$/, "");
+      return normalizedAllowed === normalizedOrigin ||
+        (normalizedAllowed.includes('localhost') && normalizedOrigin.includes('localhost'));
+    });
 
     if (isAllowed || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
-      logger.warn('CORS Blocked', { origin });
+      logger.warn('CORS Blocked', { origin, normalizedOrigin });
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Tablet-Token', 'X-Tablet-API-Key']
 }));
 
 // Body parsing
