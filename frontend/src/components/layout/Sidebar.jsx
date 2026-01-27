@@ -128,15 +128,15 @@ export default function Sidebar({ isOpen, onClose }) {
         className={`fixed left-0 top-0 h-screen bg-slate-900/95 backdrop-blur-xl border-r border-slate-800/50 z-50 flex flex-col shadow-2xl overflow-hidden`}
       >
         {/* Header */}
-        <div className="p-8 border-b border-white/5">
-          <div className="flex items-center gap-4">
-            <div className="w-11 h-11 rounded-[16px] bg-white shadow-[0_4px_20px_rgba(255,255,255,0.15)] flex items-center justify-center flex-shrink-0">
-              <Clock className="text-slate-900" size={22} strokeWidth={2.5} />
+        <div className="p-6 border-b border-slate-800/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center flex-shrink-0">
+              <Clock className="text-white" size={20} />
             </div>
             {(!collapsed || isMobile) && (
               <div className="overflow-hidden whitespace-nowrap">
-                <h1 className="text-white font-black text-sm tracking-tighter uppercase leading-none">Auxiliadora</h1>
-                <p className="text-slate-500 text-[10px] font-bold tracking-[0.1em] uppercase mt-1">Gestão de Ponto</p>
+                <h1 className="text-white font-extrabold text-sm tracking-tight uppercase">Auxiliadora Predial</h1>
+                <p className="text-emerald-500 text-[10px] font-bold tracking-[0.2em] uppercase opacity-80">Jardim do Lago</p>
               </div>
             )}
           </div>
@@ -144,19 +144,19 @@ export default function Sidebar({ isOpen, onClose }) {
 
 
         {/* User Info */}
-        <div className="p-6 border-b border-white/5 bg-white/5">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center flex-shrink-0">
-              <User className="text-slate-300" size={18} />
+        <div className="p-4 border-b border-slate-800/50 bg-slate-950/20">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center flex-shrink-0 shadow-lg">
+              <User className="text-slate-400" size={18} />
             </div>
             {(!collapsed || isMobile) && (
               <div className="overflow-hidden whitespace-nowrap">
-                <p className="text-white font-black text-sm tracking-tight truncate max-w-[150px]">
+                <p className="text-white font-bold text-sm tracking-tight truncate max-w-[150px]">
                   {user?.nome || 'Admin'}
                 </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{user?.role || 'Admin'}</p>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">{user?.role || 'Admin'}</p>
                 </div>
               </div>
             )}
@@ -164,24 +164,26 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* Menu */}
-        <div className="flex-1 overflow-y-auto py-6 scrollbar-none">
+        <div className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
           {menuSections.map((section, idx) => {
+            // Filter items based on user role and custom check
             const filteredItems = section.items.filter(item => {
               const roleMatch = !item.roles || item.roles.includes(user?.role || 'employee');
               const checkMatch = !item.check || item.check(user);
               return roleMatch && checkMatch;
             });
 
+            // If no items in section, don't render section
             if (filteredItems.length === 0) return null;
 
             return (
-              <div key={idx} className="mb-8">
+              <div key={idx} className="mb-6">
                 {(!collapsed || isMobile) && (
-                  <p className="px-8 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4">
+                  <p className="px-6 text-xs font-semibold text-slate-500 uppercase mb-2 whitespace-nowrap">
                     {section.title}
                   </p>
                 )}
-                <div className="space-y-1 px-4">
+                <div className="space-y-1 px-3">
                   {filteredItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.path;
@@ -190,16 +192,22 @@ export default function Sidebar({ isOpen, onClose }) {
                         key={item.path}
                         onClick={() => handleNavigation(item.path)}
                         className={`
-                          w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all relative group
+                          w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all relative group
                           ${isActive
-                            ? 'bg-white text-slate-900 shadow-xl shadow-black/20 font-black'
-                            : 'text-slate-400 hover:text-white hover:bg-white/5 font-bold font-medium'
+                            ? 'bg-white/10 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                            : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
                           }
                         `}
                       >
-                        <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={`flex-shrink-0 transition-colors ${isActive ? 'text-slate-900' : 'group-hover:text-white'}`} />
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeNav"
+                            className="absolute left-0 w-1 h-5 bg-emerald-500 rounded-r-full"
+                          />
+                        )}
+                        <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? 'text-emerald-500' : 'group-hover:text-slate-200'}`} />
                         {(!collapsed || isMobile) && (
-                          <span className="text-[13px] tracking-tight whitespace-nowrap">{item.label}</span>
+                          <span className="font-semibold text-[13px] tracking-tight whitespace-nowrap">{item.label}</span>
                         )}
                       </button>
                     );
