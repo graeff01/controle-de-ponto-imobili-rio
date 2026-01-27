@@ -1,7 +1,7 @@
 ﻿const db = require('../../config/database');
 const logger = require('../../utils/logger');
 const auditService = require('../../services/auditService');
-const notificationService = require('../../services/notificationService');
+const alertsService = require('../alerts/alerts.service');
 const timeRecordsController = require('../time-records/timeRecords.controller');
 
 class AdjustmentsService {
@@ -108,14 +108,14 @@ class AdjustmentsService {
         req
       );
 
-      await notificationService.criarAlerta(
-        adjustment.user_id,
-        'ajuste_aprovado',
-        'success',
-        'Seu ajuste de ponto foi APROVADO',
-        `O ajuste solicitado foi aprovado e aplicado.`,
-        { adjustmentId }
-      );
+      await alertsService.createAlert({
+        user_id: adjustment.user_id,
+        alert_type: 'ajuste_aprovado',
+        severity: 'success',
+        title: 'Seu ajuste de ponto foi APROVADO',
+        message: `O ajuste solicitado foi aprovado e aplicado.`,
+        related_id: adjustmentId
+      });
 
       return adjustment;
 
@@ -151,14 +151,14 @@ class AdjustmentsService {
         req
       );
 
-      await notificationService.criarAlerta(
-        adjustment.user_id,
-        'ajuste_rejeitado',
-        'error',
-        'Seu ajuste de ponto foi REJEITADO',
-        `Motivo: ${reason}`,
-        { adjustmentId }
-      );
+      await alertsService.createAlert({
+        user_id: adjustment.user_id,
+        alert_type: 'ajuste_rejeitado',
+        severity: 'error',
+        title: 'Seu ajuste de ponto foi REJEITADO',
+        message: `Motivo: ${reason}`,
+        related_id: adjustmentId
+      });
 
       return adjustment;
 
