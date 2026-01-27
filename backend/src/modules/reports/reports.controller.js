@@ -21,67 +21,28 @@ class ReportsController {
     try {
       const hoje = new Date().toISOString().split('T')[0];
 
-      // 1. PRESENTES CLT
-      const presentesCLT = await db.query(`
-        SELECT COUNT(DISTINCT user_id) as total
-        FROM time_records
-        WHERE DATE(timestamp) = $1
-        AND record_type = 'entrada'
-      `, [hoje]);
+      // 1. Chamar o Service para pegar todas as estatísticas calculadas
+      const stats = await reportsService.getDashboardStats();
 
-      // 2. PRESENTES PLANTONISTAS
-      const presentesPlantonistas = await db.query(`
-        SELECT COUNT(DISTINCT user_id) as total
-        FROM duty_shifts
-        WHERE date = $1
-      `, [hoje]);
-
-      const totalPresentes = (parseInt(presentesCLT.rows[0].total) || 0) +
-        (parseInt(presentesPlantonistas.rows[0].total) || 0);
-
-      // 3. TOTAL FUNCIONÁRIOS
-      const totalFuncionarios = await db.query(`
-        SELECT COUNT(*) as total
-        FROM users
-        WHERE status = 'ativo'
-      `);
+      // 2. Gráfico Semanal (Consolidado)
+      const totalFuncionarios = await db.query(`SELECT COUNT(*) as total FROM users WHERE status = 'ativo'`);
       const total = parseInt(totalFuncionarios.rows[0].total) || 0;
-      const ausencias = Math.max(0, total - totalPresentes);
 
-      // 4. SEM SAÍDA
-      const semSaida = await db.query(`
-        SELECT COUNT(DISTINCT tr1.user_id) as total
-        FROM time_records tr1
-        WHERE DATE(tr1.timestamp) = $1
-        AND tr1.record_type = 'entrada'
-        AND NOT EXISTS (
-          SELECT 1 FROM time_records tr2
-          WHERE tr2.user_id = tr1.user_id
-          AND DATE(tr2.timestamp) = $1
-          AND tr2.record_type = 'saida_final'
-        )
-      `, [hoje]);
-
-      // 5. GRÁFICO SEMANAL
       const dadosSemanais = [];
       for (let i = 6; i >= 0; i--) {
         const data = new Date();
         data.setDate(data.getDate() - i);
         const dataStr = data.toISOString().split('T')[0];
 
-        const cltDia = await db.query(`
-          SELECT COUNT(DISTINCT user_id) as total
-          FROM time_records
-          WHERE DATE(timestamp) = $1 AND record_type = 'entrada'
+        const presentesDia = await db.query(`
+          SELECT (
+            SELECT COUNT(DISTINCT user_id) FROM time_records WHERE DATE(timestamp) = $1 AND record_type = 'entrada'
+          ) + (
+            SELECT COUNT(DISTINCT user_id) FROM duty_shifts WHERE date = $1
+          ) as total
         `, [dataStr]);
 
-        const plantDia = await db.query(`
-          SELECT COUNT(DISTINCT user_id) as total
-          FROM duty_shifts
-          WHERE date = $1
-        `, [dataStr]);
-
-        const presentes = (parseInt(cltDia.rows[0].total) || 0) + (parseInt(plantDia.rows[0].total) || 0);
+        const presentes = parseInt(presentesDia.rows[0].total) || 0;
 
         dadosSemanais.push({
           data: dataStr,
@@ -91,7 +52,7 @@ class ReportsController {
         });
       }
 
-      // 6. ATIVIDADES
+      // 3. Atividades Recentes
       const atividadesRecentes = await db.query(`
         (
           SELECT 
@@ -128,13 +89,10 @@ class ReportsController {
         LIMIT 10
       `, [hoje]);
 
-      const response = {
+      res.json({
         success: true,
         data: {
-          presentes: totalPresentes,
-          ausencias: ausencias,
-          sem_saida: parseInt(semSaida.rows[0].total) || 0,
-          alertas: 0,
+          ...stats,
           grafico_semanal: dadosSemanais,
           atividades_recentes: atividadesRecentes.rows.map(row => ({
             usuario: row.usuario,
@@ -144,16 +102,11 @@ class ReportsController {
             tempo_relativo: getTempoRelativo(row.timestamp)
           }))
         }
-      };
-
-      res.json(response);
+      });
 
     } catch (error) {
       logger.error('Erro no dashboard', { error: error.message });
-      res.status(500).json({
-        success: false,
-        error: 'Erro ao carregar dashboard'
-      });
+      res.status(500).json({ success: false, error: 'Erro ao carregar dashboard' });
     }
   }
 

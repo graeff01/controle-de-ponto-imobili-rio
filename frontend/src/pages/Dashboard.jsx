@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
   Clock,
@@ -14,41 +14,36 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
-  MapPin
+  MapPin,
+  Briefcase,
+  History,
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import StatCard from '../components/ui/StatCard';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
-import { useAuth } from '../context/AuthContext'; // ✅ Novo
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth(); // ✅ Novo
-  const [stats, setStats] = useState(null);
-  const [graficoSemanal, setGraficoSemanal] = useState([]);
-  const [atividades, setAtividades] = useState([]);
-  const [analytics, setAnalytics] = useState(null); // ✅ Novo
+  const { user } = useAuth();
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     carregarDados();
-
     // Atualizar a cada 30 segundos
     const interval = setInterval(carregarDados, 30000);
     return () => clearInterval(interval);
@@ -57,43 +52,9 @@ export default function Dashboard() {
   const carregarDados = async () => {
     try {
       const response = await api.get('/reports/dashboard');
-      const data = response?.data?.data;
-
-      if (!data) {
-        setStats(null);
-        setGraficoSemanal([]);
-        setAtividades([]);
-        return;
+      if (response?.data?.success) {
+        setData(response.data.data);
       }
-
-
-      setStats({
-        presentes: data.presentes,
-        ausencias: data.ausencias,
-        sem_saida: data.sem_saida,
-        alertas: data.alertas
-      });
-
-      setGraficoSemanal(Array.isArray(data.grafico_semanal) ? data.grafico_semanal : []);
-      setAtividades(Array.isArray(data.atividades_recentes) ? data.atividades_recentes : []);
-
-      // ✅ Carregar Analytics RH se permitido
-      if (user?.role === 'admin' || user?.role === 'gestor') {
-        try {
-          const [absenteismoRes, overtimeRes] = await Promise.all([
-            api.get('/reports/stats/absenteismo'),
-            api.get('/reports/stats/overtime')
-          ]);
-          setAnalytics({
-            absenteismo: absenteismoRes.data.data,
-            overtime: overtimeRes.data.data
-          });
-        } catch (e) {
-          console.error('Erro loading analytics', e);
-        }
-      }
-
-
     } catch (err) {
       console.error('Erro ao carregar dashboard:', err);
     } finally {
@@ -101,397 +62,343 @@ export default function Dashboard() {
     }
   };
 
-  const isConsultor = (u) => {
-    const cargo = u?.cargo?.toLowerCase() || '';
-    return cargo.includes('consultor') || cargo.includes('consutor');
-  };
-
-  // Dados do gráfico de pizza
-  const pieData = [
-    { name: 'Presentes', value: stats?.presentes || 0, color: '#10b981' },
-    { name: 'Ausentes', value: stats?.ausencias || 0, color: '#ef4444' },
-    { name: 'Sem Saída', value: stats?.sem_saida || 0, color: '#f59e0b' }
-  ];
-
   const quickActions = [
-    ...(isConsultor(user) ? [{
-      icon: MapPin,
-      label: 'Registrar Visita',
-      description: 'Ponto externo com GPS',
-      path: '/ponto-externo',
-      color: 'emerald',
-      primary: true,
-      roles: ['admin', 'manager', 'funcionario', 'employee']
-    }] : []),
     {
-      icon: Clock,
-      label: 'Meus Registros',
-      description: 'Ver meu cartão de ponto',
-      path: '/registros',
+      icon: MapPin,
+      label: 'Novo Registro',
+      description: 'Ponto com geolocalização',
+      path: '/ponto-externo',
       color: 'blue',
+      roles: ['admin', 'manager', 'funcionario', 'employee']
+    },
+    {
+      icon: History,
+      label: 'Minha Jornada',
+      description: 'Consultar extrato mensal',
+      path: '/registros',
+      color: 'slate',
       roles: ['funcionario', 'employee']
     },
     {
-      icon: Clock,
-      label: 'Todos os Registros',
-      description: 'Registros da equipe',
-      path: '/registros',
-      color: 'blue',
-      roles: ['admin', 'manager']
-    },
-    {
       icon: Users,
-      label: 'Funcionários',
-      description: 'Gerenciar equipe',
+      label: 'Equipe Auxiliadora',
+      description: 'Gerenciar colaboradores',
       path: '/usuarios',
-      color: 'purple',
+      color: 'indigo',
       roles: ['admin', 'manager']
     },
     {
       icon: TrendingUp,
       label: 'Banco de Horas',
-      description: 'Saldos e balanços',
+      description: 'Saldos acumulados',
       path: '/banco-horas',
-      color: 'green',
+      color: 'emerald',
+      roles: ['admin', 'manager']
+    },
+    {
+      icon: AlertTriangle,
+      label: 'Ajustes Pendentes',
+      description: 'Correções de batida',
+      path: '/ajustes',
+      color: 'rose',
       roles: ['admin', 'manager']
     },
     {
       icon: FileText,
-      label: 'Justificativas',
-      description: 'Faltas e atestados',
-      path: '/justificativas',
-      color: 'yellow',
-      roles: ['admin', 'manager']
-    },
-    {
-      icon: Edit,
-      label: 'Solicitar Ajuste',
-      description: 'Correções manuais',
-      path: '/ajustes',
-      color: 'red',
-      roles: ['admin', 'manager']
-    },
-    {
-      icon: Calendar,
       label: 'Relatórios',
-      description: 'Análises mensais',
+      description: 'Exportar fechamentos',
       path: '/relatorio-mensal',
-      color: 'blue',
+      color: 'sky',
       roles: ['admin', 'manager']
     }
   ].filter(action => !action.roles || action.roles.includes(user?.role || 'employee'));
 
-  const getActivityTypeColor = (tipo) => {
-    return tipo === 'plantonista' ? 'bg-blue-500' : 'bg-emerald-500';
-  };
-
-  const getActivityBadgeColor = (tipo) => {
-    return tipo === 'plantonista' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700';
-  };
-
   if (loading) {
     return (
       <Layout title="Dashboard">
-        <div className="flex items-center justify-center h-96">
+        <div className="flex flex-col items-center justify-center h-96 gap-4">
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
+            className="w-10 h-10 border-2 border-slate-900 border-t-transparent rounded-full"
           />
+          <p className="text-slate-400 text-sm font-medium">Preparando seu painel...</p>
         </div>
       </Layout>
     );
   }
 
+  const clt = data?.clt || {};
+  const pj = data?.pj || {};
+  const analytics = data?.analytics || {};
+
   return (
     <Layout
-      title="Dashboard"
-      subtitle={`Bem-vindo de volta! Aqui está o resumo de hoje.`}
+      title="Visão Geral"
+      subtitle={`Bem-vindo, ${user?.nome?.split(' ')[0]}.`}
     >
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Presentes Hoje"
-          value={stats?.presentes || 0}
-          icon={CheckCircle2}
-          color="green"
-          trend="up"
-          trendValue="+12%"
-          delay={0}
-        />
-        <StatCard
-          title="Ausências"
-          value={stats?.ausencias || 0}
-          icon={XCircle}
-          color="red"
-          trend="down"
-          trendValue="-5%"
-          delay={0.1}
-        />
-        <StatCard
-          title="Sem Saída"
-          value={stats?.sem_saida || 0}
-          icon={Clock}
-          color="yellow"
-          delay={0.2}
-        />
-        <StatCard
-          title="Alertas"
-          value={stats?.alertas || 0}
-          icon={AlertCircle}
-          color="purple"
-          delay={0.3}
-        />
-      </div>
+      <div className="space-y-8 pb-12">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Gráfico de Área - Presença Semanal */}
-        <Card className="lg:col-span-2 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">Presença Semanal</h3>
-              <p className="text-sm text-slate-500">Últimos 7 dias</p>
-            </div>
-            <Badge variant="info">Atualizado agora</Badge>
-          </div>
-
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={graficoSemanal}>
-              <defs>
-                <linearGradient id="colorPresentes" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorAusentes" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="dia" stroke="#64748b" />
-              <YAxis stroke="#64748b" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="presentes"
-                stroke="#10b981"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorPresentes)"
-                name="Presentes"
-              />
-              <Area
-                type="monotone"
-                dataKey="ausentes"
-                stroke="#ef4444"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorAusentes)"
-                name="Ausentes"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Card>
-
-        {/* Gráfico de Pizza - Distribuição */}
-        <Card className="p-6">
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-slate-900">Hoje</h3>
-            <p className="text-sm text-slate-500">Distribuição atual</p>
-          </div>
-
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-
-          <div className="space-y-2 mt-4">
-            {pieData.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-sm text-slate-600">{item.name}</span>
-                </div>
-                <span className="font-semibold text-slate-900">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="mb-8">
-        <h3 className="text-lg font-bold text-slate-900 mb-4 tracking-tight">Ações Rápidas</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {quickActions.map((action, idx) => {
-            const Icon = action.icon;
-            const isPrimary = action.primary;
-
-            return (
-              <motion.button
-                key={idx}
-                onClick={() => navigate(action.path)}
-                whileHover={{ y: -4, shadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
-                whileTap={{ scale: 0.98 }}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className={`
-                  p-5 rounded-xl border transition-all text-left group
-                  ${isPrimary
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg md:col-span-2 lg:col-span-1'
-                    : 'bg-white text-slate-900 border-slate-200/60 hover:border-slate-300 shadow-sm hover:shadow-md'
-                  }
-                `}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`
-                      p-2.5 rounded-lg 
-                      ${isPrimary ? 'bg-emerald-500 text-white' : ''}
-                      ${!isPrimary && action.color === 'blue' ? 'bg-blue-50 text-blue-600' : ''}
-                      ${!isPrimary && action.color === 'purple' ? 'bg-purple-50 text-purple-600' : ''}
-                      ${!isPrimary && action.color === 'green' ? 'bg-emerald-50 text-emerald-600' : ''}
-                      ${!isPrimary && action.color === 'yellow' ? 'bg-amber-50 text-amber-600' : ''}
-                      ${!isPrimary && action.color === 'red' ? 'bg-red-50 text-red-600' : ''}
-                    `}>
-                      <Icon size={isPrimary ? 28 : 22} />
-                    </div>
-                    <div>
-                      <h4 className={`font-semibold mb-0.5 ${isPrimary ? 'text-white' : 'text-slate-900'}`}>
-                        {action.label}
-                      </h4>
-                      <p className={`text-xs ${isPrimary ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {action.description}
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowRight className={`${isPrimary ? 'text-emerald-400' : 'text-slate-300'} group-hover:translate-x-1 group-hover:text-current transition-all`} size={20} />
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
-      </div>
-
-
-      {/* Activity Feed */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <Activity className="text-blue-600" size={20} />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">Atividades Recentes</h3>
-              <p className="text-sm text-slate-500">Últimas movimentações do sistema</p>
-            </div>
-          </div>
-          <button
-            onClick={() => navigate('/registros')}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Ver todas
-          </button>
+        {/* Top Segment: Primary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            title="Presença CLT"
+            value={clt.presentes || 0}
+            icon={Users}
+            color="blue"
+            trend="up"
+            trendValue={`${Math.round((clt.presentes / clt.total) * 100) || 0}%`}
+            delay={0}
+          />
+          <StatCard
+            title="Plantão PJ"
+            value={pj.presentes || 0}
+            icon={MapPin}
+            color="green"
+            trend="up"
+            trendValue={`${Math.round((pj.presentes / pj.total) * 100) || 0}%`}
+            delay={0.1}
+          />
+          <StatCard
+            title="Inconsistências"
+            value={analytics.inconsistencias || 0}
+            icon={AlertCircle}
+            color="rose"
+            trend={analytics.inconsistencias > 0 ? "down" : "up"}
+            trendValue="Crítico"
+            delay={0.2}
+          />
+          <StatCard
+            title="Banco (Crédito)"
+            value={`${analytics.banco_horas?.credito || 0}h`}
+            icon={TrendingUp}
+            color="emerald"
+            delay={0.3}
+          />
         </div>
 
-        <div className="space-y-3">
-          {atividades?.length > 0 ? (
-            atividades.map((atividade, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                <div className={`w-2 h-2 rounded-full ${getActivityTypeColor(atividade.tipo)}`} />
-                <div className="flex-1">
-                  <p className="text-sm">
-                    <span className="font-semibold text-slate-900">{atividade.usuario}</span>
-                    {' '}
-                    <span className="text-slate-600">{atividade.acao}</span>
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-xs text-slate-400">{atividade.tempo_relativo}</p>
-                    {atividade.tipo === 'plantonista' && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${getActivityBadgeColor(atividade.tipo)}`}>
-                        📋 Plantonista
-                      </span>
-                    )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+          {/* Main Visual: Weekly Flow */}
+          <div className="lg:col-span-2">
+            <Card className="p-8 border-none shadow-premium bg-white group h-full">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 tracking-tight">Fluxo de Presença</h3>
+                  <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mt-1">Atividade nos últimos 7 dias</p>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-slate-900" />
+                    <span className="text-xs font-semibold text-slate-600">Presentes</span>
                   </div>
                 </div>
-              </motion.div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-slate-400">
-              <Clock size={32} className="mx-auto mb-2 opacity-50" />
-              <p>Nenhuma atividade recente</p>
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* Analytics RH (Visível apenas para Gestão) */}
-      {analytics && (
-        <div className="mt-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Shield size={24} className="text-purple-600" />
-            Analytics de RH
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            {/* Absenteísmo */}
-            <Card className="p-6 border-l-4 border-l-red-500">
-              <h4 className="font-semibold text-slate-700 mb-2">Taxa de Absenteísmo (30 dias)</h4>
-              <div className="flex items-end gap-2 mb-2">
-                <span className="text-4xl font-bold text-slate-900">{analytics.absenteismo?.taxa_absenteismo || 0}%</span>
-                <span className="text-sm text-slate-500 mb-1">do total de dias úteis</span>
               </div>
-              <p className="text-sm text-slate-600">
-                Total de faltas injustificadas: <strong>{analytics.absenteismo?.total_faltas || 0}</strong>
-              </p>
+
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data?.grafico_semanal || []} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0f172a" stopOpacity={0.08} />
+                        <stop offset="95%" stopColor="#0f172a" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="dia"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                      dy={10}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '16px',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                        padding: '12px 16px'
+                      }}
+                      itemStyle={{ fontWeight: 700, fontSize: '13px' }}
+                      labelStyle={{ marginBottom: '4px', color: '#64748b', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="presentes"
+                      stroke="#0f172a"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#colorFill)"
+                      animationDuration={1500}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </Card>
+          </div>
 
-            {/* Top Horas Extras */}
-            <Card className="p-6 border-l-4 border-l-amber-500">
-              <h4 className="font-semibold text-slate-700 mb-4">Top Horas Extras (Mês Atual)</h4>
-              <div className="space-y-3">
-                {analytics.overtime?.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center border-b border-slate-100 last:border-0 pb-2 last:pb-0">
-                    <span className="text-sm font-medium text-slate-800">{item.nome}</span>
-                    <Badge variant="warning">+{item.horas_extras}h</Badge>
+          {/* Right Column: Operational Balance */}
+          <div className="space-y-8">
+            <Card className="p-8 border-none shadow-premium bg-white h-full">
+              <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-6">Balance Operacional</h3>
+
+              <div className="space-y-6">
+                {/* CLT Balance */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Equipe CLT</span>
+                      <p className="text-sm font-bold text-slate-900">{clt.presentes} ativos hoje</p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-900">{Math.round((clt.presentes / clt.total) * 100) || 0}%</span>
                   </div>
-                ))}
-                {analytics.overtime?.length === 0 && (
-                  <p className="text-sm text-slate-400 italic">Sem horas extras registradas.</p>
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(clt.presentes / clt.total) * 100 || 0}%` }}
+                      className="h-full bg-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* PJ Balance */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Plantonistas PJ</span>
+                      <p className="text-sm font-bold text-slate-900">{pj.presentes} em escala</p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-900">{Math.round((pj.presentes / pj.total) * 100) || 0}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-blue-50 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(pj.presentes / pj.total) * 100 || 0}%` }}
+                      className="h-full bg-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* BH Summary */}
+                <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-white rounded-lg shadow-sm">
+                      <Zap size={16} className="text-amber-500" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700">Resumo Financeiro</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Débito Total</p>
+                      <p className="text-lg font-bold text-rose-500">-{analytics.banco_horas?.debito || 0}h</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Crédito Total</p>
+                      <p className="text-lg font-bold text-emerald-500">+{analytics.banco_horas?.credito || 0}h</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Quick Actions Header */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+
+          <div className="lg:col-span-1">
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-4">Atalhos Rápidos</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {quickActions.map((action, idx) => (
+                <motion.button
+                  key={idx}
+                  onClick={() => navigate(action.path)}
+                  whileHover={{ x: 4 }}
+                  className="flex items-center gap-4 p-4 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl transition-all text-left shadow-sm"
+                >
+                  <div className={`
+                      p-2.5 rounded-xl 
+                      ${action.color === 'blue' ? 'bg-blue-50 text-blue-600' : ''}
+                      ${action.color === 'slate' ? 'bg-slate-100 text-slate-600' : ''}
+                      ${action.color === 'indigo' ? 'bg-indigo-50 text-indigo-600' : ''}
+                      ${action.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' : ''}
+                      ${action.color === 'rose' ? 'bg-rose-50 text-rose-600' : ''}
+                      ${action.color === 'sky' ? 'bg-sky-50 text-sky-600' : ''}
+                    `}>
+                    <action.icon size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">{action.label}</h4>
+                    <p className="text-[11px] text-slate-400 font-medium">{action.description}</p>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          {/* Activity Timeline */}
+          <div className="lg:col-span-3">
+            <Card className="p-8 border-none shadow-premium bg-white">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-slate-900 rounded-xl">
+                    <Activity className="text-white" size={20} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 tracking-tight">Movimentações Recentes</h3>
+                </div>
+                <Badge variant="default" className="bg-slate-100 text-slate-500 border-none">Live Feed</Badge>
+              </div>
+
+              <div className="space-y-4">
+                {data?.atividades_recentes?.length > 0 ? (
+                  data.atividades_recentes.map((atividade, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="flex items-center gap-4 p-4 border border-slate-50 rounded-2xl hover:border-slate-100 hover:bg-slate-50/50 transition-all"
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${atividade.tipo === 'plantonista' ? 'bg-blue-100 text-blue-600' : 'bg-slate-900 text-white'
+                        }`}>
+                        {atividade.usuario.charAt(0)}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <p className="text-sm text-slate-600">
+                            <span className="font-bold text-slate-900">{atividade.usuario}</span>
+                            {' '}
+                            {atividade.acao}
+                          </p>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">{atividade.tempo_relativo}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {atividade.tipo === 'plantonista' ? (
+                            <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] py-0">Plantonista PJ</Badge>
+                          ) : (
+                            <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] py-0 uppercase">Operação CLT</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                    <Clock size={40} className="mx-auto mb-4 text-slate-300" />
+                    <p className="text-slate-500 font-semibold">Sem movimentações nas últimas 24h</p>
+                  </div>
                 )}
               </div>
             </Card>
-
           </div>
         </div>
-      )}
+
+      </div>
     </Layout>
   );
 }

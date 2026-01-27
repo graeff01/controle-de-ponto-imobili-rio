@@ -6,77 +6,76 @@ class ReportsService {
 
   async getDashboardStats() {
     try {
-      // Stats de funcionários CLT (ponto completo)
+      // 1. Stats de funcionários CLT
       const employeeStats = await db.query(`
         SELECT 
-          COUNT(DISTINCT tr.user_id) as presentes
-        FROM time_records tr
-        JOIN users u ON tr.user_id = u.id
-        WHERE DATE(tr.timestamp) = CURRENT_DATE
-        AND tr.record_type = 'entrada'
-        AND u.is_duty_shift_only = false
+          COUNT(*) FILTER (WHERE u.is_duty_shift_only = false) as total_clt,
+          COUNT(DISTINCT tr.user_id) FILTER (WHERE u.is_duty_shift_only = false AND DATE(tr.timestamp) = CURRENT_DATE AND tr.record_type = 'entrada') as presentes_clt,
+          COUNT(DISTINCT tr.user_id) FILTER (WHERE u.is_duty_shift_only = false AND DATE(tr.timestamp) = CURRENT_DATE AND tr.record_type = 'saida_final') as concluidos_clt
+        FROM users u
+        LEFT JOIN time_records tr ON u.id = tr.user_id AND DATE(tr.timestamp) = CURRENT_DATE
+        WHERE u.status = 'ativo' AND u.is_duty_shift_only = false
       `);
 
-      const totalEmployees = await db.query(`
-        SELECT COUNT(*) as total 
+      // 2. Stats de corretores plantonistas
+      const brokerStats = await db.query(`
+        SELECT 
+          COUNT(*) as total_pj,
+          (SELECT COUNT(DISTINCT user_id) FROM duty_shifts WHERE date = CURRENT_DATE) as presentes_pj
         FROM users 
-        WHERE status = 'ativo' 
-        AND is_duty_shift_only = false
+        WHERE status = 'ativo' AND is_duty_shift_only = true
       `);
 
-      // Sem saída (funcionários CLT)
-      const semSaidaResult = await db.query(`
-        SELECT COUNT(DISTINCT user_id) as total
-        FROM time_records
-        WHERE DATE(timestamp) = CURRENT_DATE
-        AND record_type = 'entrada'
-        AND user_id NOT IN (
-          SELECT user_id FROM time_records 
-          WHERE DATE(timestamp) = CURRENT_DATE 
-          AND record_type = 'saida_final'
-        )
+      // 3. Inconsistências (Últimos 7 dias)
+      const inconsistencias = await db.query(`
+        SELECT COUNT(*) as total
+        FROM (
+          SELECT user_id, DATE(timestamp) as data
+          FROM time_records
+          WHERE timestamp >= CURRENT_DATE - INTERVAL '7 days'
+          GROUP BY user_id, DATE(timestamp)
+          HAVING 
+            COUNT(*) FILTER (WHERE record_type = 'entrada') != COUNT(*) FILTER (WHERE record_type = 'saida_final')
+            OR COUNT(*) FILTER (WHERE record_type = 'saida_intervalo') != COUNT(*) FILTER (WHERE record_type = 'retorno_intervalo')
+        ) as sub
       `);
 
-      // Stats de corretores plantonistas
-      const brokersPresent = await db.query(`
-        SELECT COUNT(DISTINCT user_id) as presentes
-        FROM duty_shifts
-        WHERE date = CURRENT_DATE
+      // 4. Resumo Banco de Horas (Total Acumulado)
+      const bancoHoras = await db.query(`
+        SELECT 
+          SUM(balance) FILTER (WHERE balance > 0) as credito_total,
+          SUM(balance) FILTER (WHERE balance < 0) as debito_total
+        FROM hours_bank
       `);
 
-      const totalBrokers = await db.query(`
-        SELECT COUNT(*) as total 
-        FROM users 
-        WHERE status = 'ativo' 
-        AND is_duty_shift_only = true
-      `);
-
-      const employees_presentes = parseInt(employeeStats.rows[0].presentes);
-      const employees_total = parseInt(totalEmployees.rows[0].total);
-      const brokers_presentes = parseInt(brokersPresent.rows[0].presentes);
-      const brokers_total = parseInt(totalBrokers.rows[0].total);
+      const clt = employeeStats.rows[0];
+      const pj = brokerStats.rows[0];
+      const bh = bancoHoras.rows[0];
 
       return {
-        employees: {
-          presentes: employees_presentes,
-          total: employees_total,
-          ausencias: employees_total - employees_presentes,
-          sem_saida: parseInt(semSaidaResult.rows[0].total)
+        clt: {
+          total: parseInt(clt.total_clt) || 0,
+          presentes: parseInt(clt.presentes_clt) || 0,
+          ausentes: Math.max(0, (parseInt(clt.total_clt) || 0) - (parseInt(clt.presentes_clt) || 0)),
+          concluidos: parseInt(clt.concluidos_clt) || 0,
+          sem_saida: (parseInt(clt.presentes_clt) || 0) - (parseInt(clt.concluidos_clt) || 0)
         },
-        brokers: {
-          presentes: brokers_presentes,
-          total: brokers_total,
-          ausentes: brokers_total - brokers_presentes
+        pj: {
+          total: parseInt(pj.total_pj) || 0,
+          presentes: parseInt(pj.presentes_pj) || 0,
+          ausentes: Math.max(0, (parseInt(pj.total_pj) || 0) - (parseInt(pj.presentes_pj) || 0))
         },
-        geral: {
-          total_presentes: employees_presentes + brokers_presentes,
-          total_funcionarios: employees_total + brokers_total
-        },
-        alertas: 0 // Mantido para compatibilidade
+        analytics: {
+          inconsistencias: parseInt(inconsistencias.rows[0].total) || 0,
+          banco_horas: {
+            credito: parseFloat(bh.credito_total || 0).toFixed(1),
+            debito: Math.abs(parseFloat(bh.debito_total || 0)).toFixed(1)
+          }
+        }
       };
 
     } catch (error) {
-      logger.error('Erro ao buscar estatísticas do dashboard', { error: error.message });
+      logger.error('Erro ao buscar estatísticas expandidas do dashboard', { error: error.message });
       throw error;
     }
   }

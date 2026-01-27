@@ -12,40 +12,44 @@ export default function StatCard({
 }) {
   const colorSchemes = {
     slate: {
-      bg: 'bg-slate-50',
-      icon: 'bg-slate-100 text-slate-700',
-      text: 'text-slate-900',
-      border: 'border-slate-200'
+      accent: 'text-slate-900',
+      iconBg: 'bg-slate-50',
+      iconColor: 'text-slate-600',
     },
     green: {
-      bg: 'bg-emerald-50',
-      icon: 'bg-emerald-100 text-emerald-700',
-      text: 'text-emerald-900',
-      border: 'border-emerald-200'
+      accent: 'text-emerald-600',
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+    emerald: {
+      accent: 'text-emerald-600',
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
     },
     red: {
-      bg: 'bg-red-50',
-      icon: 'bg-red-100 text-red-700',
-      text: 'text-red-900',
-      border: 'border-red-200'
+      accent: 'text-rose-600',
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+    },
+    rose: {
+      accent: 'text-rose-600',
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
     },
     yellow: {
-      bg: 'bg-amber-50',
-      icon: 'bg-amber-100 text-amber-700',
-      text: 'text-amber-900',
-      border: 'border-amber-200'
+      accent: 'text-amber-600',
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
     },
     blue: {
-      bg: 'bg-blue-50',
-      icon: 'bg-blue-100 text-blue-700',
-      text: 'text-blue-900',
-      border: 'border-blue-200'
+      accent: 'text-blue-600',
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
     },
     purple: {
-      bg: 'bg-purple-50',
-      icon: 'bg-purple-100 text-purple-700',
-      text: 'text-purple-900',
-      border: 'border-purple-200'
+      accent: 'text-indigo-600',
+      iconBg: 'bg-indigo-50',
+      iconColor: 'text-indigo-600',
     }
   };
 
@@ -53,51 +57,41 @@ export default function StatCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4 }}
-      whileHover={{
-        y: -6,
-        transition: { duration: 0.2 }
-      }}
-      className={`
-        relative overflow-hidden
-        ${scheme.bg} ${scheme.border} border
-        rounded-2xl p-6 transition-all 
-        hover:shadow-xl hover:shadow-slate-200/40
-        group
-      `}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+      whileHover={{ y: -4 }}
+      className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-300 group"
     >
-      {/* Decorative Gradient Glow */}
-      <div className={`
-        absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-20 blur-3xl transition-all duration-500
-        group-hover:opacity-30 group-hover:scale-150
-        ${color === 'green' ? 'bg-emerald-400' : ''}
-        ${color === 'red' ? 'bg-red-400' : ''}
-        ${color === 'yellow' ? 'bg-amber-400' : ''}
-        ${color === 'blue' ? 'bg-blue-400' : ''}
-        ${color === 'purple' ? 'bg-purple-400' : ''}
-      `} />
-
-      <div className="flex items-start justify-between mb-4 relative z-10">
-        <div className={`${scheme.icon.split(' ')[0]} w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300`}>
-          <div className={`${scheme.icon.split(' ')[1]}`}>
-            <Icon size={28} />
-          </div>
+      <div className="flex justify-between items-start mb-6">
+        <div className={`p-3 rounded-2xl ${scheme.iconBg} transition-colors duration-300`}>
+          <Icon className={scheme.iconColor} size={24} strokeWidth={2.5} />
         </div>
+
         {trend && (
-          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/50 backdrop-blur-sm text-xs font-bold shadow-sm ${trend === 'up' ? 'text-emerald-600' : 'text-red-600'
+          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
             }`}>
-            {trend === 'up' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+            {trend === 'up' ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
             {trendValue}
           </div>
         )}
       </div>
 
-      <div className="relative z-10">
-        <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">{title}</h3>
-        <p className={`text-4xl font-black tracking-tight ${scheme.text}`}>{value}</p>
+      <div>
+        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1">
+          {title}
+        </p>
+        <h3 className="text-3xl font-black text-slate-900 tracking-tight">
+          {value}
+        </h3>
       </div>
+
+      {/* Subtle indicator line */}
+      <div className={`absolute bottom-0 left-6 right-6 h-1 rounded-t-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${color === 'green' || color === 'emerald' ? 'bg-emerald-500' :
+          color === 'red' || color === 'rose' ? 'bg-rose-500' :
+            color === 'blue' ? 'bg-blue-500' :
+              color === 'purple' ? 'bg-indigo-500' : 'bg-slate-900'
+        }`} />
     </motion.div>
   );
 }

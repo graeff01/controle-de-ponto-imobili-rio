@@ -151,47 +151,47 @@ import { Menu } from 'lucide-react'; // Importar Menu
 
 export default function Header({ title, subtitle, onMenuClick }) { // Receber onMenuClick
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
-      <div className="px-4 md:px-8 py-4 md:py-6">
+    <header className="bg-white/70 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-40">
+      <div className="px-6 md:px-10 py-5">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
             {/* Mobile Menu Button */}
             <button
               onClick={onMenuClick}
-              className="md:hidden p-2 -ml-2 hover:bg-slate-100 rounded-lg text-slate-600"
+              className="md:hidden p-2 -ml-2 hover:bg-slate-100 rounded-2xl text-slate-600 transition-colors"
             >
               <Menu size={24} />
             </button>
 
             <div>
-              <h1 className="text-xl md:text-3xl font-bold text-slate-900">
+              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
                 {title}
               </h1>
               {subtitle && (
-                <p className="text-slate-500 mt-1 text-sm md:text-base hidden sm:block">{subtitle}</p>
+                <p className="text-slate-400 mt-0.5 text-xs md:text-sm font-bold uppercase tracking-widest hidden sm:block">{subtitle}</p>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <div className="flex items-center gap-5">
+            {/* Search - Visível apenas em Telas Médias e Desktop */}
+            <div className="relative hidden lg:block">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} strokeWidth={2.5} />
               <input
                 type="text"
-                placeholder="Buscar..."
-                className="pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all w-64 bg-white"
+                placeholder="Busca rápida..."
+                className="pl-11 pr-5 py-2.5 rounded-2xl border border-slate-200/60 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/5 outline-none transition-all w-72 bg-white/50 font-medium text-sm"
               />
             </div>
 
             {/* Notifications */}
             <NotificationBell />
 
-            {/* Date */}
-            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
+            {/* Date Display */}
+            <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-inner">
               <div className="text-right">
-                <p className="text-xs text-slate-500">Hoje</p>
-                <p className="text-sm font-semibold text-slate-700">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter leading-none">Hoje</p>
+                <p className="text-sm font-black text-slate-900 mt-1 leading-none">
                   {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                 </p>
               </div>
