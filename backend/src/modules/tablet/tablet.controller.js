@@ -397,8 +397,17 @@ class TabletController {
 
       logger.info('📍 Registro externo iniciado (pendente aprovação)', { user_id, record_type, latitude, longitude });
 
-      if (!record_type || !latitude || !longitude || !reason || !user_id) {
+      // VALIDAÇÃO: Campos obrigatórios
+      if (!record_type || !latitude || !longitude || !user_id) {
         return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes.' });
+      }
+
+      // VALIDAÇÃO: Justificativa obrigatória
+      if (!reason || reason.trim().length < 5) {
+        return res.status(400).json({
+          success: false,
+          error: 'Justificativa obrigatória (mínimo 5 caracteres)'
+        });
       }
 
       // 1. Buscar usuário
@@ -410,6 +419,55 @@ class TabletController {
 
       if (user.status !== 'ativo') {
         return res.status(403).json({ error: 'Usuário inativo' });
+      }
+
+      // ============================================
+      // VALIDAÇÕES DE SEQUÊNCIA (mesmas do registro normal)
+      // ============================================
+      const hoje = new Date().toISOString().split('T')[0];
+
+      // Buscar registros existentes hoje (aprovados + pendentes)
+      const registrosHoje = await db.query(`
+        SELECT adjusted_type as record_type, status
+        FROM time_adjustments
+        WHERE user_id = $1
+        AND DATE(adjusted_timestamp) = $2
+        AND is_addition = true
+        ORDER BY adjusted_timestamp
+      `, [user.id, hoje]);
+
+      const registrosAprovados = registrosHoje.rows.filter(r => r.status === 'approved');
+      const registrosPendentes = registrosHoje.rows.filter(r => r.status === 'pending');
+
+      // Verificar se já tem registro pendente do mesmo tipo
+      const pendenteMesmoTipo = registrosPendentes.find(r => r.record_type === record_type);
+      if (pendenteMesmoTipo) {
+        return res.status(400).json({
+          success: false,
+          error: `Você já tem um registro de ${record_type} pendente de aprovação hoje.`
+        });
+      }
+
+      // VALIDAÇÃO: Não pode registrar entrada duas vezes
+      if (record_type === 'entrada') {
+        const jaTemEntrada = [...registrosAprovados, ...registrosPendentes].find(r => r.record_type === 'entrada');
+        if (jaTemEntrada) {
+          return res.status(400).json({
+            success: false,
+            error: 'Você já registrou entrada hoje.'
+          });
+        }
+      }
+
+      // VALIDAÇÃO: Para registrar saída, precisa ter entrada
+      if (record_type === 'saida_final') {
+        const temEntrada = [...registrosAprovados, ...registrosPendentes].find(r => r.record_type === 'entrada');
+        if (!temEntrada) {
+          return res.status(400).json({
+            success: false,
+            error: 'Você precisa registrar entrada antes de registrar saída.'
+          });
+        }
       }
 
       // 2. Processar Foto (convertendo para base64)

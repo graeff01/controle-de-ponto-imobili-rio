@@ -170,51 +170,84 @@ class AdjustmentsService {
 
   // Auxiliar para aplicar mudança
   async applyAdjustmentToRecord(adjustment) {
-    if (adjustment.is_addition || !adjustment.time_record_id) {
-      // Inserir NOVO registro
-      // Se tem GPS (latitude/longitude), é um registro externo de consultora
-      const isExternalPunch = adjustment.latitude && adjustment.longitude;
+    try {
+      if (adjustment.is_addition || !adjustment.time_record_id) {
+        // Inserir NOVO registro
+        // Se tem GPS (latitude/longitude), é um registro externo de consultora
+        const isExternalPunch = adjustment.latitude && adjustment.longitude;
 
-      if (isExternalPunch) {
-        // Registro externo: incluir GPS, foto e motivo
-        await db.query(`
-          INSERT INTO time_records
-          (user_id, timestamp, record_type, latitude, longitude, photo_data, manual_reason, is_manual, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
-        `, [
-          adjustment.user_id,
-          adjustment.adjusted_timestamp,
-          adjustment.adjusted_type,
-          adjustment.latitude,
-          adjustment.longitude,
-          adjustment.photo_data,
-          adjustment.reason
-        ]);
-
-        logger.info('✅ Registro externo aprovado e inserido em time_records', {
+        logger.info('Aplicando ajuste aprovado', {
+          adjustment_id: adjustment.id,
           user_id: adjustment.user_id,
-          has_gps: true,
-          has_photo: !!adjustment.photo_data
+          is_external: isExternalPunch,
+          record_type: adjustment.adjusted_type
         });
-      } else {
-        // Registro normal: sem GPS
-        await db.query(`
-          INSERT INTO time_records (user_id, timestamp, record_type, created_at, updated_at)
-          VALUES ($1, $2, $3, NOW(), NOW())
-        `, [adjustment.user_id, adjustment.adjusted_timestamp, adjustment.adjusted_type]);
-      }
-    } else {
-      // Atualizar registro EXISTENTE
-      await db.query(`
-        UPDATE time_records
-        SET timestamp = $1, record_type = $2, updated_at = NOW()
-        WHERE id = $3
-      `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
-    }
 
-    // Recalcular banco de horas para o dia do ajuste
-    const adjustmentDate = new Date(adjustment.adjusted_timestamp);
-    await timeRecordsController.atualizarBancoHoras(adjustment.user_id, adjustmentDate);
+        if (isExternalPunch) {
+          // Registro externo: incluir GPS, foto e motivo
+          await db.query(`
+            INSERT INTO time_records
+            (user_id, timestamp, record_type, latitude, longitude, photo_data, manual_reason, is_manual, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+          `, [
+            adjustment.user_id,
+            adjustment.adjusted_timestamp,
+            adjustment.adjusted_type,
+            adjustment.latitude,
+            adjustment.longitude,
+            adjustment.photo_data,
+            adjustment.reason
+          ]);
+
+          logger.info('✅ Registro externo aprovado e inserido em time_records', {
+            user_id: adjustment.user_id,
+            has_gps: true,
+            has_photo: !!adjustment.photo_data
+          });
+        } else {
+          // Registro normal: sem GPS
+          await db.query(`
+            INSERT INTO time_records (user_id, timestamp, record_type, created_at, updated_at)
+            VALUES ($1, $2, $3, NOW(), NOW())
+          `, [adjustment.user_id, adjustment.adjusted_timestamp, adjustment.adjusted_type]);
+
+          logger.info('✅ Registro normal aprovado e inserido em time_records', {
+            user_id: adjustment.user_id
+          });
+        }
+      } else {
+        // Atualizar registro EXISTENTE
+        await db.query(`
+          UPDATE time_records
+          SET timestamp = $1, record_type = $2, updated_at = NOW()
+          WHERE id = $3
+        `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
+
+        logger.info('✅ Registro existente atualizado', {
+          record_id: adjustment.time_record_id
+        });
+      }
+
+      // Recalcular banco de horas para o dia do ajuste
+      try {
+        const adjustmentDate = new Date(adjustment.adjusted_timestamp);
+        await timeRecordsController.atualizarBancoHoras(adjustment.user_id, adjustmentDate);
+        logger.info('✅ Banco de horas atualizado', { user_id: adjustment.user_id });
+      } catch (bhError) {
+        logger.error('Erro ao atualizar banco de horas (não crítico)', {
+          error: bhError.message,
+          user_id: adjustment.user_id
+        });
+        // Não falha a aprovação se banco de horas falhar
+      }
+    } catch (error) {
+      logger.error('Erro ao aplicar ajuste aprovado', {
+        error: error.message,
+        stack: error.stack,
+        adjustment_id: adjustment.id
+      });
+      throw error;
+    }
   }
 
   async getAdjustmentsByUser(userId) {
