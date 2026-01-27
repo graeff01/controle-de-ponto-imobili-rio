@@ -13,8 +13,9 @@ class TimeRecordsController {
     try {
       const { user_id, record_type } = req.body;
       const tabletToken = req.headers['x-tablet-token'];
+      const photo = req.file;
 
-      // Validar se o dispositivo é um Tablet Oficial
+      // 1. Validar se o dispositivo é um Tablet Oficial
       let isOfficialTablet = false;
       if (tabletToken) {
         const deviceRes = await db.query(
@@ -24,70 +25,26 @@ class TimeRecordsController {
         isOfficialTablet = deviceRes.rows[0]?.device_type === 'tablet';
       }
 
-      // 1. Lockdown para Consultoras fora do Totem Oficial
-      const userRes = await db.query('SELECT cargo FROM users WHERE id = $1', [user_id]);
-      const cargo = userRes.rows[0]?.cargo?.toLowerCase() || '';
-      const isConsultor = cargo.includes('consultor') || cargo.includes('consutor');
+      // 2. Chamar Service para processar o registro completo
+      const record = await timeRecordsService.createRecord(
+        user_id,
+        record_type,
+        photo,
+        req,
+        isOfficialTablet
+      );
 
-      if (isConsultor && !isOfficialTablet) {
-        return res.status(403).json({
-          success: false,
-          error: 'Fluxo Externo: Consultoras devem utilizar a opção "Registrar Visita" no celular ou usar o Tablet da agência.',
-          code: 'EXTERNAL_PUNCH_REQUIRED'
-        });
-      }
-
-      // Validar duplicados...
-      const ultimoRegistro = await db.query(`
-      SELECT record_type, timestamp 
-      FROM time_records 
-      WHERE user_id = $1 
-      ORDER BY timestamp DESC 
-      LIMIT 1
-    `, [user_id]);
-
-      if (ultimoRegistro.rows.length > 0) {
-        const ultimo = ultimoRegistro.rows[0];
-        const diff = (new Date() - new Date(ultimo.timestamp)) / 1000 / 60; // minutos
-
-        // Não permitir mesmo tipo em menos de 5 minutos
-        if (ultimo.record_type === record_type && diff < 5) {
-          return res.status(400).json({
-            success: false,
-            error: `Você já registrou "${record_type}" há ${Math.floor(diff)} minuto(s)`
-          });
-        }
-      }
-
-      // Processar foto
-      let photoData = null;
-      if (photo) {
-        photoData = photo.buffer;
-      }
-
-      const dataBR = dateHelper.getNowInBR();
-
-      // Inserir registro
-      const result = await db.query(`
-      INSERT INTO time_records (user_id, record_type, timestamp, photo_data, ip_address, user_agent)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, user_id, record_type, timestamp
-    `, [user_id, record_type, dataBR, photoData, req.ip, req.get('user-agent')]);
-
-      // Atualizar banco de horas - NOVO!
-      await this.atualizarBancoHoras(user_id, dataBR);
-
-      logger.success('Ponto registrado', { record_id: result.rows[0].id });
-
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
-        data: result.rows[0]
+        data: record,
+        message: 'Registro de ponto realizado com sucesso.'
       });
 
     } catch (error) {
       next(error);
     }
   }
+
 
   async createExternal(req, res, next) {
     try {
@@ -158,109 +115,7 @@ class TimeRecordsController {
     }
   }
 
-  // ADICIONAR ESTA NOVA FUNÇÃO NA CLASSE
-  async atualizarBancoHoras(userId, date) {
-    try {
-      const dataFormatada = dateHelper.getLocalDate(date);
 
-      // Buscar horário esperado do usuário
-      const userResult = await db.query(
-        'SELECT expected_daily_hours, work_hours_start, work_hours_end FROM users WHERE id = $1',
-        [userId]
-      );
-      const user = userResult.rows[0];
-      const horasEsperadas = parseFloat(user?.expected_daily_hours || 8);
-
-      // Calcular horas trabalhadas do dia usando a view corrigida ou cálculo manual direto
-      const registros = await db.query(`
-        SELECT record_type, timestamp 
-        FROM time_records 
-        WHERE user_id = $1 AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
-        ORDER BY timestamp ASC
-      `, [userId, dataFormatada]);
-
-      let horasTrabalhadas = 0;
-
-      if (registros.rows.length >= 2) {
-        const registrosDia = registros.rows;
-        let entrada = registrosDia.find(r => r.record_type === 'entrada');
-        let saidaFinal = registrosDia.find(r => r.record_type === 'saida_final');
-
-        if (entrada && saidaFinal) {
-          const tsEntrada = new Date(entrada.timestamp);
-          const tsSaida = new Date(saidaFinal.timestamp);
-
-          // --- IMPLEMENTAÇÃO DA REGRA DE TOLERÂNCIA (CLT) ---
-          // Se o usuário tem horários fixos definidos
-          if (user.work_hours_start && user.work_hours_end) {
-            const [hE, mE] = user.work_hours_start.split(':');
-            const [hS, mS] = user.work_hours_end.split(':');
-
-            const expectedEntrada = new Date(tsEntrada);
-            expectedEntrada.setHours(parseInt(hE), parseInt(mE), 0, 0);
-
-            const expectedSaida = new Date(tsSaida);
-            expectedSaida.setHours(parseInt(hS), parseInt(mS), 0, 0);
-
-            // Tolerância de 5 min na entrada
-            const diffEntrada = Math.abs(tsEntrada - expectedEntrada) / 1000 / 60;
-            let entradaEfetiva = tsEntrada;
-            if (diffEntrada <= 5) entradaEfetiva = expectedEntrada;
-
-            // Tolerância de 5 min na saída
-            const diffSaida = Math.abs(tsSaida - expectedSaida) / 1000 / 60;
-            let saidaEfetiva = tsSaida;
-            if (diffSaida <= 5) saidaEfetiva = expectedSaida;
-
-            // Limite total de 10 min de variação diária (Soma das folgas)
-            const variacaoTotal = diffEntrada + diffSaida;
-
-            let totalMs;
-            if (variacaoTotal <= 10) {
-              totalMs = saidaEfetiva - entradaEfetiva;
-            } else {
-              totalMs = tsSaida - tsEntrada;
-            }
-
-            // Descontar intervalo
-            const saidaIntervalo = registrosDia.find(r => r.record_type === 'saida_intervalo');
-            const retornoIntervalo = registrosDia.find(r => r.record_type === 'retorno_intervalo');
-            if (saidaIntervalo && retornoIntervalo) {
-              const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
-              if (pausaMs > 0) totalMs -= pausaMs;
-            }
-            horasTrabalhadas = totalMs / 1000 / 60 / 60;
-          } else {
-            // Cálculo padrão se não tiver horário fixo
-            let totalMs = tsSaida - tsEntrada;
-            const saidaIntervalo = registrosDia.find(r => r.record_type === 'saida_intervalo');
-            const retornoIntervalo = registrosDia.find(r => r.record_type === 'retorno_intervalo');
-            if (saidaIntervalo && retornoIntervalo) {
-              const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
-              if (pausaMs > 0) totalMs -= pausaMs;
-            }
-            horasTrabalhadas = totalMs / 1000 / 60 / 60;
-          }
-        }
-      }
-
-      // Inserir ou atualizar banco de horas (o balance é calculado automaticamente pela coluna GENERATED)
-      await db.query(`
-        INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, date) 
-        DO UPDATE SET 
-          hours_worked = $3,
-          hours_expected = $4,
-          updated_at = NOW()
-      `, [userId, dataFormatada, horasTrabalhadas.toFixed(2), horasEsperadas]);
-
-      logger.info('Banco de horas atualizado', { userId, date: dataFormatada, horasTrabalhadas: horasTrabalhadas.toFixed(2) });
-
-    } catch (error) {
-      logger.error('Erro ao atualizar banco de horas', { error: error.message });
-    }
-  }
 
   async createManual(req, res, next) {
     try {

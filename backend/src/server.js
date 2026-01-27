@@ -49,30 +49,39 @@ app.set('trust proxy', 1);
 // MIDDLEWARES GLOBAIS
 // ============================================
 
-// CRÍTICO: CORS DEVE SER O PRIMEIRO MIDDLEWARE
-// Configuração ultra-permissiva para resolver problema de CORS
-app.use((req, res, next) => {
-  const origin = req.headers.origin || req.headers.referer || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Tablet-Token, X-Tablet-API-Key, X-Tablet-Key, x-tablet-token, x-tablet-api-key');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+// ============================================
+// MIDDLEWARES GLOBAIS
+// ============================================
 
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+// Configuração de CORS Segura
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:3000', 'https://ponto-imobiliario.vercel.app']; // Exemplo de origins
 
-  next();
-});
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir requisições sem origin (como apps mobile ou curl) em desenvolvimento
+    if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true);
+    if (!origin) return callback(null, true); // Ajuste conforme necessidade do Totem
 
-// Segurança (Ajustado para não conflitar com CORS)
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Não permitido pelo CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Tablet-Token', 'X-Tablet-API-Key'],
+  credentials: true,
+  maxAge: 86400
+}));
+
+// Segurança (Ajustado para produção)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" },
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false // CSP padrão em produção
 }));
+
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));

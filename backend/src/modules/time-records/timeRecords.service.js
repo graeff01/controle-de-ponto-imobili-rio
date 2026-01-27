@@ -7,82 +7,151 @@ const dateHelper = require('../../utils/dateHelper');
 
 class TimeRecordsService {
 
-  async createRecord(userId, recordType, photoFile, req) {
+  async createRecord(userId, recordType, photoFile, req, isOfficialTablet = false) {
     try {
-      // Valida sequência de registros
+      // 1. Lockdown para Consultoras fora do Totem Oficial
+      const userRes = await db.query('SELECT cargo FROM users WHERE id = $1', [userId]);
+      const cargo = userRes.rows[0]?.cargo?.toLowerCase() || '';
+      const isConsultor = cargo.includes('consultor') || cargo.includes('consutor');
+
+      if (isConsultor && !isOfficialTablet) {
+        const error = new Error('Consultoras devem utilizar o Totem Oficial na agência ou o fluxo de registro externo.');
+        error.status = 403;
+        error.code = 'EXTERNAL_PUNCH_REQUIRED';
+        throw error;
+      }
+
+      // 2. Validar duplicados (mesmo tipo em menos de 5 minutos)
+      const lastPunchRes = await db.query(`
+        SELECT record_type, timestamp 
+        FROM time_records 
+        WHERE user_id = $1 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `, [userId]);
+
+      if (lastPunchRes.rows.length > 0) {
+        const lastPunch = lastPunchRes.rows[0];
+        const diffMinutes = (new Date() - new Date(lastPunch.timestamp)) / 1000 / 60;
+        if (lastPunch.record_type === recordType && diffMinutes < 5) {
+          const error = new Error(`Você já registrou "${recordType}" há ${Math.floor(diffMinutes)} minuto(s)`);
+          error.status = 400;
+          throw error;
+        }
+      }
+
+      // 3. Valida sequência de registros (Entrada -> Intervalo -> Retorno -> Saída)
       await this.validateRecordSequence(userId, recordType);
 
       // Processa foto
       let photoData = null;
-      let photoCapturedAt = null;
-
       if (photoFile) {
-        const photo = await photoService.savePhoto(photoFile);
-        photoData = photo.data;
-        photoCapturedAt = new Date();
+        photoData = photoFile.buffer;
       }
 
-      // Timestamp do servidor (NUNCA confiar no cliente)
-      const timestamp = new Date();
-
-      // Contexto de segurança
-      const ipAddress = req.ip;
-      const userAgent = req.get('user-agent');
-      const deviceInfo = {
-        platform: req.get('sec-ch-ua-platform'),
-        mobile: req.get('sec-ch-ua-mobile')
-      };
+      const timestamp = dateHelper.getNowInBR();
 
       // Insere registro
       const result = await db.query(`
         INSERT INTO time_records 
-        (user_id, record_type, timestamp, photo_data, photo_captured_at, 
-         ip_address, user_agent, device_info, is_manual, registered_by,
-         latitude, longitude, location_accuracy)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $1, $9, $10, $11)
-        RETURNING *
+        (user_id, record_type, timestamp, photo_data, ip_address, user_agent, is_manual, registered_by)
+        VALUES ($1, $2, $3, $4, $5, $6, false, $1)
+        RETURNING id, user_id, record_type, timestamp
       `, [
         userId,
         recordType,
         timestamp,
         photoData,
-        photoCapturedAt,
-        ipAddress,
-        userAgent,
-        JSON.stringify(deviceInfo),
-        req.body.latitude || null,   // ✅ Novo
-        req.body.longitude || null,  // ✅ Novo
-        req.body.accuracy || null    // ✅ Novo
+        req.ip,
+        req.get('user-agent')
       ]);
 
       const record = result.rows[0];
+
+      // 4. Atualizar banco de horas automaticamente
+      await this.atualizarBancoHoras(userId, timestamp);
 
       // Log de auditoria
       await auditService.log(
         'time_record_created',
         userId,
         null,
-        `Registro de ponto: `,
-        { recordType, timestamp },
+        `Registro de ponto: ${recordType}`,
+        { recordId: record.id, timestamp },
         req
       );
-
-      logger.success('Registro de ponto criado', {
-        userId,
-        recordType,
-        timestamp: dateHelper.formatDateTimeBR(timestamp)
-      });
-
-      // Remove foto do retorno (muito grande para JSON)
-      delete record.photo_data;
 
       return record;
 
     } catch (error) {
-      logger.error('Erro ao criar registro de ponto', { error: error.message });
+      logger.error('Erro no Service ao criar registro de ponto', { error: error.message });
       throw error;
     }
   }
+
+  async atualizarBancoHoras(userId, date) {
+    try {
+      const dataFormatada = dateHelper.getLocalDate(date);
+
+      // Buscar configurações do usuário
+      const userResult = await db.query(
+        'SELECT expected_daily_hours, work_hours_start, work_hours_end FROM users WHERE id = $1',
+        [userId]
+      );
+      const user = userResult.rows[0];
+      const horasEsperadas = parseFloat(user?.expected_daily_hours || 8);
+
+      // Buscar registros do dia (usando timezone correto)
+      const registros = await db.query(`
+        SELECT record_type, timestamp 
+        FROM time_records 
+        WHERE user_id = $1 AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+        ORDER BY timestamp ASC
+      `, [userId, dataFormatada]);
+
+      let horasTrabalhadas = 0;
+
+      if (registros.rows.length >= 2) {
+        const registrosDia = registros.rows;
+        let entrada = registrosDia.find(r => r.record_type === 'entrada');
+        let saidaFinal = registrosDia.find(r => r.record_type === 'saida_final');
+
+        if (entrada && saidaFinal) {
+          const tsEntrada = new Date(entrada.timestamp);
+          const tsSaida = new Date(saidaFinal.timestamp);
+          let totalMs = tsSaida - tsEntrada;
+
+          // Descontar intervalo
+          const saidaIntervalo = registrosDia.find(r => r.record_type === 'saida_intervalo');
+          const retornoIntervalo = registrosDia.find(r => r.record_type === 'retorno_intervalo');
+
+          if (saidaIntervalo && retornoIntervalo) {
+            const pausaMs = new Date(retornoIntervalo.timestamp) - new Date(saidaIntervalo.timestamp);
+            if (pausaMs > 0) totalMs -= pausaMs;
+          }
+
+          horasTrabalhadas = Math.max(0, totalMs / 1000 / 60 / 60);
+        }
+      }
+
+      // Upsert no banco de horas
+      await db.query(`
+        INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, date) 
+        DO UPDATE SET 
+          hours_worked = EXCLUDED.hours_worked,
+          hours_expected = EXCLUDED.hours_expected,
+          updated_at = NOW()
+      `, [userId, dataFormatada, horasTrabalhadas.toFixed(2), horasEsperadas]);
+
+      logger.info('Banco de horas processado', { userId, date: dataFormatada, total: horasTrabalhadas.toFixed(2) });
+
+    } catch (error) {
+      logger.error('Erro ao processar banco de horas no Service', { error: error.message });
+    }
+  }
+
 
   async validateRecordSequence(userId, recordType) {
     try {
