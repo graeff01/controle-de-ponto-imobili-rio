@@ -55,19 +55,27 @@ app.set('trust proxy', 1);
 
 // Configuração de CORS Segura
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:3000', 'https://ponto-imobiliario.vercel.app']; // Exemplo de origins
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [
+    'https://jardimdolagoponto.up.railway.app',
+    'https://ponto-imobiliario.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir requisições sem origin (como apps mobile ou curl) em desenvolvimento
-    if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true);
-    if (!origin) return callback(null, true); // Ajuste conforme necessidade do Totem
+    // Permitir se não houver origin (como apps mobile ou chamadas diretas)
+    if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+    // Verificar se a origem está na lista ou se estamos em desenvolvimento
+    const isAllowed = allowedOrigins.some(ao => origin.startsWith(ao)) || process.env.NODE_ENV !== 'production';
+
+    if (isAllowed) {
       callback(null, true);
     } else {
-      callback(new Error('Não permitido pelo CORS'));
+      console.warn(`[CORS REJECTED]: ${origin}`);
+      callback(null, false); // Não permitir, mas sem estourar erro no preflight
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -75,6 +83,7 @@ app.use(cors({
   credentials: true,
   maxAge: 86400
 }));
+
 
 // Segurança (Ajustado para produção)
 app.use(helmet({
