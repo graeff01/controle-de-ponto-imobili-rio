@@ -62,9 +62,9 @@ export default function StatCard({
       }}
       className={`
         relative overflow-hidden
-        ${scheme.bg} ${scheme.border} border-2 
-        rounded-3xl p-6 transition-all 
-        hover:shadow-2xl hover:shadow-slate-200/50
+        ${scheme.bg} ${scheme.border} border
+        rounded-2xl p-6 transition-all 
+        hover:shadow-xl hover:shadow-slate-200/40
         group
       `}
     >

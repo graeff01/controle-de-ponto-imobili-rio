@@ -4,10 +4,10 @@
 Comprehensive overhaul of the backend system to address security vulnerabilities, architectural tech debt, and performance bottlenecks.
 
 ## Steps
-- [ ] Security Hardening (CORS, JWT, Input Validation)
-- [ ] Architectural Refactor (Controller/Service separation)
-- [ ] Data Integrity & Performance (Database optimization)
-- [ ] Final Audit & Deployment (Commit/Push)
+- [x] Security Hardening (CORS, JWT, Input Validation)
+- [x] Architectural Refactor (Controller/Service separation)
+- [x] Data Integrity & Performance (Database optimization)
+- [x] Final Audit & Deployment (Commit/Push)
 
 ## Expected Outcome
 - A more secure backend compliant with 2025 standards.

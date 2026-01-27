@@ -340,9 +340,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
       <div className="mb-8">
-        <h3 className="text-xl font-bold text-slate-900 mb-4">Ações Rápidas</h3>
+        <h3 className="text-lg font-bold text-slate-900 mb-4 tracking-tight">Ações Rápidas</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {quickActions.map((action, idx) => {
             const Icon = action.icon;
@@ -352,23 +351,23 @@ export default function Dashboard() {
               <motion.button
                 key={idx}
                 onClick={() => navigate(action.path)}
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ y: -4, shadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
                 whileTap={{ scale: 0.98 }}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
                 className={`
-                  p-6 rounded-2xl border transition-all text-left group
+                  p-5 rounded-xl border transition-all text-left group
                   ${isPrimary
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xl md:col-span-2 lg:col-span-1'
-                    : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300 hover:shadow-lg'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg md:col-span-2 lg:col-span-1'
+                    : 'bg-white text-slate-900 border-slate-200/60 hover:border-slate-300 shadow-sm hover:shadow-md'
                   }
                 `}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className={`
-                      p-3 rounded-xl 
+                      p-2.5 rounded-lg 
                       ${isPrimary ? 'bg-emerald-500 text-white' : ''}
                       ${!isPrimary && action.color === 'blue' ? 'bg-blue-50 text-blue-600' : ''}
                       ${!isPrimary && action.color === 'purple' ? 'bg-purple-50 text-purple-600' : ''}
@@ -376,24 +375,25 @@ export default function Dashboard() {
                       ${!isPrimary && action.color === 'yellow' ? 'bg-amber-50 text-amber-600' : ''}
                       ${!isPrimary && action.color === 'red' ? 'bg-red-50 text-red-600' : ''}
                     `}>
-                      <Icon size={isPrimary ? 32 : 24} />
+                      <Icon size={isPrimary ? 28 : 22} />
                     </div>
                     <div>
-                      <h4 className={`font-semibold mb-1 ${isPrimary ? 'text-lg text-white' : 'text-slate-900'}`}>
+                      <h4 className={`font-semibold mb-0.5 ${isPrimary ? 'text-white' : 'text-slate-900'}`}>
                         {action.label}
                       </h4>
-                      <p className={`text-sm ${isPrimary ? 'text-slate-300' : 'text-slate-500'}`}>
+                      <p className={`text-xs ${isPrimary ? 'text-slate-400' : 'text-slate-500'}`}>
                         {action.description}
                       </p>
                     </div>
                   </div>
-                  <ArrowRight className={`${isPrimary ? 'text-emerald-400' : 'text-slate-400'} group-hover:translate-x-1 transition-all`} size={24} />
+                  <ArrowRight className={`${isPrimary ? 'text-emerald-400' : 'text-slate-300'} group-hover:translate-x-1 group-hover:text-current transition-all`} size={20} />
                 </div>
               </motion.button>
             );
           })}
         </div>
       </div>
+
 
       {/* Activity Feed */}
       <Card className="p-6">

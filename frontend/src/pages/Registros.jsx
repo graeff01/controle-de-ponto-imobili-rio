@@ -15,7 +15,7 @@ export default function Registros() {
   const [registrosPlantonistasFiltrados, setRegistrosPlantonistasFiltrados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fotoModal, setFotoModal] = useState(null);
-  
+
   const [filtroData, setFiltroData] = useState('hoje');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
@@ -59,7 +59,7 @@ export default function Registros() {
 
     const filtrarPorData = (registros) => {
       let filtered = [...registros];
-      
+
       if (filtroData === 'hoje') {
         filtered = filtered.filter(r => {
           const data = new Date(r.timestamp);
@@ -89,7 +89,7 @@ export default function Registros() {
       }
 
       if (filtroNome) {
-        filtered = filtered.filter(r => 
+        filtered = filtered.filter(r =>
           r.nome.toLowerCase().includes(filtroNome.toLowerCase()) ||
           r.matricula.includes(filtroNome)
         );
@@ -182,7 +182,7 @@ export default function Registros() {
 
   return (
     <Layout title="Registros de Ponto" subtitle={`${totalRegistros} registro(s) encontrado(s)`}>
-      
+
       {/* Actions Bar */}
       <div className="flex flex-wrap gap-3 mb-6">
         <motion.button
@@ -191,8 +191,8 @@ export default function Registros() {
           onClick={() => setMostrarFiltros(!mostrarFiltros)}
           className={`
             px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2
-            ${mostrarFiltros 
-              ? 'bg-slate-900 text-white' 
+            ${mostrarFiltros
+              ? 'bg-slate-900 text-white'
               : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
             }
           `}
@@ -303,22 +303,28 @@ export default function Registros() {
         </Card>
       ) : (
         <div className="space-y-6">
-          
-          {/* ========== REGISTROS CLT ========== */}
+
           {registrosCLTFiltrados.length > 0 && (
-            <Card className="overflow-hidden">
-              <div className="bg-slate-800 px-6 py-4">
+            <Card className="overflow-hidden border-none shadow-premium">
+              <div className="bg-white border-b border-slate-100 px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <User size={20} className="text-white" />
-                  <h3 className="text-white font-bold text-lg">
-                    Registros Funcionários CLT
-                  </h3>
-                  <Badge variant="default" className="bg-white/20 text-white border-white/30">
-                    {registrosCLTFiltrados.length}
-                  </Badge>
+                  <div className="p-2 bg-slate-900 rounded-lg shadow-lg">
+                    <User size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-900 font-bold text-lg tracking-tight">
+                      Funcionários CLT
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Registros de equipe interna</p>
+                  </div>
+                  <div className="ml-auto">
+                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+                      {registrosCLTFiltrados.length} Registros
+                    </span>
+                  </div>
                 </div>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -389,19 +395,26 @@ export default function Registros() {
 
           {/* ========== REGISTROS PLANTONISTAS ========== */}
           {registrosPlantonistasFiltrados.length > 0 && (
-            <Card className="overflow-hidden">
-              <div className="bg-blue-600 px-6 py-4">
+            <Card className="overflow-hidden border-none shadow-premium mt-8">
+              <div className="bg-white border-b border-blue-100 px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <ClockIcon size={20} className="text-white" />
-                  <h3 className="text-white font-bold text-lg">
-                    📋 Presenças Plantonistas (PJ)
-                  </h3>
-                  <Badge variant="default" className="bg-white/20 text-white border-white/30">
-                    {registrosPlantonistasFiltrados.length}
-                  </Badge>
+                  <div className="p-2 bg-blue-600 rounded-lg shadow-lg">
+                    <ClockIcon size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-900 font-bold text-lg tracking-tight">
+                      Plantonistas PJ
+                    </h3>
+                    <p className="text-xs text-blue-500 font-medium">Corretores em plantão de vendas</p>
+                  </div>
+                  <div className="ml-auto">
+                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold border border-blue-100">
+                      {registrosPlantonistasFiltrados.length} Presenças
+                    </span>
+                  </div>
                 </div>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-blue-50 border-b border-blue-200">

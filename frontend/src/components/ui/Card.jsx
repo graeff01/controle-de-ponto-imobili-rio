@@ -8,7 +8,7 @@ export default function Card({ children, className = '', hover = true, gradient 
       transition={{ duration: 0.3 }}
       whileHover={hover ? { y: -4, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' } : {}}
       className={`
-        bg-white rounded-2xl shadow-sm border border-slate-200
+        bg-white rounded-xl shadow-sm border border-slate-200/60
         ${gradient ? 'bg-gradient-to-br from-white to-slate-50' : ''}
         ${className}
       `}

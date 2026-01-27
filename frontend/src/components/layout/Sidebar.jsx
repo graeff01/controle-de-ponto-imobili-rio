@@ -125,35 +125,39 @@ export default function Sidebar({ isOpen, onClose }) {
         initial={isMobile ? "mobileClosed" : "desktop"}
         animate={isMobile ? (isOpen ? "mobileOpen" : "mobileClosed") : "desktop"}
         variants={sidebarVariants}
-        className={`fixed left-0 top-0 h-screen bg-slate-900 border-r border-slate-800 z-50 flex flex-col shadow-2xl overflow-hidden`}
+        className={`fixed left-0 top-0 h-screen bg-slate-900/95 backdrop-blur-xl border-r border-slate-800/50 z-50 flex flex-col shadow-2xl overflow-hidden`}
       >
         {/* Header */}
-        <div className="p-6 border-b border-slate-800">
+        <div className="p-6 border-b border-slate-800/50">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <Clock className="text-white" size={24} />
+            <div className="w-10 h-10 rounded-lg bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center flex-shrink-0">
+              <Clock className="text-white" size={20} />
             </div>
             {(!collapsed || isMobile) && (
               <div className="overflow-hidden whitespace-nowrap">
-                <h1 className="text-white font-bold text-lg">Jardim do Lago</h1>
-                <p className="text-slate-400 text-xs">controle de presença</p>
+                <h1 className="text-white font-extrabold text-sm tracking-tight uppercase">Auxiliadora Predial</h1>
+                <p className="text-emerald-500 text-[10px] font-bold tracking-[0.2em] uppercase opacity-80">Jardim do Lago</p>
               </div>
             )}
           </div>
         </div>
 
+
         {/* User Info */}
-        <div className="p-4 border-b border-slate-800">
+        <div className="p-4 border-b border-slate-800/50 bg-slate-950/20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
-              <User className="text-slate-300" size={20} />
+            <div className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center flex-shrink-0 shadow-lg">
+              <User className="text-slate-400" size={18} />
             </div>
             {(!collapsed || isMobile) && (
               <div className="overflow-hidden whitespace-nowrap">
-                <p className="text-white font-semibold text-sm truncate max-w-[150px]">
+                <p className="text-white font-bold text-sm tracking-tight truncate max-w-[150px]">
                   {user?.nome || 'Admin'}
                 </p>
-                <p className="text-slate-400 text-xs">{user?.role || 'Admin'}</p>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">{user?.role || 'Admin'}</p>
+                </div>
               </div>
             )}
           </div>
@@ -188,16 +192,22 @@ export default function Sidebar({ isOpen, onClose }) {
                         key={item.path}
                         onClick={() => handleNavigation(item.path)}
                         className={`
-                          w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all
+                          w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all relative group
                           ${isActive
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                            ? 'bg-white/10 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                            : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
                           }
                         `}
                       >
-                        <Icon size={20} className="flex-shrink-0" />
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeNav"
+                            className="absolute left-0 w-1 h-5 bg-emerald-500 rounded-r-full"
+                          />
+                        )}
+                        <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? 'text-emerald-500' : 'group-hover:text-slate-200'}`} />
                         {(!collapsed || isMobile) && (
-                          <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>
+                          <span className="font-semibold text-[13px] tracking-tight whitespace-nowrap">{item.label}</span>
                         )}
                       </button>
                     );
