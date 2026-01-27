@@ -1,34 +1,38 @@
--- Script para atualizar tokens dos dispositivos autorizados
--- Execute este script no banco de produção via Railway CLI ou pgAdmin
+-- Script para redefinir COMPLETAMENTE as chaves de acesso
+-- ⚠️ IMPORTANTE: Este script APAGA todas as chaves antigas e cria novas
+-- Execute este script no banco de produção via Railway
 
--- Limpar tokens antigos (opcional - comente se quiser manter histórico)
+-- 1️⃣ APAGAR TODAS AS CHAVES ANTIGAS (invalida todos os dispositivos)
 DELETE FROM authorized_devices;
 
--- Inserir novos dispositivos com chaves seguras
+-- 2️⃣ INSERIR NOVAS CHAVES SIMPLES E FÁCEIS DE DIGITAR
 INSERT INTO authorized_devices (id, name, device_type, token, created_at)
 VALUES
+  -- Tablet fixo da agência
   (
     '550e8400-e29b-41d4-a716-446655440001',
-    'Tablet Fixo - Agência Jardim do Lago',
+    'Tablet Fixo - Recepção Agência',
     'tablet',
-    '7c1cbc688e61e4761feac5a6689661bbdfd8a5fd5e92341d252bed1fb3812fd8',
+    'TABLET-JARDIM-2026',
     NOW()
   ),
+  -- Celulares das consultoras (chave compartilhada)
   (
     '550e8400-e29b-41d4-a716-446655440002',
-    'Dispositivos Móveis - Consultoras',
+    'Celulares - Todas as Consultoras',
     'mobile',
-    '7141ab68d4f321796d85e53735e855b2bddcc920ee506d21c7d2d9893efc990c',
+    'CONSULTORA-2026',
     NOW()
-  )
-ON CONFLICT (id) DO UPDATE
-SET
-  token = EXCLUDED.token,
-  name = EXCLUDED.name,
-  device_type = EXCLUDED.device_type,
-  created_at = NOW();
+  );
 
--- Verificar se foram inseridos corretamente
-SELECT id, name, device_type, LEFT(token, 20) || '...' as token_preview, created_at
+-- 3️⃣ VERIFICAR SE FOI APLICADO CORRETAMENTE
+SELECT
+  id,
+  name,
+  device_type,
+  token,
+  created_at
 FROM authorized_devices
 ORDER BY created_at DESC;
+
+-- ✅ Resultado esperado: Apenas 2 registros (tablet e mobile)
