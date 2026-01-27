@@ -778,7 +778,7 @@ export default function Tablet() {
         )}
       </AnimatePresence>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-8">
         {/* Mensagens (Alertas) */}
         <AnimatePresence>
           {message && (
@@ -794,30 +794,32 @@ export default function Tablet() {
         </AnimatePresence>
 
         {/* Header com Trigger de Debug */}
-        <div className="text-center mb-8" onClick={handleTitleTap}>
-          <div className="flex items-center justify-center gap-3 mb-2 cursor-pointer select-none active:scale-95 transition-transform">
-            <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center shadow-lg">
-              <Clock size={28} />
+        <div className="text-center mb-4 sm:mb-8" onClick={handleTitleTap}>
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-1 sm:mb-2 cursor-pointer select-none active:scale-95 transition-transform">
+            <div className="w-8 h-8 sm:w-12 sm:h-12 bg-slate-900 text-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg">
+              <Clock size={20} className="sm:hidden" />
+              <Clock size={28} className="hidden sm:block" />
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight">
               Sistema de Presença - Jardim do Lago
             </h1>
           </div>
-          <p className="text-slate-500 font-medium">Registro de presença</p>
-          <div className="flex items-center justify-center gap-4 mt-3">
-            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${location ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${location ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <p className="text-xs sm:text-base text-slate-500 font-medium">Registro de presença</p>
+          <div className="flex items-center justify-center gap-2 sm:gap-4 mt-2 sm:mt-3">
+            <div className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-wider border ${location ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+              <div className={`w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full ${location ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
               {location ? 'GPS Ativo' : 'Aguardando GPS...'}
             </div>
-            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isOnline ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-              {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-              {isOnline ? 'Online' : 'Modo Offline'}
+            <div className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-wider border ${isOnline ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+              {isOnline ? <Wifi size={10} className="sm:hidden" /> : <WifiOff size={10} className="sm:hidden" />}
+              {isOnline ? <Wifi size={12} className="hidden sm:block" /> : <WifiOff size={12} className="hidden sm:block" />}
+              {isOnline ? 'Online' : 'Offline'}
             </div>
           </div>
         </div>
 
         {/* Card Principal */}
-        <div className={`max-w-xl mx-auto bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-8 border border-slate-100 transition-all ${userData ? 'max-w-4xl' : 'max-w-xl'}`}>
+        <div className={`max-w-xl mx-auto bg-white rounded-2xl sm:rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-4 sm:p-8 border border-slate-100 transition-all ${userData ? 'max-w-4xl' : 'max-w-xl'}`}>
 
           {/* Saudação */}
           {
@@ -825,25 +827,25 @@ export default function Tablet() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`rounded-2xl p-6 mb-6 ${userData.is_duty_shift_only
+                className={`rounded-xl sm:rounded-2xl p-3 sm:p-6 mb-3 sm:mb-6 ${userData.is_duty_shift_only
                   ? 'bg-blue-50'
                   : 'bg-slate-50'
                   }`}
               >
-                <div className="flex items-center gap-4">
-                  <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${userData.is_duty_shift_only
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <div className={`w-10 h-10 sm:w-16 sm:h-16 rounded-lg sm:rounded-xl flex items-center justify-center ${userData.is_duty_shift_only
                     ? 'bg-blue-600'
                     : 'bg-slate-800'
                     }`}>
-                    <span className="text-white text-2xl font-bold">
+                    <span className="text-white text-base sm:text-2xl font-bold">
                       {userData.nome.charAt(0)}
                     </span>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-slate-900">
+                    <p className="text-lg sm:text-2xl font-bold text-slate-900">
                       {getSaudacao()}, {userData?.nome?.split(' ')[0]}
                     </p>
-                    <p className="text-slate-600 flex items-center gap-2">
+                    <p className="text-xs sm:text-base text-slate-600 flex items-center gap-2">
                       {userData.cargo}
                       {userData.is_duty_shift_only && (
                         <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-semibold">
@@ -952,8 +954,8 @@ export default function Tablet() {
           {/* Input Matrícula (Esconder se estiver em ajuste) */}
           {
             !showAdjustmentForm && !inconsistencyData && (
-              <div className={`mb-6 ${!userData ? 'text-center py-12' : ''}`}>
-                <label className={`block font-semibold text-slate-700 mb-4 ${!userData ? 'text-lg' : 'text-sm'}`}>
+              <div className={`mb-4 sm:mb-6 ${!userData ? 'text-center py-4 sm:py-12' : ''}`}>
+                <label className={`block font-semibold text-slate-700 mb-2 sm:mb-4 ${!userData ? 'text-sm sm:text-lg' : 'text-xs sm:text-sm'}`}>
                   Digite sua matrícula para começar
                 </label>
                 <input
@@ -963,14 +965,14 @@ export default function Tablet() {
                   placeholder="000000, CORR001 ou GESTOR001"
                   maxLength={10}
                   className={`
-                px-6 py-4 text-center font-bold
+                px-3 sm:px-6 py-2 sm:py-4 text-center font-bold
                 bg-slate-50 border-2 border-slate-200
                 focus:border-slate-800 focus:ring-4 focus:ring-slate-800/10
-                rounded-2xl outline-none transition-all
+                rounded-xl sm:rounded-2xl outline-none transition-all
                 placeholder:text-slate-300
                 ${!userData
-                      ? 'w-full max-w-md mx-auto text-4xl tracking-wider'
-                      : 'w-full text-2xl'
+                      ? 'w-full max-w-md mx-auto text-2xl sm:text-4xl tracking-wider'
+                      : 'w-full text-lg sm:text-2xl'
                     }
               `}
                   autoFocus
@@ -989,17 +991,17 @@ export default function Tablet() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Tipo de Registro</label>
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1 sm:mb-2">Tipo de Registro</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setRecordType('entrada')}
-                      className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'entrada' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
+                      className={`p-2 sm:p-4 rounded-lg sm:rounded-xl font-bold uppercase text-[10px] sm:text-xs transition-all ${recordType === 'entrada' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
                     >
                       Entrada
                     </button>
                     <button
                       onClick={() => setRecordType('saida_final')}
-                      className={`p-4 rounded-xl font-bold uppercase text-xs transition-all ${recordType === 'saida_final' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
+                      className={`p-2 sm:p-4 rounded-lg sm:rounded-xl font-bold uppercase text-[10px] sm:text-xs transition-all ${recordType === 'saida_final' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
                     >
                       Saída Final
                     </button>
@@ -1007,13 +1009,13 @@ export default function Tablet() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Justificativa / Visita</label>
+                  <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-1 sm:mb-2">Justificativa / Visita</label>
                   <textarea
                     value={adjustmentReason}
                     onChange={(e) => setAdjustmentReason(e.target.value)}
                     placeholder="Ex: Visita ao imóvel Rua X, cliente Y..."
                     rows={2}
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-slate-900 outline-none text-sm"
+                    className="w-full p-2 sm:p-4 bg-slate-50 border-2 border-slate-200 rounded-lg sm:rounded-xl focus:border-slate-900 outline-none text-xs sm:text-sm"
                   />
                 </div>
 
@@ -1067,20 +1069,20 @@ export default function Tablet() {
                   </AnimatePresence>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   {!photo ? (
-                    <button onClick={capturePhoto} className="flex-1 bg-slate-900 text-white font-bold py-4 rounded-xl">
+                    <button onClick={capturePhoto} className="flex-1 bg-slate-900 text-white font-bold py-2 sm:py-4 rounded-lg sm:rounded-xl text-sm sm:text-base">
                       Capturar Foto
                     </button>
                   ) : (
                     <>
-                      <button onClick={() => setPhoto(null)} className="px-6 bg-white text-slate-700 border-2 border-slate-200 font-bold py-4 rounded-xl">
+                      <button onClick={() => setPhoto(null)} className="px-3 sm:px-6 bg-white text-slate-700 border-2 border-slate-200 font-bold py-2 sm:py-4 rounded-lg sm:rounded-xl text-sm sm:text-base">
                         Refazer
                       </button>
                       <button
                         onClick={registrarPontoExternoTotem}
                         disabled={loading || !adjustmentReason}
-                        className="flex-1 bg-emerald-600 text-white font-bold py-4 rounded-xl disabled:bg-slate-300 shadow-lg"
+                        className="flex-1 bg-emerald-600 text-white font-bold py-2 sm:py-4 rounded-lg sm:rounded-xl disabled:bg-slate-300 shadow-lg text-sm sm:text-base"
                       >
                         {loading ? 'Enviando...' : 'Confirmar Visita'}
                       </button>
@@ -1088,7 +1090,7 @@ export default function Tablet() {
                   )}
                 </div>
 
-                <button onClick={resetForm} className="w-full text-slate-500 font-semibold py-2">Cancelar</button>
+                <button onClick={resetForm} className="w-full text-slate-500 font-semibold py-1 sm:py-2 text-sm sm:text-base">Cancelar</button>
               </motion.div>
             )
           }
@@ -1101,70 +1103,74 @@ export default function Tablet() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mb-6"
+                  className="mb-4 sm:mb-6"
                 >
-                  <label className="block text-sm font-semibold text-slate-700 mb-3">
+                  <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2 sm:mb-3">
                     Selecione o tipo de registro
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <button
                       onClick={() => setRecordType('entrada')}
                       className={`
-                      px-6 py-4 rounded-xl font-semibold
+                      px-3 sm:px-6 py-2 sm:py-4 rounded-lg sm:rounded-xl font-semibold
                       border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
+                      flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base
                       ${recordType === 'entrada'
                           ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
                           : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                         }
                     `}
                     >
-                      <LogIn size={20} />
+                      <LogIn size={16} className="sm:hidden" />
+                      <LogIn size={20} className="hidden sm:block" />
                       Entrada
                     </button>
                     <button
                       onClick={() => setRecordType('saida_intervalo')}
                       className={`
-                      px-6 py-4 rounded-xl font-semibold
+                      px-3 sm:px-6 py-2 sm:py-4 rounded-lg sm:rounded-xl font-semibold
                       border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
+                      flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base
                       ${recordType === 'saida_intervalo'
                           ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
                           : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                         }
                     `}
                     >
-                      <Coffee size={20} />
+                      <Coffee size={16} className="sm:hidden" />
+                      <Coffee size={20} className="hidden sm:block" />
                       Saída Intervalo
                     </button>
                     <button
                       onClick={() => setRecordType('retorno_intervalo')}
                       className={`
-                      px-6 py-4 rounded-xl font-semibold
+                      px-3 sm:px-6 py-2 sm:py-4 rounded-lg sm:rounded-xl font-semibold
                       border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
+                      flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base
                       ${recordType === 'retorno_intervalo'
                           ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
                           : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                         }
                     `}
                     >
-                      <RotateCcw size={20} />
+                      <RotateCcw size={16} className="sm:hidden" />
+                      <RotateCcw size={20} className="hidden sm:block" />
                       Retorno Intervalo
                     </button>
                     <button
                       onClick={() => setRecordType('saida_final')}
                       className={`
-                      px-6 py-4 rounded-xl font-semibold
+                      px-3 sm:px-6 py-2 sm:py-4 rounded-lg sm:rounded-xl font-semibold
                       border-2 transition-all duration-200
-                      flex items-center justify-center gap-2
+                      flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base
                       ${recordType === 'saida_final'
                           ? 'bg-slate-800 text-white border-slate-800 shadow-lg'
                           : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                         }
                     `}
                     >
-                      <LogOut size={20} />
+                      <LogOut size={16} className="sm:hidden" />
+                      <LogOut size={20} className="hidden sm:block" />
                       Saída Final
                     </button>
                   </div>
@@ -1273,16 +1279,17 @@ export default function Tablet() {
                     onClick={capturePhoto}
                     disabled={countdown !== null}
                     className={`
-                    w-full text-white font-bold text-lg
-                    rounded-2xl px-8 py-5 mb-3
+                    w-full text-white font-bold text-sm sm:text-lg
+                    rounded-xl sm:rounded-2xl px-4 sm:px-8 py-3 sm:py-5 mb-2 sm:mb-3
                     shadow-lg hover:shadow-xl
                     transform hover:scale-[1.02]
                     transition-all duration-200
-                    flex items-center justify-center gap-3
+                    flex items-center justify-center gap-2 sm:gap-3
                     ${countdown !== null ? 'bg-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'}
                   `}
                   >
-                    <Camera size={24} />
+                    <Camera size={18} className="sm:hidden" />
+                    <Camera size={24} className="hidden sm:block" />
                     {countdown !== null ? `Aguarde (${countdown})...` : 'Capturar Foto'}
                   </button>
                 ) : (
@@ -1292,12 +1299,12 @@ export default function Tablet() {
                     className="
                     w-full bg-emerald-600 hover:bg-emerald-700
                     disabled:bg-slate-300 disabled:cursor-not-allowed
-                    text-white font-bold text-lg
-                    rounded-2xl px-8 py-5 mb-3
+                    text-white font-bold text-sm sm:text-lg
+                    rounded-xl sm:rounded-2xl px-4 sm:px-8 py-3 sm:py-5 mb-2 sm:mb-3
                     shadow-lg hover:shadow-xl
                     transform hover:scale-[1.02]
                     transition-all duration-200
-                    flex items-center justify-center gap-3
+                    flex items-center justify-center gap-2 sm:gap-3
                   "
                   >
                     {loading ? (
@@ -1305,13 +1312,14 @@ export default function Tablet() {
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="w-5 h-5 border-3 border-white border-t-transparent rounded-full"
+                          className="w-4 h-4 sm:w-5 sm:h-5 border-2 sm:border-3 border-white border-t-transparent rounded-full"
                         />
                         Registrando...
                       </>
                     ) : (
                       <>
-                        <Camera size={24} />
+                        <Camera size={18} className="sm:hidden" />
+                        <Camera size={24} className="hidden sm:block" />
                         Registrar Ponto
                       </>
                     )}
@@ -1322,9 +1330,9 @@ export default function Tablet() {
                   onClick={resetForm}
                   className="
                   w-full bg-white hover:bg-slate-50
-                  text-slate-700 font-semibold
+                  text-slate-700 font-semibold text-sm sm:text-base
                   border-2 border-slate-200
-                  rounded-2xl px-6 py-3
+                  rounded-xl sm:rounded-2xl px-4 sm:px-6 py-2 sm:py-3
                   transition-all duration-200
                 "
                 >
