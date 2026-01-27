@@ -7,21 +7,46 @@ class AlertsService {
     try {
       const { user_id, alert_type, title, message, severity, related_id } = data;
 
-      const result = await db.query(`
-        INSERT INTO alerts 
-        (user_id, alert_type, title, message, severity, related_id, status, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, 'unread', NOW())
-        RETURNING *
-      `, [user_id, alert_type, title, message, severity || 'info', related_id]);
+      // Verifica se a tabela tem as colunas title e severity
+      // Se não tiver, usa apenas as colunas básicas (compatibilidade)
+      let result;
+      try {
+        result = await db.query(`
+          INSERT INTO alerts
+          (user_id, alert_type, title, message, severity, related_id, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, 'unread', NOW())
+          RETURNING *
+        `, [user_id, alert_type, title, message, severity || 'info', related_id]);
+      } catch (colError) {
+        // Se falhar (colunas não existem), usa versão simplificada
+        if (colError.message.includes('does not exist')) {
+          logger.warn('Usando versão simplificada de alerts (sem title/severity)');
+          // Combina title e message em uma única mensagem
+          const fullMessage = title ? `${title}: ${message}` : message;
+          result = await db.query(`
+            INSERT INTO alerts
+            (user_id, alert_type, message, status, created_at)
+            VALUES ($1, $2, $3, 'unread', NOW())
+            RETURNING *
+          `, [user_id, alert_type, fullMessage]);
+        } else {
+          throw colError;
+        }
+      }
 
       logger.info('Novo alerta criado', { alertId: result.rows[0].id, type: alert_type });
 
       // Se for crítico, poderíamos disparar e-mail aqui também
       if (severity === 'critical' || severity === 'error') {
-        const emailService = require('../../services/emailService');
-        const gestores = await emailService.obterEmailsGestores();
-        if (gestores.length > 0) {
-          await emailService.enviarAlertaGestor(result.rows[0], gestores[0]);
+        try {
+          const emailService = require('../../services/emailService');
+          const gestores = await emailService.obterEmailsGestores();
+          if (gestores.length > 0) {
+            await emailService.enviarAlertaGestor(result.rows[0], gestores[0]);
+          }
+        } catch (emailError) {
+          logger.error('Erro ao enviar email de alerta', { error: emailError.message });
+          // Não falha a criação do alerta se o email falhar
         }
       }
 

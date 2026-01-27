@@ -2,49 +2,50 @@
 const logger = require('../utils/logger');
 
 // Middleware para verificar se o usuário tem a role necessária
+// SIMPLIFICADO: Usa o role do JWT em vez de buscar na tabela user_roles
 const checkRole = (allowedRoles) => {
   return async (req, res, next) => {
     try {
-      const userId = req.userId;
+      const userRole = req.userRole; // Vem do JWT via authMiddleware
 
-      // Busca as roles do usuário
-      const result = await db.query(`
-        SELECT r.nome as role_name
-        FROM user_roles ur
-        JOIN roles r ON ur.role_id = r.id
-        WHERE ur.user_id = $1
-      `, [userId]);
-
-      if (result.rows.length === 0) {
-        return res.status(403).json({ 
-          error: 'Usuário sem permissões definidas' 
+      if (!userRole) {
+        return res.status(403).json({
+          error: 'Usuário sem permissões definidas'
         });
       }
 
-      const userRoles = result.rows.map(row => row.role_name);
+      // Mapear roles para compatibilidade
+      // JWT pode ter 'manager' ou 'admin', mas routes esperam 'gestor' ou 'admin'
+      const roleMapping = {
+        'manager': 'gestor',
+        'admin': 'admin',
+        'employee': 'employee'
+      };
+
+      const mappedRole = roleMapping[userRole] || userRole;
 
       // Verifica se o usuário tem alguma das roles permitidas
-      const hasPermission = allowedRoles.some(role => userRoles.includes(role));
+      const hasPermission = allowedRoles.includes(mappedRole);
 
       if (!hasPermission) {
         logger.warn('Acesso negado - permissão insuficiente', {
-          userId,
-          userRoles,
+          userId: req.userId,
+          userRole: mappedRole,
           requiredRoles: allowedRoles
         });
 
-        return res.status(403).json({ 
-          error: 'Você não tem permissão para acessar este recurso' 
+        return res.status(403).json({
+          error: 'Você não tem permissão para acessar este recurso'
         });
       }
 
-      req.userRoles = userRoles;
+      req.userRoles = [mappedRole];
       next();
 
     } catch (error) {
       logger.error('Erro no middleware RBAC', { error: error.message });
-      return res.status(500).json({ 
-        error: 'Erro ao verificar permissões' 
+      return res.status(500).json({
+        error: 'Erro ao verificar permissões'
       });
     }
   };
