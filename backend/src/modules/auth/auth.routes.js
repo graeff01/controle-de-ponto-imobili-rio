@@ -14,7 +14,7 @@ router.post('/change-password', authMiddleware, authController.changePassword);
 router.get('/me', authMiddleware, authController.me);
 
 // Rotas de recuperação de senha (públicas)
-router.post('/forgot-password', authController.forgotPassword);
-router.post('/reset-password', authController.resetPassword);
+router.post('/forgot-password', loginLimiter, authController.forgotPassword);
+router.post('/reset-password', loginLimiter, authController.resetPassword);
 
 module.exports = router;
