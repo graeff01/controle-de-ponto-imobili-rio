@@ -1,9 +1,5 @@
 import axios from 'axios';
 
-// API Key para autenticação do tablet
-// IMPORTANTE: Em produção, use uma variável de ambiente segura
-const TABLET_API_KEY = import.meta.env.VITE_TABLET_API_KEY || 'tablet-ponto-imobiliaria-2024';
-
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   headers: {
@@ -19,14 +15,10 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Adicionar API Key para rotas do tablet
-  // Isso permite que o tablet funcione sem login, mas com autenticação
+  // Adicionar token do dispositivo autorizado para rotas do tablet
   const tabletToken = localStorage.getItem('tablet_token');
-  if (config.url && (config.url.includes('/tablet') || config.url.includes('/duty-shifts') || config.url.includes('/matricula'))) {
-    config.headers['X-Tablet-API-Key'] = TABLET_API_KEY;
-    if (tabletToken) {
-      config.headers['X-Tablet-Token'] = tabletToken;
-    }
+  if (tabletToken && config.url && (config.url.includes('/tablet') || config.url.includes('/duty-shifts') || config.url.includes('/matricula'))) {
+    config.headers['X-Tablet-Token'] = tabletToken;
   }
 
   return config;

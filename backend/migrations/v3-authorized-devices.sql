@@ -9,14 +9,9 @@ CREATE TABLE IF NOT EXISTS authorized_devices (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Inserir o Token do Tablet Principal (Novo)
-INSERT INTO authorized_devices (token, name, device_type) 
-VALUES ('JDL-AGENCIA-MAIN-2026', 'Tablet Principal Agência', 'tablet')
-ON CONFLICT (token) DO NOTHING;
-
--- Inserir o Token para Teste de Consultora (Novo)
-INSERT INTO authorized_devices (token, name, device_type) 
-VALUES ('JDL-CONSULTORA-TESTE', 'Mobile Teste Consultora', 'mobile_consultant')
+-- Token PRD - Totem Fixo Agência
+INSERT INTO authorized_devices (token, name, device_type)
+VALUES ('TOTEM-LAGO-PRD26', 'Totem Fixo - Recepção Agência Jardim do Lago', 'tablet')
 ON CONFLICT (token) DO NOTHING;
 
 -- Log de Auditoria

@@ -1,31 +1,51 @@
--- Script para redefinir COMPLETAMENTE as chaves de acesso
--- ⚠️ IMPORTANTE: Este script APAGA todas as chaves antigas e cria novas
--- Execute este script no banco de produção via Railway
+-- =============================================================
+-- SCRIPT DE PRODUÇÃO - Redefinição Completa de Chaves PRD
+-- Data: 10/02/2026
+-- =============================================================
+-- ⚠️ ESTE SCRIPT APAGA TODAS AS CHAVES ANTIGAS E CRIA NOVAS
+-- Execute no banco de produção via Railway Dashboard ou CLI
+-- =============================================================
 
--- 1️⃣ APAGAR TODAS AS CHAVES ANTIGAS (invalida todos os dispositivos)
+-- 1️⃣ APAGAR TODAS AS CHAVES E DISPOSITIVOS ANTIGOS
 DELETE FROM authorized_devices;
 
--- 2️⃣ INSERIR NOVAS CHAVES SIMPLES E FÁCEIS DE DIGITAR
+-- 2️⃣ INSERIR NOVAS CHAVES DE PRODUÇÃO
 INSERT INTO authorized_devices (id, name, device_type, token, created_at)
 VALUES
-  -- Tablet fixo da agência
+  -- Tablet fixo da agência (recepção)
   (
-    '550e8400-e29b-41d4-a716-446655440001',
-    'Tablet Fixo - Recepção Agência',
+    gen_random_uuid(),
+    'Totem Fixo - Recepção Agência Jardim do Lago',
     'tablet',
-    'TABLET-JARDIM-2026',
+    'TOTEM-LAGO-PRD26',
     NOW()
   ),
-  -- Celulares das consultoras (chave compartilhada)
+  -- Elisangela - Consultora
   (
-    '550e8400-e29b-41d4-a716-446655440002',
-    'Celulares - Todas as Consultoras',
-    'mobile',
-    'CONSULTORA-2026',
+    gen_random_uuid(),
+    'Elisangela - Mobile Consultora',
+    'mobile_consultant',
+    'ELI-LAGO-PRD26',
+    NOW()
+  ),
+  -- Maria Eduarda - Consultora
+  (
+    gen_random_uuid(),
+    'Maria Eduarda - Mobile Consultora',
+    'mobile_consultant',
+    'MEDU-LAGO-PRD26',
+    NOW()
+  ),
+  -- Roberta - Consultora
+  (
+    gen_random_uuid(),
+    'Roberta - Mobile Consultora',
+    'mobile_consultant',
+    'ROB-LAGO-PRD26',
     NOW()
   );
 
--- 3️⃣ VERIFICAR SE FOI APLICADO CORRETAMENTE
+-- 3️⃣ VERIFICAÇÃO - Deve retornar exatamente 4 registros
 SELECT
   id,
   name,
@@ -33,6 +53,10 @@ SELECT
   token,
   created_at
 FROM authorized_devices
-ORDER BY created_at DESC;
+ORDER BY device_type, name;
 
--- ✅ Resultado esperado: Apenas 2 registros (tablet e mobile)
+-- ✅ Resultado esperado:
+-- 1. Elisangela - Mobile Consultora    | mobile_consultant | ELI-LAGO-PRD26
+-- 2. Maria Eduarda - Mobile Consultora | mobile_consultant | MEDU-LAGO-PRD26
+-- 3. Roberta - Mobile Consultora       | mobile_consultant | ROB-LAGO-PRD26
+-- 4. Totem Fixo - Recepção Agência     | tablet            | TOTEM-LAGO-PRD26

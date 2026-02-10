@@ -20,10 +20,9 @@ ALTER TABLE time_adjustments ADD COLUMN IF NOT EXISTS is_addition BOOLEAN DEFAUL
 ALTER TABLE time_adjustments ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
 -- 4. Token do Tablet (Configuração Inicial)
--- Substitua 'JDL-TOTEM-2026' via env se necessário, mas garante o valor padrão
 INSERT INTO system_config (key, value, description)
-VALUES ('authorized_tablet_token', '{"token": "JDL-TOTEM-2026"}', 'Token de autenticação para o Totem/Tablet')
-ON CONFLICT (key) DO NOTHING;
+VALUES ('authorized_tablet_token', '{"token": "TOTEM-LAGO-PRD26"}', 'Token de autenticação para o Totem/Tablet')
+ON CONFLICT (key) DO UPDATE SET value = '{"token": "TOTEM-LAGO-PRD26"}', updated_at = NOW();
 
 -- 5. Logs de Email (para auditoria)
 CREATE TABLE IF NOT EXISTS email_logs (
