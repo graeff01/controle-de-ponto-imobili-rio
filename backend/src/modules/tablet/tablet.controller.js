@@ -38,7 +38,7 @@ class TabletController {
       const { matricula } = req.params;
 
       const result = await db.query(`
-        SELECT id, matricula, nome, cargo, status, user_type, is_duty_shift_only
+        SELECT id, matricula, nome, cargo, status, user_type, is_duty_shift_only, terms_accepted_at
         FROM users
         WHERE matricula = $1 AND status = 'ativo'
       `, [matricula]);
