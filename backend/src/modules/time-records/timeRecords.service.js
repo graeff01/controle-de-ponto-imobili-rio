@@ -239,17 +239,21 @@ class TimeRecordsService {
         req
       );
 
-      // Cria alerta
-      await notificationService.criarAlerta(
-        userId,
-        'registro_manual',
-        'info',
-        'Registro de ponto manual',
-        `Gestor registrou ponto manualmente: `,
-        { recordId: record.id, reason }
-      );
+      // Cria alerta (não bloqueia o registro se falhar)
+      try {
+        await notificationService.criarAlerta(
+          userId,
+          'registro_manual',
+          'info',
+          'Registro de ponto manual',
+          `Gestor registrou ponto manualmente: ${recordType}`,
+          { recordId: record.id, reason }
+        );
+      } catch (alertError) {
+        logger.error('Erro ao criar alerta de registro manual', { error: alertError.message });
+      }
 
-      logger.success('Registro manual criado', { userId, recordType, registeredBy });
+      logger.info('Registro manual criado', { userId, recordType, registeredBy });
 
       return record;
 
@@ -301,12 +305,11 @@ class TimeRecordsService {
       ORDER BY tr.timestamp ASC
     `, [date]);
 
-      // ✅ CONVERTER BUFFER PARA STRING BASE64
       const rows = result.rows.map(row => {
         if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
           return {
             ...row,
-            photo_data: row.photo_data.toString('utf-8')
+            photo_data: row.photo_data.toString('base64')
           };
         }
         return row;
@@ -325,7 +328,7 @@ class TimeRecordsService {
       const today = new Date().toISOString().split('T')[0];
 
       const result = await db.query(`
-      SELECT 
+      SELECT
         tr.id,
         tr.user_id,
         tr.record_type,
@@ -344,12 +347,11 @@ class TimeRecordsService {
       ORDER BY tr.timestamp ASC
     `, [today]);
 
-      // ✅ CONVERTER BUFFER PARA STRING BASE64
       const rows = result.rows.map(row => {
         if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
           return {
             ...row,
-            photo_data: row.photo_data.toString('utf-8')
+            photo_data: row.photo_data.toString('base64')
           };
         }
         return row;

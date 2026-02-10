@@ -45,14 +45,21 @@ class TabletController {
 
       const user = result.rows[0];
 
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'Matrícula não encontrada ou usuário inativo'
+        });
+      }
+
       // --- VERIFICAR PONTOS ESQUECIDOS (INCONSISTÊNCIAS) ---
       // Busca o último registro de dias anteriores que não teve uma saída correspondente
       const inconsistencia = await db.query(`
-        SELECT id, timestamp, record_type 
-        FROM time_records 
-        WHERE user_id = $1 
+        SELECT id, timestamp, record_type
+        FROM time_records
+        WHERE user_id = $1
         AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') < CURRENT_DATE
-        ORDER BY timestamp DESC 
+        ORDER BY timestamp DESC
         LIMIT 1
       `, [user.id]);
 
@@ -133,18 +140,17 @@ class TabletController {
       }
 
       // ============================================
-      // VALIDAÇÕES DE SEQUÊNCIA
+      // VALIDAÇÕES DE SEQUÊNCIA (parametrizadas)
       // ============================================
-      const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : 'CURRENT_DATE';
-      const dateCondition = validationDate === 'CURRENT_DATE' ? 'CURRENT_DATE' : `'${validationDate}'`;
+      const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
       if (record_type === 'retorno_intervalo') {
         const lastIntervalExit = await db.query(`
           SELECT timestamp FROM time_records
           WHERE user_id = $1 AND record_type = 'saida_intervalo'
-            AND DATE(timestamp) = ${dateCondition}
+            AND DATE(timestamp) = $2
           ORDER BY timestamp DESC LIMIT 1
-        `, [user.id]);
+        `, [user.id, validationDate]);
 
         if (lastIntervalExit.rows.length === 0) {
           return res.status(400).json({
@@ -171,9 +177,9 @@ class TabletController {
         const temEntrada = await db.query(`
           SELECT id FROM time_records
           WHERE user_id = $1 AND record_type = 'entrada'
-            AND DATE(timestamp) = ${dateCondition}
+            AND DATE(timestamp) = $2
           LIMIT 1
-        `, [user.id]);
+        `, [user.id, validationDate]);
 
         if (temEntrada.rows.length === 0) {
           return res.status(400).json({
@@ -187,9 +193,9 @@ class TabletController {
         const jaTemEntrada = await db.query(`
           SELECT id FROM time_records
           WHERE user_id = $1 AND record_type = 'entrada'
-            AND DATE(timestamp) = ${dateCondition}
+            AND DATE(timestamp) = $2
           LIMIT 1
-        `, [user.id]);
+        `, [user.id, validationDate]);
 
         if (jaTemEntrada.rows.length > 0) {
           return res.status(400).json({
@@ -203,9 +209,9 @@ class TabletController {
         const temEntrada = await db.query(`
           SELECT id FROM time_records
           WHERE user_id = $1 AND record_type = 'entrada'
-            AND DATE(timestamp) = ${dateCondition}
+            AND DATE(timestamp) = $2
           LIMIT 1
-        `, [user.id]);
+        `, [user.id, validationDate]);
 
         if (temEntrada.rows.length === 0) {
           return res.status(400).json({
@@ -220,8 +226,8 @@ class TabletController {
       if (photo) {
         try {
           const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
-          photoData = base64Data;
-          logger.info('📸 Foto processada base64');
+          photoData = Buffer.from(base64Data, 'base64');
+          logger.info('Foto processada para buffer binário');
         } catch (err) {
           logger.error('Erro ao processar foto', { error: err.message });
         }

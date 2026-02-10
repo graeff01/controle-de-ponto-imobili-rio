@@ -82,6 +82,81 @@ class AuthService {
       return { valid: false, error: error.message };
     }
   }
+
+  async refreshToken(token) {
+    try {
+      const decoded = jwt.verify(token, jwtConfig.secret, { ignoreExpiration: true });
+
+      // Verificar se o usuário ainda existe e está ativo
+      const result = await db.query(
+        'SELECT id, matricula, nome, role FROM users WHERE id = $1 AND status = $2',
+        [decoded.id, 'ativo']
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Usuário não encontrado ou inativo');
+      }
+
+      const user = result.rows[0];
+
+      // Gerar novo token
+      const newToken = jwt.sign(
+        {
+          id: user.id,
+          matricula: user.matricula,
+          nome: user.nome,
+          role: user.role || 'employee'
+        },
+        jwtConfig.secret,
+        { expiresIn: jwtConfig.expiresIn }
+      );
+
+      return { token: newToken };
+
+    } catch (error) {
+      logger.error('Erro ao renovar token', { error: error.message });
+      throw new Error('Token inválido para renovação');
+    }
+  }
+
+  async changePassword(userId, currentPassword, newPassword) {
+    try {
+      // Buscar usuário
+      const result = await db.query(
+        'SELECT id, password_hash FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Usuário não encontrado');
+      }
+
+      const user = result.rows[0];
+
+      // Verificar senha atual
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!isValidPassword) {
+        throw new Error('Senha atual incorreta');
+      }
+
+      // Hash da nova senha
+      const newHash = await bcrypt.hash(newPassword, 10);
+
+      // Atualizar
+      await db.query(
+        'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+        [newHash, userId]
+      );
+
+      logger.info('Senha alterada com sucesso', { userId });
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Erro ao alterar senha', { error: error.message });
+      throw error;
+    }
+  }
 }
 
 module.exports = new AuthService();

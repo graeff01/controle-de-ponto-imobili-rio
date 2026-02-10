@@ -261,7 +261,7 @@ class TimeRecordsController {
       // Converter buffer de foto para base64
       const cltRecords = { rows: cltResult.rows.map(row => {
         if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
-          return { ...row, photo_data: row.photo_data.toString('utf-8') };
+          return { ...row, photo_data: row.photo_data.toString('base64') };
         }
         return row;
       })};

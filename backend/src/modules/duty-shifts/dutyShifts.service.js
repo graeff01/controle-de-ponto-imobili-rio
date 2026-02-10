@@ -22,10 +22,10 @@ class DutyShiftsService {
       const user = userRes.rows[0];
 
       const result = await db.query(`
-        INSERT INTO duty_shifts (user_id, date, check_in_time, photo_url, notes)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO duty_shifts (user_id, date, check_in_time, photo_data, notes)
+        VALUES ($1, $2, COALESCE($3, NOW()), $4, $5)
         RETURNING id, date, check_in_time
-      `, [userId, markDate, timestamp || 'NOW()', photo, notes]);
+      `, [userId, markDate, timestamp || null, photo, notes]);
 
       return {
         id: result.rows[0].id,
