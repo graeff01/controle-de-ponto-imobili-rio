@@ -1,7 +1,7 @@
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
 const photoService = require('../../services/photoService');
-const timeRecordsController = require('../time-records/timeRecords.controller');
+const timeRecordsService = require('../time-records/timeRecords.service');
 
 class TabletController {
 
@@ -38,7 +38,7 @@ class TabletController {
       const { matricula } = req.params;
 
       const result = await db.query(`
-        SELECT id, matricula, nome, cargo, status
+        SELECT id, matricula, nome, cargo, status, user_type, is_duty_shift_only
         FROM users
         WHERE matricula = $1 AND status = 'ativo'
       `, [matricula]);
@@ -243,7 +243,7 @@ class TabletController {
 
       // Recalcular banco de horas imediatamente
       try {
-        await timeRecordsController.atualizarBancoHoras(user.id, result.rows[0].timestamp);
+        await timeRecordsService.atualizarBancoHoras(user.id, result.rows[0].timestamp);
       } catch (bhError) {
         logger.error('Erro ao atualizar banco de horas (totem)', { error: bhError.message });
       }

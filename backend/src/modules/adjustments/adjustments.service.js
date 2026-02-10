@@ -2,7 +2,7 @@
 const logger = require('../../utils/logger');
 const auditService = require('../../services/auditService');
 const alertsService = require('../alerts/alerts.service');
-const timeRecordsController = require('../time-records/timeRecords.controller');
+const timeRecordsService = require('../time-records/timeRecords.service');
 
 class AdjustmentsService {
 
@@ -231,7 +231,7 @@ class AdjustmentsService {
       // Recalcular banco de horas para o dia do ajuste
       try {
         const adjustmentDate = new Date(adjustment.adjusted_timestamp);
-        await timeRecordsController.atualizarBancoHoras(adjustment.user_id, adjustmentDate);
+        await timeRecordsService.atualizarBancoHoras(adjustment.user_id, adjustmentDate);
         logger.info('✅ Banco de horas atualizado', { user_id: adjustment.user_id });
       } catch (bhError) {
         logger.error('Erro ao atualizar banco de horas (não crítico)', {

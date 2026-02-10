@@ -240,12 +240,13 @@ class TimeRecordsController {
   async getAllRecords(req, res) {
     try {
       // Buscar registros CLT
-      const cltRecords = await db.query(`
-      SELECT 
+      const cltResult = await db.query(`
+      SELECT
         tr.id,
         tr.user_id,
         tr.record_type,
         tr.timestamp,
+        tr.photo_data,
         u.nome,
         u.matricula,
         u.cargo,
@@ -256,6 +257,14 @@ class TimeRecordsController {
       WHERE DATE(tr.timestamp) >= CURRENT_DATE - INTERVAL '30 days'
       ORDER BY tr.timestamp DESC
     `);
+
+      // Converter buffer de foto para base64
+      const cltRecords = { rows: cltResult.rows.map(row => {
+        if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
+          return { ...row, photo_data: row.photo_data.toString('utf-8') };
+        }
+        return row;
+      })};
 
       // Buscar registros de Plantonistas
       const brokerRecords = await db.query(`
