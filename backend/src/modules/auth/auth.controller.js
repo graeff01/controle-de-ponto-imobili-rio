@@ -110,14 +110,10 @@ class AuthController {
       const userId = req.userId;
 
       const result = await db.query(`
-        SELECT u.id, u.matricula, u.cpf, u.nome, u.email, u.cargo, u.departamento, 
-               u.status, u.data_admissao, u.created_at,
-               ARRAY_AGG(r.nome) as roles
+        SELECT u.id, u.matricula, u.cpf, u.nome, u.email, u.cargo, u.departamento,
+               u.status, u.role, u.data_admissao, u.created_at
         FROM users u
-        LEFT JOIN user_roles ur ON u.id = ur.user_id
-        LEFT JOIN roles r ON ur.role_id = r.id
         WHERE u.id = $1
-        GROUP BY u.id
       `, [userId]);
 
       if (result.rows.length === 0) {

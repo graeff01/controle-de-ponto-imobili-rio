@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Search, Check, X, AlertTriangle, Info, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, Search, Check, X, AlertTriangle, Info, AlertCircle, Menu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const NotificationBell = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -23,7 +25,7 @@ const NotificationBell = () => {
   }, []);
 
   const fetchAlerts = async () => {
-    if (!user || (user.role !== 'admin' && user.role !== 'gestor')) return;
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return;
     try {
       // Busca alertas não resolvidos (status=open)
       const response = await api.get('/alerts', { params: { status: 'open' } });
@@ -61,7 +63,7 @@ const NotificationBell = () => {
     }
   };
 
-  if (!user || (user.role !== 'admin' && user.role !== 'gestor')) {
+  if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
     return null; // Apenas gestores veem alertas
   }
 
@@ -147,9 +149,7 @@ const NotificationBell = () => {
   );
 };
 
-import { Menu } from 'lucide-react'; // Importar Menu
-
-export default function Header({ title, subtitle, onMenuClick }) { // Receber onMenuClick
+export default function Header({ title, subtitle, onMenuClick }) {
   return (
     <header className="bg-white/70 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-40">
       <div className="px-6 md:px-10 py-5">

@@ -69,7 +69,7 @@ export default function Dashboard() {
       description: 'Ponto com geolocalização',
       path: '/ponto-externo',
       color: 'blue',
-      roles: ['admin', 'manager', 'funcionario', 'employee']
+      roles: ['admin', 'manager', 'employee', 'employee']
     },
     {
       icon: History,
@@ -77,7 +77,7 @@ export default function Dashboard() {
       description: 'Consultar extrato mensal',
       path: '/registros',
       color: 'slate',
-      roles: ['funcionario', 'employee']
+      roles: ['employee', 'employee']
     },
     {
       icon: Users,
@@ -195,8 +195,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="h-[320px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-[320px] w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <AreaChart data={data?.grafico_semanal || []} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorFill" x1="0" y1="0" x2="0" y2="1">

@@ -41,7 +41,7 @@ export default function Sidebar({ isOpen, onClose }) {
     {
       title: 'PRINCIPAL',
       items: [
-        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'manager', 'funcionario', 'employee'] },
+        { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'manager', 'employee', 'employee'] },
         { path: '/registros', icon: Clock, label: 'Registros', roles: ['admin', 'manager'] },
         { path: '/usuarios', icon: Users, label: 'Funcionários', roles: ['admin', 'manager'] }
       ]
@@ -64,7 +64,7 @@ export default function Sidebar({ isOpen, onClose }) {
           path: '/ponto-externo',
           icon: MapPin,
           label: 'Ponto Externo',
-          roles: ['admin', 'manager', 'funcionario', 'employee'],
+          roles: ['admin', 'manager', 'employee', 'employee'],
           check: (user) => user?.cargo?.toLowerCase().includes('consultor')
         }
       ]

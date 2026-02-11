@@ -250,15 +250,15 @@ class AdjustmentsService {
   async getAdjustmentsByUser(userId) {
     try {
       const result = await db.query(`
-        SELECT ta.*, 
+        SELECT ta.*,
                u.nome as adjusted_by_name,
-               app.nome as approved_by_name, -- Novo
+               app.nome as approved_by_name,
                tr.timestamp as current_timestamp,
                tr.record_type as current_type
         FROM time_adjustments ta
-        JOIN users u ON ta.adjusted_by = u.id
+        LEFT JOIN users u ON ta.adjusted_by = u.id
         LEFT JOIN users app ON ta.approved_by = app.id
-        JOIN time_records tr ON ta.time_record_id = tr.id
+        LEFT JOIN time_records tr ON ta.time_record_id = tr.id
         WHERE ta.user_id = $1
         ORDER BY ta.adjusted_at DESC
       `, [userId]);
