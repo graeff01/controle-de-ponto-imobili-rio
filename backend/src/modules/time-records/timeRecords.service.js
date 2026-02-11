@@ -5,6 +5,14 @@ const photoService = require('../../services/photoService');
 const notificationService = require('../../services/notificationService');
 const dateHelper = require('../../utils/dateHelper');
 
+// Converte buffer de foto para base64, tratando formatos antigos e inválidos
+function photoBufferToBase64(buffer) {
+  if (!buffer || !Buffer.isBuffer(buffer)) return null;
+  // Fotos inválidas/vazias (ex: "data:," armazenado como bytes) são < 100 bytes
+  if (buffer.length < 100) return null;
+  return buffer.toString('base64');
+}
+
 class TimeRecordsService {
 
   async createRecord(userId, recordType, photoFile, req, isOfficialTablet = false) {
@@ -305,15 +313,10 @@ class TimeRecordsService {
       ORDER BY tr.timestamp ASC
     `, [date]);
 
-      const rows = result.rows.map(row => {
-        if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
-          return {
-            ...row,
-            photo_data: row.photo_data.toString('base64')
-          };
-        }
-        return row;
-      });
+      const rows = result.rows.map(row => ({
+        ...row,
+        photo_data: photoBufferToBase64(row.photo_data)
+      }));
 
       return rows;
 
@@ -347,15 +350,10 @@ class TimeRecordsService {
       ORDER BY tr.timestamp ASC
     `, [today]);
 
-      const rows = result.rows.map(row => {
-        if (row.photo_data && Buffer.isBuffer(row.photo_data)) {
-          return {
-            ...row,
-            photo_data: row.photo_data.toString('base64')
-          };
-        }
-        return row;
-      });
+      const rows = result.rows.map(row => ({
+        ...row,
+        photo_data: photoBufferToBase64(row.photo_data)
+      }));
 
       logger.info('Registros de hoje carregados', { count: rows.length });
 

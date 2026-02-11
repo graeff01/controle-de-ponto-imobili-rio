@@ -223,11 +223,13 @@ class TabletController {
 
       // Processar foto base64 (se houver)
       let photoData = null;
-      if (photo) {
+      if (photo && photo.length > 100) {
         try {
           const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
-          photoData = Buffer.from(base64Data, 'base64');
-          logger.info('Foto processada para buffer binário');
+          if (base64Data.length > 100) {
+            photoData = Buffer.from(base64Data, 'base64');
+            logger.info('Foto processada para buffer binário', { size: photoData.length });
+          }
         } catch (err) {
           logger.error('Erro ao processar foto', { error: err.message });
         }
