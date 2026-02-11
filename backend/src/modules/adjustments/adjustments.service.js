@@ -187,31 +187,28 @@ class AdjustmentsService {
           // Registro externo: incluir GPS, foto e motivo
           await db.query(`
             INSERT INTO time_records
-            (user_id, timestamp, record_type, latitude, longitude, photo_data, manual_reason, is_manual, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+            (user_id, timestamp, record_type, photo_data, manual_reason, is_manual, created_at)
+            VALUES ($1, $2, $3, $4, $5, true, NOW())
           `, [
             adjustment.user_id,
             adjustment.adjusted_timestamp,
             adjustment.adjusted_type,
-            adjustment.latitude,
-            adjustment.longitude,
             adjustment.photo_data,
             adjustment.reason
           ]);
 
-          logger.info('✅ Registro externo aprovado e inserido em time_records', {
+          logger.info('Registro externo aprovado e inserido em time_records', {
             user_id: adjustment.user_id,
-            has_gps: true,
             has_photo: !!adjustment.photo_data
           });
         } else {
           // Registro normal: sem GPS
           await db.query(`
-            INSERT INTO time_records (user_id, timestamp, record_type, created_at, updated_at)
-            VALUES ($1, $2, $3, NOW(), NOW())
+            INSERT INTO time_records (user_id, timestamp, record_type, is_manual, created_at)
+            VALUES ($1, $2, $3, true, NOW())
           `, [adjustment.user_id, adjustment.adjusted_timestamp, adjustment.adjusted_type]);
 
-          logger.info('✅ Registro normal aprovado e inserido em time_records', {
+          logger.info('Registro normal aprovado e inserido em time_records', {
             user_id: adjustment.user_id
           });
         }
@@ -219,7 +216,7 @@ class AdjustmentsService {
         // Atualizar registro EXISTENTE
         await db.query(`
           UPDATE time_records
-          SET timestamp = $1, record_type = $2, updated_at = NOW()
+          SET timestamp = $1, record_type = $2
           WHERE id = $3
         `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
 
