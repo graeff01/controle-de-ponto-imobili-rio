@@ -76,13 +76,43 @@ class TabletController {
         }
       }
 
+      // --- VERIFICAR SE PRECISA ASSINAR ESPELHO (último dia útil do mês) ---
+      let pendingEspelho = null;
+      try {
+        const hoje = new Date();
+        const anoAtual = hoje.getFullYear();
+        const mesAtual = hoje.getMonth() + 1;
+        const ultimoDiaMes = new Date(anoAtual, mesAtual, 0).getDate();
+        const diaHoje = hoje.getDate();
+
+        // Verificar se estamos nos últimos 2 dias úteis do mês
+        let diasAteOFim = ultimoDiaMes - diaHoje;
+        if (diasAteOFim <= 2) {
+          // Verificar se já assinou
+          const sigRes = await db.query(
+            'SELECT id FROM espelho_signatures WHERE user_id = $1 AND year = $2 AND month = $3',
+            [user.id, anoAtual, mesAtual]
+          );
+          if (sigRes.rows.length === 0) {
+            pendingEspelho = {
+              message: `Acesse o sistema de Espelho de Ponto e assine seu espelho de ${String(mesAtual).padStart(2, '0')}/${anoAtual} antes do final do expediente.`,
+              month: mesAtual,
+              year: anoAtual
+            };
+          }
+        }
+      } catch (espErr) {
+        logger.error('Erro ao verificar espelho pendente', { error: espErr.message });
+      }
+
       logger.info('Usuário encontrado para tablet', { matricula, hasInconsistency: !!pendingInconsistency });
 
       res.json({
         success: true,
         data: {
           ...user,
-          pendingInconsistency
+          pendingInconsistency,
+          pendingEspelho
         }
       });
 

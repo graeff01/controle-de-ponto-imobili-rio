@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Download, Calendar, User, Users, Briefcase, FileText, Lock, Unlock, PenTool } from 'lucide-react';
+import { Download, Calendar, User, Users, Briefcase, FileText, Lock, Unlock } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
 import api from '../services/api';
 import * as XLSX from 'xlsx';
-import SignatureModal from '../components/modals/SignatureModal';
 import { useAuth } from '../context/AuthContext';
 
 export default function RelatorioMensal() {
@@ -17,7 +16,6 @@ export default function RelatorioMensal() {
   const [ano, setAno] = useState(new Date().getFullYear());
   const [relatorio, setRelatorio] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [mesFechado, setMesFechado] = useState(false);
   const [fechamentoLoading, setFechamentoLoading] = useState(false);
 
@@ -150,10 +148,6 @@ export default function RelatorioMensal() {
     XLSX.writeFile(wb, nomeArquivo);
   };
 
-  const handleAssinar = () => {
-    setIsSignatureModalOpen(true);
-  };
-
   const gerarPDFAssinado = async (signatureData) => {
     try {
       setLoading(true);
@@ -166,14 +160,19 @@ export default function RelatorioMensal() {
         responseType: 'blob' // Important for PDF download
       });
 
+      // Pegar nome do funcionário para o arquivo
+      const nomeFunc = usuarios.find(u => String(u.id) === String(usuarioSelecionado))?.nome || 'funcionario';
+      const nomeArquivo = `espelho_${nomeFunc.replace(/\s+/g, '_')}_${mes}_${ano}.pdf`;
+
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `espelho_ponto_${mes}_${ano}.pdf`);
+      link.setAttribute('download', nomeArquivo);
       document.body.appendChild(link);
       link.click();
-      link.remove(); // Clean up
+      link.remove();
+      window.URL.revokeObjectURL(url);
 
     } catch (err) {
       console.error('Erro ao baixar PDF:', err);
@@ -342,39 +341,38 @@ export default function RelatorioMensal() {
           </motion.button>
 
           {relatorio && (
-            <div className="flex gap-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={exportarExcel}
-                className="
-                  px-6 bg-emerald-600 hover:bg-emerald-700
-                  text-white font-bold py-3 rounded-xl
-                  flex items-center gap-2
-                  transition-all
-                "
-              >
-                <Download size={20} />
-                Excel
-              </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={exportarExcel}
+              className="
+                px-6 bg-emerald-600 hover:bg-emerald-700
+                text-white font-bold py-3 rounded-xl
+                flex items-center gap-2
+                transition-all
+              "
+            >
+              <Download size={20} />
+              Excel
+            </motion.button>
+          )}
 
-              {tipoRelatorio === 'individual' && (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => gerarPDFAssinado(null)}
-                  className="
-                    px-6 bg-slate-600 hover:bg-slate-500
-                    text-white font-bold py-3 rounded-xl
-                    flex items-center gap-2
-                    transition-all
-                  "
-                >
-                  <FileText size={20} />
-                  Baixar PDF
-                </motion.button>
-              )}
-            </div>
+          {tipoRelatorio === 'individual' && usuarioSelecionado && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => gerarPDFAssinado(null)}
+              disabled={loading}
+              className="
+                px-6 bg-red-600 hover:bg-red-700 disabled:bg-slate-300
+                text-white font-bold py-3 rounded-xl
+                flex items-center gap-2
+                transition-all
+              "
+            >
+              <FileText size={20} />
+              {loading ? 'Gerando...' : 'Baixar Espelho PDF'}
+            </motion.button>
           )}
 
           {/* Botão de Fechamento/Reabertura (apenas admin) */}
@@ -399,29 +397,6 @@ export default function RelatorioMensal() {
           )}
         </div>
       </Card>
-
-      {/* Botão Flutuante de Assinatura (Apenas se individual e tiver relatório) */}
-      {relatorio && tipoRelatorio === 'individual' && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="fixed bottom-6 right-6 z-40"
-        >
-          <button
-            onClick={handleAssinar}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-full shadow-lg flex items-center gap-3 transition-all"
-          >
-            <PenTool size={24} />
-            Assinar e Baixar PDF
-          </button>
-        </motion.div>
-      )}
-
-      <SignatureModal
-        isOpen={isSignatureModalOpen}
-        onClose={() => setIsSignatureModalOpen(false)}
-        onSave={gerarPDFAssinado}
-      />
 
       {/* Preview do Relatório */}
       {relatorio && (

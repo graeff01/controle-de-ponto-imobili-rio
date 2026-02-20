@@ -465,10 +465,12 @@ export default function Tablet() {
       });
       setShowSuccess(true);
 
+      // Dar mais tempo se há alerta de espelho pendente
+      const timeout = userData?.pendingEspelho ? 8000 : 4000;
       setTimeout(() => {
         resetForm();
         setShowSuccess(false);
-      }, 4000);
+      }, timeout);
 
     } catch (err) {
       showMessage(err.response?.data?.error || 'Erro ao registrar ponto', 'error');
@@ -1549,6 +1551,13 @@ export default function Tablet() {
                   {getMensagemSucesso(successData?.tipo)}
                 </p>
               </div>
+              {userData?.pendingEspelho && (
+                <div className="mt-6 bg-amber-50 border-2 border-amber-300 rounded-2xl p-5">
+                  <p className="text-amber-800 font-bold text-lg mb-1">Espelho de Ponto Pendente</p>
+                  <p className="text-amber-700 text-sm">{userData.pendingEspelho.message}</p>
+                  <p className="text-amber-600 text-xs mt-2 font-semibold">Acesse: jardimdolagoponto.up.railway.app/espelho</p>
+                </div>
+              )}
               <p className="mt-8 text-slate-400 text-sm">Esta tela fechará automaticamente...</p>
             </motion.div>
           </motion.div>

@@ -353,7 +353,7 @@ class ReportsController {
     }
   }
 
-  // ✅ Gerar PDF Assinado Profissional
+  // ✅ Gerar PDF do Espelho de Ponto
   async generateSignedPDF(req, res) {
     try {
       const { userId, year, month, signature } = req.body;
@@ -363,25 +363,101 @@ class ReportsController {
       if (userRes.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
       const user = userRes.rows[0];
 
-      // 2. Buscar dados detalhados do mês (horas trabalhadas, saldo, registros)
-      const reportData = await reportsService.getMonthlyReport(userId, year, month);
+      // 2. Buscar registros diretamente de time_records (fonte confiável)
+      const registros = await db.query(`
+        SELECT
+          DATE(timestamp AT TIME ZONE 'America/Sao_Paulo') as data,
+          record_type,
+          timestamp AT TIME ZONE 'America/Sao_Paulo' as ts_local
+        FROM time_records
+        WHERE user_id = $1
+        AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'America/Sao_Paulo') = $2
+        AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'America/Sao_Paulo') = $3
+        ORDER BY timestamp ASC
+      `, [userId, year, month]);
 
-      const userData = {
-        user: user,
-        period: { month, year }
+      // 3. Agrupar por dia
+      const porDia = {};
+      registros.rows.forEach(r => {
+        const dia = r.data.toISOString().split('T')[0];
+        if (!porDia[dia]) porDia[dia] = {};
+        const hora = new Date(r.ts_local).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+        porDia[dia][r.record_type] = hora;
+        porDia[dia][r.record_type + '_ts'] = new Date(r.ts_local);
+      });
+
+      // 4. Montar detalhes com cálculo de horas
+      let totalHoras = 0;
+      let diasCompletos = 0;
+      let diasIncompletos = 0;
+
+      const detalhes = Object.keys(porDia).sort().map(dia => {
+        const d = porDia[dia];
+        let horasTrabalhadas = 0;
+
+        if (d.entrada_ts && d.saida_final_ts) {
+          let totalMs = d.saida_final_ts - d.entrada_ts;
+          if (d.saida_intervalo_ts && d.retorno_intervalo_ts) {
+            const pausaMs = d.retorno_intervalo_ts - d.saida_intervalo_ts;
+            if (pausaMs > 0) totalMs -= pausaMs;
+          }
+          horasTrabalhadas = Math.max(0, totalMs / 1000 / 60 / 60);
+          diasCompletos++;
+        } else if (d.entrada) {
+          diasIncompletos++;
+        }
+
+        totalHoras += horasTrabalhadas;
+
+        const statusDia = d.entrada && d.saida_final ? 'Completo' : (d.entrada ? 'Incompleto' : 'Ausente');
+
+        return {
+          date: dia,
+          entrada: d.entrada || null,
+          saida_intervalo: d.saida_intervalo || null,
+          retorno_intervalo: d.retorno_intervalo || null,
+          saida_final: d.saida_final || null,
+          hours_worked: horasTrabalhadas.toFixed(2),
+          status_dia: statusDia
+        };
+      });
+
+      // 5. Buscar horas do banco (saldo)
+      const bancoRes = await db.query(`
+        SELECT COALESCE(SUM(hours_worked), 0) as total_trabalhado,
+               COALESCE(SUM(hours_expected), 0) as total_esperado
+        FROM hours_bank
+        WHERE user_id = $1
+        AND EXTRACT(YEAR FROM date) = $2
+        AND EXTRACT(MONTH FROM date) = $3
+      `, [userId, year, month]);
+
+      const banco = bancoRes.rows[0];
+
+      const reportData = {
+        resumo: {
+          total_horas: totalHoras.toFixed(2),
+          dias_completos: diasCompletos,
+          dias_incompletos: diasIncompletos,
+          ausencias: 0,
+          horas_esperadas: parseFloat(banco.total_esperado || 0).toFixed(2),
+          saldo: (parseFloat(banco.total_trabalhado || 0) - parseFloat(banco.total_esperado || 0)).toFixed(2)
+        },
+        detalhes
       };
+
+      const userData = { user, period: { month, year } };
 
       const signatureData = signature ? {
         hash: 'ASSINATURA_DIGITAL_VIA_PAINEL',
         date: new Date(),
         ip: req.ip || 'N/A',
-        image: signature // A imagem base64 da assinatura se o SignatureModal enviar
+        image: signature
       } : null;
 
-      // 3. Gerar PDF usando o serviço profissional (pdfmake)
+      // 6. Gerar PDF
       const pdfDoc = await pdfGenerator.generateTimeMirror(userData, reportData, signatureData);
 
-      // 4. Configurar headers e enviar
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=espelho_${user.nome.replace(/\s/g, '_')}_${month}_${year}.pdf`);
 
@@ -389,7 +465,7 @@ class ReportsController {
       pdfDoc.end();
 
     } catch (error) {
-      logger.error('Erro ao gerar PDF Assinado', { error: error.message });
+      logger.error('Erro ao gerar PDF Espelho', { error: error.message, stack: error.stack });
       if (!res.headersSent) {
         res.status(500).json({ error: 'Erro ao gerar documento PDF' });
       }

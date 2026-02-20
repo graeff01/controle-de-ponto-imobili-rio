@@ -17,6 +17,7 @@ import Aprovacoes from './pages/Aprovacoes'; // ✅ Corrigido (sem acento)
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PontoExterno from './pages/PontoExterno';
+import EspelhoPonto from './pages/EspelhoPonto';
 
 // Componente para proteger rotas
 function ProtectedRoute({ children }) {
@@ -142,6 +143,9 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Rota pública - Espelho de Ponto (funcionário acessa sem login) */}
+            <Route path="/espelho" element={<EspelhoPonto />} />
+
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
           </Routes>
