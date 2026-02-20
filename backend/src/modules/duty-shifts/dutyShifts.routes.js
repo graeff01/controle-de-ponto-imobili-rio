@@ -3,9 +3,10 @@ const router = express.Router();
 const dutyShiftsController = require('./dutyShifts.controller');
 const authMiddleware = require('../../middleware/auth');
 const checkRole = require('../../middleware/rbac');
+const { tabletAuthMiddleware } = require('../../middleware/tabletAuth');
 
-// Rota pública para marcar presença (tablet)
-router.post('/mark-presence', dutyShiftsController.markPresence);
+// Rota para marcar presença (protegida por token do tablet)
+router.post('/mark-presence', tabletAuthMiddleware, dutyShiftsController.markPresence);
 
 // Rotas protegidas
 router.use(authMiddleware);

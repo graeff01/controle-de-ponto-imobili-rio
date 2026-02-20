@@ -175,12 +175,12 @@ class TimeRecordsService {
 
       const lastRecord = result.rows[0]?.record_type;
 
-      // Validações de sequência
+      // Validações de sequência (permite saída final direto após entrada, sem exigir intervalo)
       const validSequences = {
-        'entrada': [null], // Só pode ser o primeiro
+        'entrada': [null],
         'saida_intervalo': ['entrada'],
         'retorno_intervalo': ['saida_intervalo'],
-        'saida_final': ['retorno_intervalo']
+        'saida_final': ['entrada', 'retorno_intervalo']
       };
 
       if (!validSequences[recordType].includes(lastRecord)) {
@@ -188,7 +188,7 @@ class TimeRecordsService {
           'entrada': 'Você já registrou entrada hoje',
           'saida_intervalo': 'Você precisa registrar entrada antes de sair para intervalo',
           'retorno_intervalo': 'Você precisa sair para intervalo antes de retornar',
-          'saida_final': 'Você precisa retornar do intervalo antes da saída final'
+          'saida_final': 'Você precisa registrar entrada (ou retornar do intervalo) antes da saída final'
         };
 
         throw new Error(messages[recordType] || 'Sequência de registro inválida');

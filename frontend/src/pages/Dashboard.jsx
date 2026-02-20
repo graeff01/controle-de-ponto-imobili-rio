@@ -69,7 +69,7 @@ export default function Dashboard() {
       description: 'Ponto com geolocalização',
       path: '/ponto-externo',
       color: 'blue',
-      roles: ['admin', 'manager', 'employee', 'employee']
+      roles: ['admin', 'manager', 'employee']
     },
     {
       icon: History,
@@ -77,7 +77,7 @@ export default function Dashboard() {
       description: 'Consultar extrato mensal',
       path: '/registros',
       color: 'slate',
-      roles: ['employee', 'employee']
+      roles: ['admin', 'manager', 'employee']
     },
     {
       icon: Users,
@@ -147,7 +147,7 @@ export default function Dashboard() {
             icon={Users}
             color="blue"
             trend="up"
-            trendValue={`${Math.round((clt.presentes / clt.total) * 100) || 0}%`}
+            trendValue={`${clt.total ? Math.round((clt.presentes / clt.total) * 100) : 0}%`}
             delay={0}
           />
           <StatCard
@@ -156,7 +156,7 @@ export default function Dashboard() {
             icon={MapPin}
             color="green"
             trend="up"
-            trendValue={`${Math.round((pj.presentes / pj.total) * 100) || 0}%`}
+            trendValue={`${pj.total ? Math.round((pj.presentes / pj.total) * 100) : 0}%`}
             delay={0.1}
           />
           <StatCard
@@ -255,12 +255,12 @@ export default function Dashboard() {
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Equipe CLT</span>
                       <p className="text-sm font-bold text-slate-900">{clt.presentes} ativos hoje</p>
                     </div>
-                    <span className="text-xs font-bold text-slate-900">{Math.round((clt.presentes / clt.total) * 100) || 0}%</span>
+                    <span className="text-xs font-bold text-slate-900">{clt.total ? Math.round((clt.presentes / clt.total) * 100) : 0}%</span>
                   </div>
                   <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${(clt.presentes / clt.total) * 100 || 0}%` }}
+                      animate={{ width: `${clt.total ? (clt.presentes / clt.total) * 100 : 0}%` }}
                       className="h-full bg-slate-900"
                     />
                   </div>
@@ -273,12 +273,12 @@ export default function Dashboard() {
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Plantonistas PJ</span>
                       <p className="text-sm font-bold text-slate-900">{pj.presentes} em escala</p>
                     </div>
-                    <span className="text-xs font-bold text-slate-900">{Math.round((pj.presentes / pj.total) * 100) || 0}%</span>
+                    <span className="text-xs font-bold text-slate-900">{pj.total ? Math.round((pj.presentes / pj.total) * 100) : 0}%</span>
                   </div>
                   <div className="h-2 w-full bg-blue-50 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${(pj.presentes / pj.total) * 100 || 0}%` }}
+                      animate={{ width: `${pj.total ? (pj.presentes / pj.total) * 100 : 0}%` }}
                       className="h-full bg-blue-500"
                     />
                   </div>

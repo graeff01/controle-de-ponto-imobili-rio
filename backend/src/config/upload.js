@@ -1,24 +1,8 @@
 ﻿const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 
-// Garante que a pasta de uploads existe
-const uploadDir = path.join(__dirname, '../../uploads/time-records');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const userId = req.body.user_id || 'unknown';
-    const timestamp = Date.now();
-    const ext = path.extname(file.originalname);
-    cb(null, `_`);
-  }
-});
+// Usar memoryStorage para ter acesso ao buffer diretamente
+// Fotos são armazenadas no banco (BYTEA), não em disco
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];

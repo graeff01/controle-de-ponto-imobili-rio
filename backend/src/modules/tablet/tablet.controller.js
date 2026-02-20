@@ -219,6 +219,30 @@ class TabletController {
             error: 'Você precisa registrar entrada antes de registrar saída final.'
           });
         }
+
+        // Se saiu pro intervalo mas não voltou, não pode bater saída final
+        const saiuIntervalo = await db.query(`
+          SELECT id FROM time_records
+          WHERE user_id = $1 AND record_type = 'saida_intervalo'
+            AND DATE(timestamp) = $2
+          LIMIT 1
+        `, [user.id, validationDate]);
+
+        if (saiuIntervalo.rows.length > 0) {
+          const voltouIntervalo = await db.query(`
+            SELECT id FROM time_records
+            WHERE user_id = $1 AND record_type = 'retorno_intervalo'
+              AND DATE(timestamp) = $2
+            LIMIT 1
+          `, [user.id, validationDate]);
+
+          if (voltouIntervalo.rows.length === 0) {
+            return res.status(400).json({
+              success: false,
+              error: 'Você saiu para intervalo mas ainda não registrou retorno. Registre o retorno primeiro.'
+            });
+          }
+        }
       }
 
       // Processar foto base64 (se houver)
@@ -478,15 +502,16 @@ class TabletController {
         }
       }
 
-      // 2. Processar Foto (convertendo para base64)
+      // 2. Processar Foto (armazenar como buffer binário)
       let photoData = null;
       if (photo) {
         try {
-          if (photo.buffer) {
-            photoData = photo.buffer.toString('base64');
-            logger.info('📸 Foto processada para base64');
-          } else if (typeof photo === 'string') {
-            photoData = photo.replace(/^data:image\/\w+;base64,/, '');
+          if (photo.buffer && photo.buffer.length > 100) {
+            photoData = photo.buffer;
+            logger.info('Foto processada para buffer binário', { size: photoData.length });
+          } else if (typeof photo === 'string' && photo.length > 100) {
+            const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
+            photoData = Buffer.from(base64Data, 'base64');
           }
         } catch (err) {
           logger.error('Erro ao processar foto', { error: err.message });

@@ -79,49 +79,62 @@ class AdjustmentsService {
     }
   }
 
-  // ✅ NOVO: Aprovar ajuste
+  // ✅ NOVO: Aprovar ajuste (com transação para evitar inconsistência)
   async approveAdjustment(adjustmentId, approvedBy, req) {
+    const client = await db.connect();
     try {
-      const result = await db.query(`
-        UPDATE time_adjustments 
+      await client.query('BEGIN');
+
+      const result = await client.query(`
+        UPDATE time_adjustments
         SET status = 'approved', approved_by = $1, approved_at = NOW()
         WHERE id = $2 AND status = 'pending'
         RETURNING *
       `, [approvedBy, adjustmentId]);
 
       if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
         throw new Error('Ajuste não encontrado ou já processado');
       }
 
       const adjustment = result.rows[0];
 
-      // Aplica a mudança no registro oficial
-      await this.applyAdjustmentToRecord(adjustment);
+      // Aplica a mudança no registro oficial (dentro da mesma transação)
+      await this.applyAdjustmentToRecord(adjustment, client);
 
-      // Log e Notificação
-      await auditService.log(
-        'adjustment_approved',
-        approvedBy,
-        adjustment.user_id,
-        'Ajuste de ponto aprovado',
-        { adjustmentId },
-        req
-      );
+      await client.query('COMMIT');
 
-      await alertsService.createAlert({
-        user_id: adjustment.user_id,
-        alert_type: 'ajuste_aprovado',
-        severity: 'success',
-        title: 'Seu ajuste de ponto foi APROVADO',
-        message: `O ajuste solicitado foi aprovado e aplicado.`,
-        related_id: adjustmentId
-      });
+      // Log e Notificação (fora da transação - não críticos)
+      try {
+        await auditService.log(
+          'adjustment_approved',
+          approvedBy,
+          adjustment.user_id,
+          'Ajuste de ponto aprovado',
+          { adjustmentId },
+          req
+        );
+
+        await alertsService.createAlert({
+          user_id: adjustment.user_id,
+          alert_type: 'ajuste_aprovado',
+          severity: 'success',
+          title: 'Seu ajuste de ponto foi APROVADO',
+          message: `O ajuste solicitado foi aprovado e aplicado.`,
+          related_id: adjustmentId
+        });
+      } catch (notifError) {
+        logger.error('Erro ao notificar aprovação (não crítico)', { error: notifError.message });
+      }
 
       return adjustment;
 
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
       logger.error('Erro ao aprovar ajuste', { error: error.message });
       throw error;
+    } finally {
+      client.release();
     }
   }
 
@@ -168,12 +181,11 @@ class AdjustmentsService {
     }
   }
 
-  // Auxiliar para aplicar mudança
-  async applyAdjustmentToRecord(adjustment) {
+  // Auxiliar para aplicar mudança (aceita client opcional para transações)
+  async applyAdjustmentToRecord(adjustment, client = null) {
+    const queryFn = client || db;
     try {
       if (adjustment.is_addition || !adjustment.time_record_id) {
-        // Inserir NOVO registro
-        // Se tem GPS (latitude/longitude), é um registro externo de consultora
         const isExternalPunch = adjustment.latitude && adjustment.longitude;
 
         logger.info('Aplicando ajuste aprovado', {
@@ -184,8 +196,7 @@ class AdjustmentsService {
         });
 
         if (isExternalPunch) {
-          // Registro externo: incluir GPS, foto e motivo
-          await db.query(`
+          await queryFn.query(`
             INSERT INTO time_records
             (user_id, timestamp, record_type, photo_data, manual_reason, is_manual, created_at)
             VALUES ($1, $2, $3, $4, $5, true, NOW())
@@ -202,8 +213,7 @@ class AdjustmentsService {
             has_photo: !!adjustment.photo_data
           });
         } else {
-          // Registro normal: sem GPS
-          await db.query(`
+          await queryFn.query(`
             INSERT INTO time_records (user_id, timestamp, record_type, is_manual, created_at)
             VALUES ($1, $2, $3, true, NOW())
           `, [adjustment.user_id, adjustment.adjusted_timestamp, adjustment.adjusted_type]);
@@ -213,14 +223,13 @@ class AdjustmentsService {
           });
         }
       } else {
-        // Atualizar registro EXISTENTE
-        await db.query(`
+        await queryFn.query(`
           UPDATE time_records
           SET timestamp = $1, record_type = $2
           WHERE id = $3
         `, [adjustment.adjusted_timestamp, adjustment.adjusted_type, adjustment.time_record_id]);
 
-        logger.info('✅ Registro existente atualizado', {
+        logger.info('Registro existente atualizado', {
           record_id: adjustment.time_record_id
         });
       }
