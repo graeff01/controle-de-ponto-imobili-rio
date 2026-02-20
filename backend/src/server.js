@@ -132,6 +132,7 @@ app.use('/api/audit', require('./modules/audit/audit.routes'));
 app.use('/api/duty-shifts', require('./modules/duty-shifts/dutyShifts.routes'));
 app.use('/api/holidays', require('./modules/holidays/holidays.routes'));
 app.use('/api/time-mirrors', require('./modules/time-mirrors/timeMirrors.routes'));
+app.use('/api/monthly-closing', require('./modules/monthly-closing/monthlyClosing.routes'));
 app.use('/api/admin', migrationRoutes);
 
 // ============================================

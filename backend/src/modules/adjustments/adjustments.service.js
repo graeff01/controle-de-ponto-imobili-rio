@@ -6,9 +6,23 @@ const timeRecordsService = require('../time-records/timeRecords.service');
 
 class AdjustmentsService {
 
+  async isMonthClosed(date) {
+    const d = new Date(date);
+    const result = await db.query(
+      'SELECT id FROM monthly_closings WHERE year = $1 AND month = $2',
+      [d.getFullYear(), d.getMonth() + 1]
+    );
+    return result.rows.length > 0;
+  }
+
   async createAdjustment(data, adjustedBy, req) {
     try {
       const { time_record_id, adjusted_timestamp, adjusted_type, reason, autoApprove = false } = data;
+
+      // Verificar se o mês do ajuste está fechado
+      if (await this.isMonthClosed(adjusted_timestamp)) {
+        throw new Error('Este mês já foi fechado. Não é possível criar ajustes.');
+      }
 
       // Busca registro original
       const recordResult = await db.query(`
@@ -98,6 +112,12 @@ class AdjustmentsService {
       }
 
       const adjustment = result.rows[0];
+
+      // Verificar se o mês está fechado
+      if (await this.isMonthClosed(adjustment.adjusted_timestamp)) {
+        await client.query('ROLLBACK');
+        throw new Error('Este mês já foi fechado. Não é possível aprovar ajustes.');
+      }
 
       // Aplica a mudança no registro oficial (dentro da mesma transação)
       await this.applyAdjustmentToRecord(adjustment, client);

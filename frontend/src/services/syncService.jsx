@@ -34,13 +34,16 @@ export const SyncProvider = ({ children }) => {
     };
 
     const syncRecords = async () => {
+        if (isSyncing) return; // Evitar sync duplo
+
         const records = await offlineStorage.getPendingRecords();
         if (records.length === 0) return;
 
         setIsSyncing(true);
-        console.log(`🔄 Sincronizando ${records.length} registros...`);
+        console.log(`Sincronizando ${records.length} registros...`);
 
         let successCount = 0;
+        let failCount = 0;
 
         for (const record of records) {
             try {
@@ -52,7 +55,8 @@ export const SyncProvider = ({ children }) => {
                         latitude: record.latitude,
                         longitude: record.longitude,
                         accuracy: record.accuracy,
-                        timestamp: record.timestamp // Important: Backend needs to accept this
+                        timestamp: record.timestamp,
+                        sync_id: record.sync_id
                     });
                 } else {
                     await api.post('/tablet/register', {
@@ -62,14 +66,22 @@ export const SyncProvider = ({ children }) => {
                         latitude: record.latitude,
                         longitude: record.longitude,
                         accuracy: record.accuracy,
-                        timestamp: record.timestamp // Important: Backend needs to accept this
+                        timestamp: record.timestamp,
+                        sync_id: record.sync_id
                     });
                 }
 
                 await offlineStorage.deleteRecord(record.id);
                 successCount++;
             } catch (err) {
-                console.error('Erro ao sincronizar registro:', err);
+                // Se o backend retornou 400 (duplicado/já existe), remover do offline também
+                if (err.response?.status === 400) {
+                    await offlineStorage.deleteRecord(record.id);
+                    console.warn('Registro já existia no servidor, removido do offline');
+                } else {
+                    failCount++;
+                    console.error('Erro ao sincronizar registro:', err);
+                }
             }
         }
 
@@ -77,8 +89,10 @@ export const SyncProvider = ({ children }) => {
         checkPending();
 
         if (successCount > 0) {
-            // Optional: Notify user via toast
-            console.log(`✅ ${successCount} registros sincronizados com sucesso!`);
+            console.log(`${successCount} registros sincronizados com sucesso!`);
+        }
+        if (failCount > 0) {
+            console.warn(`${failCount} registros falharam ao sincronizar`);
         }
     };
 

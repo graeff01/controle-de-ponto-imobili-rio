@@ -42,10 +42,27 @@ class ReportsService {
 
       // 4. Resumo Banco de Horas (Total Acumulado)
       const bancoHoras = await db.query(`
-        SELECT 
+        SELECT
           SUM(balance) FILTER (WHERE balance > 0) as credito_total,
           SUM(balance) FILTER (WHERE balance < 0) as debito_total
         FROM hours_bank
+      `);
+
+      // 5. Jornadas incompletas (entrada sem saída nos últimos 3 dias úteis)
+      const jornadasIncompletas = await db.query(`
+        SELECT DISTINCT u.id, u.nome, u.matricula,
+          DATE(tr.timestamp) as data,
+          MAX(tr.record_type) as ultimo_tipo
+        FROM time_records tr
+        JOIN users u ON tr.user_id = u.id
+        WHERE DATE(tr.timestamp) >= CURRENT_DATE - INTERVAL '3 days'
+          AND DATE(tr.timestamp) < CURRENT_DATE
+          AND u.is_duty_shift_only = false
+          AND u.status = 'ativo'
+        GROUP BY u.id, u.nome, u.matricula, DATE(tr.timestamp)
+        HAVING COUNT(*) FILTER (WHERE tr.record_type = 'entrada') > 0
+          AND COUNT(*) FILTER (WHERE tr.record_type = 'saida_final') = 0
+        ORDER BY data DESC
       `);
 
       const clt = employeeStats.rows[0];
@@ -70,7 +87,8 @@ class ReportsService {
           banco_horas: {
             credito: parseFloat(bh.credito_total || 0).toFixed(1),
             debito: Math.abs(parseFloat(bh.debito_total || 0)).toFixed(1)
-          }
+          },
+          jornadas_incompletas: jornadasIncompletas.rows
         }
       };
 

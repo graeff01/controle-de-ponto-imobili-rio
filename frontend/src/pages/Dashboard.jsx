@@ -341,8 +341,33 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Activity Timeline */}
-          <div className="lg:col-span-3">
+          {/* Activity Timeline + Alertas */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Alerta de Jornadas Incompletas */}
+            {analytics.jornadas_incompletas?.length > 0 && (user?.role === 'admin' || user?.role === 'manager') && (
+              <Card className="p-6 border-2 border-amber-200 bg-amber-50">
+                <div className="flex items-center gap-3 mb-4">
+                  <AlertTriangle className="text-amber-600" size={22} />
+                  <h3 className="text-base font-bold text-amber-800">
+                    Jornadas Incompletas ({analytics.jornadas_incompletas.length})
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {analytics.jornadas_incompletas.slice(0, 5).map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-amber-100">
+                      <div>
+                        <span className="font-bold text-slate-900 text-sm">{item.nome}</span>
+                        <span className="text-xs text-slate-500 ml-2">{item.matricula}</span>
+                      </div>
+                      <span className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full">
+                        {new Date(item.data).toLocaleDateString('pt-BR')} - sem saída
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
             <Card className="p-8 border-none shadow-premium bg-white">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">

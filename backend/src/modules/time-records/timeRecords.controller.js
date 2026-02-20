@@ -133,6 +133,18 @@ class TimeRecordsController {
         });
       }
 
+      // Verificar se o mês está fechado
+      const tsDate = new Date(timestamp);
+      const closedCheck = await db.query(
+        'SELECT id FROM monthly_closings WHERE year = $1 AND month = $2',
+        [tsDate.getFullYear(), tsDate.getMonth() + 1]
+      );
+      if (closedCheck.rows.length > 0) {
+        return res.status(400).json({
+          error: 'Este mês já foi fechado. Não é possível criar registros manuais.'
+        });
+      }
+
       const record = await timeRecordsService.createManualRecord(
         user_id,
         record_type,

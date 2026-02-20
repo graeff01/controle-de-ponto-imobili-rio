@@ -1,26 +1,33 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Download, Calendar, User, Users, Briefcase, FileText } from 'lucide-react';
+import { Download, Calendar, User, Users, Briefcase, FileText, Lock, Unlock, PenTool } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Card from '../components/ui/Card';
 import api from '../services/api';
 import * as XLSX from 'xlsx';
-import SignatureModal from '../components/modals/SignatureModal'; // ✅ Import
-import { PenTool } from 'lucide-react'; // ✅ Import
+import SignatureModal from '../components/modals/SignatureModal';
+import { useAuth } from '../context/AuthContext';
 
 export default function RelatorioMensal() {
-  const [tipoRelatorio, setTipoRelatorio] = useState('individual'); // individual, clt, plantonistas
+  const { user } = useAuth();
+  const [tipoRelatorio, setTipoRelatorio] = useState('individual');
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioSelecionado, setUsuarioSelecionado] = useState('');
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [relatorio, setRelatorio] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false); // ✅ State
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [mesFechado, setMesFechado] = useState(false);
+  const [fechamentoLoading, setFechamentoLoading] = useState(false);
 
   useEffect(() => {
     carregarUsuarios();
   }, []);
+
+  useEffect(() => {
+    verificarFechamento();
+  }, [mes, ano]);
 
   const carregarUsuarios = async () => {
     try {
@@ -31,6 +38,43 @@ export default function RelatorioMensal() {
       }
     } catch (err) {
       console.error('Erro ao carregar usuários:', err);
+    }
+  };
+
+  const verificarFechamento = async () => {
+    try {
+      const response = await api.get(`/monthly-closing/status/${ano}/${mes}`);
+      setMesFechado(response.data.data?.closed || false);
+    } catch (err) {
+      setMesFechado(false);
+    }
+  };
+
+  const fecharMes = async () => {
+    if (!confirm(`Tem certeza que deseja FECHAR o mês ${mes}/${ano}? Após o fechamento, ajustes e registros manuais neste período serão bloqueados.`)) return;
+    setFechamentoLoading(true);
+    try {
+      await api.post('/monthly-closing/close', { year: ano, month: mes });
+      setMesFechado(true);
+      alert(`Mês ${mes}/${ano} fechado com sucesso!`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erro ao fechar mês');
+    } finally {
+      setFechamentoLoading(false);
+    }
+  };
+
+  const reabrirMes = async () => {
+    if (!confirm(`Tem certeza que deseja REABRIR o mês ${mes}/${ano}? Isso permitirá novos ajustes e registros.`)) return;
+    setFechamentoLoading(true);
+    try {
+      await api.post('/monthly-closing/reopen', { year: ano, month: mes });
+      setMesFechado(false);
+      alert(`Mês ${mes}/${ano} reaberto!`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erro ao reabrir mês');
+    } finally {
+      setFechamentoLoading(false);
     }
   };
 
@@ -268,6 +312,17 @@ export default function RelatorioMensal() {
           </div>
         </div>
 
+        {/* Indicador de mês fechado */}
+        {mesFechado && (
+          <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl flex items-center gap-3">
+            <Lock size={20} className="text-amber-600" />
+            <div>
+              <p className="font-bold text-amber-800">Mês fechado</p>
+              <p className="text-sm text-amber-600">Ajustes e registros manuais estão bloqueados para este período.</p>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3 mt-6">
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -320,6 +375,27 @@ export default function RelatorioMensal() {
                 </motion.button>
               )}
             </div>
+          )}
+
+          {/* Botão de Fechamento/Reabertura (apenas admin) */}
+          {user?.role === 'admin' && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={mesFechado ? reabrirMes : fecharMes}
+              disabled={fechamentoLoading}
+              className={`
+                px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all
+                ${mesFechado
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+                }
+                disabled:opacity-50 disabled:cursor-not-allowed
+              `}
+            >
+              {mesFechado ? <Unlock size={20} /> : <Lock size={20} />}
+              {fechamentoLoading ? 'Processando...' : mesFechado ? 'Reabrir Mês' : 'Fechar Mês'}
+            </motion.button>
           )}
         </div>
       </Card>
