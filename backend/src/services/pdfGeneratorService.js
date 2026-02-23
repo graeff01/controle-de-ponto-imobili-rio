@@ -163,36 +163,39 @@ class PdfGeneratorService {
                         text: 'Declaro que as informacoes constantes neste espelho de ponto sao veridicas e refletem fielmente a jornada de trabalho realizada no periodo acima mencionado, em total conformidade com a Portaria 671/MTE.',
                         style: 'signatureText'
                     },
-                    { text: '', margin: [0, 20] },
-                    // Assinatura do funcionário (centralizada)
-                    ...(signatureData && signatureData.image ? [
-                        { image: signatureData.image, width: 150, height: 60, alignment: 'center' }
-                    ] : [
-                        { text: '', margin: [0, 40] }
-                    ]),
+                    { text: '', margin: [0, 30] },
+                    // Assinaturas lado a lado
                     {
-                        columns: [
-                            { width: '*', text: '' },
-                            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 250, y2: 0, lineWidth: 1 }] },
-                            { width: '*', text: '' }
-                        ]
-                    },
-                    { text: user.nome, alignment: 'center', fontSize: 9, bold: true, margin: [0, 5, 0, 0] },
-                    { text: 'Assinatura do Funcionario', fontSize: 7, color: '#888', alignment: 'center' },
-
-                    { text: '', margin: [0, 25] },
-
-                    // Assinatura da empresa (centralizada)
-                    { text: '', margin: [0, 20] },
-                    {
-                        columns: [
-                            { width: '*', text: '' },
-                            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 250, y2: 0, lineWidth: 1 }] },
-                            { width: '*', text: '' }
-                        ]
-                    },
-                    { text: 'IMOBILIARIA JARDIM DO LAGO', alignment: 'center', fontSize: 9, bold: true, margin: [0, 5, 0, 0] },
-                    { text: 'Assinatura da Empresa', fontSize: 7, color: '#888', alignment: 'center' }
+                        table: {
+                            widths: ['*', 30, '*'],
+                            body: [[
+                                {
+                                    stack: [
+                                        ...(signatureData && signatureData.image ? [
+                                            { image: signatureData.image, width: 140, height: 55, alignment: 'center', margin: [0, 0, 0, 5] }
+                                        ] : [
+                                            { text: '', margin: [0, 55] }
+                                        ]),
+                                        { canvas: [{ type: 'line', x1: 10, y1: 0, x2: 210, y2: 0, lineWidth: 1 }] },
+                                        { text: user.nome, alignment: 'center', fontSize: 9, bold: true, margin: [0, 5, 0, 0] },
+                                        { text: 'Assinatura do Funcionario', fontSize: 7, color: '#888', alignment: 'center' }
+                                    ],
+                                    border: [false, false, false, false]
+                                },
+                                { text: '', border: [false, false, false, false] },
+                                {
+                                    stack: [
+                                        { text: '', margin: [0, 55] },
+                                        { canvas: [{ type: 'line', x1: 10, y1: 0, x2: 210, y2: 0, lineWidth: 1 }] },
+                                        { text: 'IMOBILIARIA JARDIM DO LAGO', alignment: 'center', fontSize: 9, bold: true, margin: [0, 5, 0, 0] },
+                                        { text: 'Assinatura da Empresa', fontSize: 7, color: '#888', alignment: 'center' }
+                                    ],
+                                    border: [false, false, false, false]
+                                }
+                            ]]
+                        },
+                        layout: 'noBorders'
+                    }
                 ]
             }
         ];
