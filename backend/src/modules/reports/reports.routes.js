@@ -1,9 +1,11 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const reportsController = require('./reports.controller');
 const authMiddleware = require('../../middleware/auth');
+const checkRole = require('../../middleware/rbac');
 
 router.use(authMiddleware);
+router.use(checkRole(['gestor', 'admin']));
 
 router.get('/dashboard', reportsController.getDashboard);
 router.get('/weekly', reportsController.getWeekly);
@@ -11,7 +13,7 @@ router.get('/activity', reportsController.getActivity);
 router.get('/stats/absenteismo', reportsController.getAbsenteismo);
 router.get('/stats/overtime', reportsController.getOvertimeStats);
 
-// ✅ ROTAS DE RELATÓRIO MENSAL
+// ROTAS DE RELATÓRIO MENSAL
 router.get('/monthly/individual/:userId/:year/:month', reportsController.getMonthlyIndividual);
 router.get('/monthly/clt/:year/:month', reportsController.getMonthlyCLT);
 router.get('/monthly/plantonistas/:year/:month', reportsController.getMonthlyPlantonistas);

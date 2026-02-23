@@ -3,3 +3,12 @@ node_modules/
 .env.*
 dist/
 coverage/
+
+# Scripts locais com credenciais
+backend/scripts/db-url.txt
+backend/scripts/test-backup.js
+backend/scripts/create-backups-table.js
+backend/scripts/audit-db.js
+backend/scripts/gen.js
+backend/scripts/setup-subordinates.js
+nul

@@ -42,7 +42,7 @@
 
 Execute este comando 1x por semana:
 ```bash
-pg_dump "postgresql://postgres:FFIOZMVubGaENtsCFptHbuWihhlxTqPS@centerbeam.proxy.rlwy.net:49679/railway" > backup_$(date +%Y%m%d).sql
+pg_dump "$DATABASE_URL" > backup_$(date +%Y%m%d).sql
 ```
 
 Salve os arquivos `.sql` em:
