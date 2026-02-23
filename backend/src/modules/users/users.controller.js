@@ -1,6 +1,7 @@
 ﻿const db = require('../../config/database');
 const bcrypt = require('bcrypt');
 const logger = require('../../utils/logger');
+const { getSubordinateIds } = require('../../utils/subordinateHelper');
 
 class UsersController {
 
@@ -111,17 +112,19 @@ class UsersController {
     }
   }
 
-  // ✅ Listar todos os usuários
+  // ✅ Listar todos os usuários (filtrado por subordinados do gestor)
   async getAll(req, res) {
     try {
-      const result = await db.query(`
-        SELECT 
-          id, 
-          matricula, 
-          nome, 
+      const subordinateIds = await getSubordinateIds(req.userId);
+
+      let query = `
+        SELECT
+          id,
+          matricula,
+          nome,
           email,
-          cargo, 
-          departamento, 
+          cargo,
+          departamento,
           role,
           status,
           work_hours_start,
@@ -132,8 +135,18 @@ class UsersController {
           created_at
         FROM users
         WHERE status != 'deleted'
-        ORDER BY is_duty_shift_only ASC, nome ASC
-      `);
+      `;
+      let params = [];
+
+      if (subordinateIds) {
+        const placeholders = subordinateIds.map((_, i) => `$${i + 1}`).join(', ');
+        query += ` AND id IN (${placeholders})`;
+        params = subordinateIds;
+      }
+
+      query += ` ORDER BY is_duty_shift_only ASC, nome ASC`;
+
+      const result = await db.query(query, params);
 
       res.json({ success: true, data: result.rows });
     } catch (error) {

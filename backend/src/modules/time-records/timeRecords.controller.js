@@ -4,6 +4,7 @@ const logger = require('../../utils/logger');
 const db = require('../../config/database');
 const dateHelper = require('../../utils/dateHelper');
 const config = require('../../config/database'); // Reutilizando para queries rápidas
+const { getSubordinateIds } = require('../../utils/subordinateHelper');
 
 class TimeRecordsController {
 
@@ -251,6 +252,20 @@ class TimeRecordsController {
   // ✅ NOVO: Buscar todos os registros (CLT + Plantonistas)
   async getAllRecords(req, res) {
     try {
+      const subordinateIds = await getSubordinateIds(req.userId);
+
+      let subFilter = '';
+      let cltParams = [];
+      let brokerParams = [];
+
+      if (subordinateIds) {
+        const placeholders = subordinateIds.map((_, i) => `$${i + 1}`).join(', ');
+        subFilter = ` AND tr.user_id IN (${placeholders})`;
+        cltParams = [...subordinateIds];
+        const brokerPlaceholders = subordinateIds.map((_, i) => `$${i + 1}`).join(', ');
+        brokerParams = [...subordinateIds];
+      }
+
       // Buscar registros CLT
       const cltResult = await db.query(`
       SELECT
@@ -267,8 +282,9 @@ class TimeRecordsController {
       FROM time_records tr
       JOIN users u ON tr.user_id = u.id
       WHERE DATE(tr.timestamp) >= CURRENT_DATE - INTERVAL '30 days'
+      ${subFilter}
       ORDER BY tr.timestamp DESC
-    `);
+    `, cltParams);
 
       // Converter buffer de foto para base64 (ignora fotos inválidas < 100 bytes)
       const cltRecords = { rows: cltResult.rows.map(row => {
@@ -279,8 +295,12 @@ class TimeRecordsController {
       })};
 
       // Buscar registros de Plantonistas
+      const brokerFilter = subordinateIds
+        ? ` AND ds.user_id IN (${subordinateIds.map((_, i) => `$${i + 1}`).join(', ')})`
+        : '';
+
       const brokerRecords = await db.query(`
-      SELECT 
+      SELECT
         ds.id,
         ds.user_id,
         'presenca' as record_type,
@@ -293,8 +313,9 @@ class TimeRecordsController {
       FROM duty_shifts ds
       JOIN users u ON ds.user_id = u.id
       WHERE ds.date >= CURRENT_DATE - INTERVAL '30 days'
+      ${brokerFilter}
       ORDER BY ds.date DESC, ds.check_in_time DESC
-    `);
+    `, brokerParams);
 
       res.json({
         success: true,

@@ -2,6 +2,7 @@
 const logger = require('../../utils/logger');
 const reportsService = require('./reports.service');
 const pdfGenerator = require('../../services/pdfGeneratorService');
+const { getSubordinateIds } = require('../../utils/subordinateHelper');
 
 // Função auxiliar para tempo relativo
 function getTempoRelativo(timestamp) {
@@ -197,13 +198,24 @@ class ReportsController {
   async getMonthlyCLT(req, res) {
     try {
       const { year, month } = req.params;
+      const subordinateIds = await getSubordinateIds(req.userId);
 
-      const funcionarios = await db.query(`
+      let funcQuery = `
         SELECT id, nome, matricula, cargo
         FROM users
         WHERE status = 'ativo' AND is_duty_shift_only = false
-        ORDER BY nome
-      `);
+      `;
+      let funcParams = [];
+
+      if (subordinateIds) {
+        const placeholders = subordinateIds.map((_, i) => `$${i + 1}`).join(', ');
+        funcQuery += ` AND id IN (${placeholders})`;
+        funcParams = subordinateIds;
+      }
+
+      funcQuery += ` ORDER BY nome`;
+
+      const funcionarios = await db.query(funcQuery, funcParams);
 
       const relatorios = [];
 
@@ -261,13 +273,24 @@ class ReportsController {
   async getMonthlyPlantonistas(req, res) {
     try {
       const { year, month } = req.params;
+      const subordinateIds = await getSubordinateIds(req.userId);
 
-      const plantonistas = await db.query(`
+      let plantQuery = `
         SELECT id, nome, matricula, cargo
         FROM users
         WHERE status = 'ativo' AND is_duty_shift_only = true
-        ORDER BY nome
-      `);
+      `;
+      let plantParams = [];
+
+      if (subordinateIds) {
+        const placeholders = subordinateIds.map((_, i) => `$${i + 1}`).join(', ');
+        plantQuery += ` AND id IN (${placeholders})`;
+        plantParams = subordinateIds;
+      }
+
+      plantQuery += ` ORDER BY nome`;
+
+      const plantonistas = await db.query(plantQuery, plantParams);
 
       const relatorios = [];
 

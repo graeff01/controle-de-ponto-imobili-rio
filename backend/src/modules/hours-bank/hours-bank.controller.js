@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
+const { getSubordinateIds } = require('../../utils/subordinateHelper');
 
 class HoursBankController {
 
@@ -53,9 +54,10 @@ class HoursBankController {
       const { month, year } = req.query;
       const currentMonth = month || new Date().getMonth() + 1;
       const currentYear = year || new Date().getFullYear();
+      const subordinateIds = await getSubordinateIds(req.userId);
 
-      const result = await db.query(`
-        SELECT 
+      let query = `
+        SELECT
           u.id,
           u.nome,
           u.matricula,
@@ -64,13 +66,22 @@ class HoursBankController {
           COALESCE(SUM(hb.hours_expected), 0) as total_horas_esperadas,
           COALESCE(SUM(hb.balance), 0) as saldo_total
         FROM users u
-        LEFT JOIN hours_bank hb ON u.id = hb.user_id 
-          AND EXTRACT(YEAR FROM hb.date) = $1 
+        LEFT JOIN hours_bank hb ON u.id = hb.user_id
+          AND EXTRACT(YEAR FROM hb.date) = $1
           AND EXTRACT(MONTH FROM hb.date) = $2
         WHERE u.status = 'ativo'
-        GROUP BY u.id
-        ORDER BY saldo_total DESC
-      `, [currentYear, currentMonth]);
+      `;
+      let params = [currentYear, currentMonth];
+
+      if (subordinateIds) {
+        const placeholders = subordinateIds.map((_, i) => `$${i + 3}`).join(', ');
+        query += ` AND u.id IN (${placeholders})`;
+        params = [...params, ...subordinateIds];
+      }
+
+      query += ` GROUP BY u.id ORDER BY saldo_total DESC`;
+
+      const result = await db.query(query, params);
 
       res.json({
         success: true,
