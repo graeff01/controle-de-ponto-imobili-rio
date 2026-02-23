@@ -147,22 +147,6 @@ class TabletController {
         });
       }
 
-      // Validar timestamp (máximo 5 minutos no passado, não aceita futuro)
-      if (timestamp) {
-        const ts = new Date(timestamp);
-        if (isNaN(ts.getTime())) {
-          return res.status(400).json({ success: false, error: 'Timestamp inválido' });
-        }
-        const now = Date.now();
-        const diffMs = now - ts.getTime();
-        if (diffMs < -60000) {
-          return res.status(400).json({ success: false, error: 'Timestamp não pode ser no futuro' });
-        }
-        if (diffMs > 5 * 60 * 1000) {
-          return res.status(400).json({ success: false, error: 'Timestamp muito antigo. Máximo 5 minutos.' });
-        }
-      }
-
       // Buscar usuário pela matrícula
       const userResult = await db.query(
         'SELECT id, nome, status FROM users WHERE matricula = $1',

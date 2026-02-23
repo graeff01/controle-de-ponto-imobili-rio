@@ -2,7 +2,7 @@ const { Client } = require('pg');
 
 async function migrate() {
   const client = new Client({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:FFIOZMVubGaENtsCFptHbuWihhlxTqPS@centerbeam.proxy.rlwy.net:49679/railway',
     ssl: {
       rejectUnauthorized: false
     }

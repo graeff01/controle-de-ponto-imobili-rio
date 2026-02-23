@@ -49,12 +49,6 @@ class EspelhoController {
         return res.status(400).json({ error: 'Matrícula, ano e mês são obrigatórios' });
       }
 
-      const yearNum = parseInt(year);
-      const monthNum = parseInt(month);
-      if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12 || yearNum < 2020 || yearNum > 2100) {
-        return res.status(400).json({ error: 'Ano ou mês inválido' });
-      }
-
       // Buscar usuário
       const userRes = await db.query(
         'SELECT id, nome, matricula, cargo, is_duty_shift_only FROM users WHERE matricula = $1 AND status = $2',
@@ -203,12 +197,6 @@ class EspelhoController {
 
       if (!matricula || !year || !month || !signature) {
         return res.status(400).json({ error: 'Todos os campos são obrigatórios (matrícula, ano, mês, assinatura)' });
-      }
-
-      const yearNum = parseInt(year);
-      const monthNum = parseInt(month);
-      if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12 || yearNum < 2020 || yearNum > 2100) {
-        return res.status(400).json({ error: 'Ano ou mês inválido' });
       }
 
       // Buscar usuário

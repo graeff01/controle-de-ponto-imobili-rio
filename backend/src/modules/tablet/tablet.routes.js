@@ -1,5 +1,4 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const tabletController = require('./tablet.controller');
 const upload = require('../../config/upload');
@@ -9,14 +8,9 @@ const {
     tabletRegisterLimiter
 } = require('../../middleware/tabletAuth');
 
-const validateDeviceLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 15,
-  message: { error: 'Muitas tentativas de validação. Aguarde 15 minutos.' }
-});
-
 // Rota de validação de dispositivo (usada no setup)
-router.get('/validate-device/:token', validateDeviceLimiter, tabletController.validateDevice);
+// Não passa pelo middleware de auth padrão pois o token ainda não está salvo no cliente
+router.get('/validate-device/:token', tabletController.validateDevice);
 
 // Aplicar autenticação e rate limiting a todas as rotas
 router.use(tabletAuthMiddleware);
