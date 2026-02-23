@@ -163,34 +163,36 @@ class PdfGeneratorService {
                         text: 'Declaro que as informacoes constantes neste espelho de ponto sao veridicas e refletem fielmente a jornada de trabalho realizada no periodo acima mencionado, em total conformidade com a Portaria 671/MTE.',
                         style: 'signatureText'
                     },
-                    { text: '', margin: [0, 25] },
+                    { text: '', margin: [0, 20] },
+                    // Assinatura do funcionário (centralizada)
+                    ...(signatureData && signatureData.image ? [
+                        { image: signatureData.image, width: 150, height: 60, alignment: 'center' }
+                    ] : [
+                        { text: '', margin: [0, 40] }
+                    ]),
                     {
                         columns: [
-                            {
-                                width: '*',
-                                stack: [
-                                    ...(signatureData && signatureData.image ? [
-                                        { image: signatureData.image, width: 150, height: 60, alignment: 'center' }
-                                    ] : []),
-                                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1 }] },
-                                    { text: user.nome, margin: [0, 5], alignment: 'center', fontSize: 9 },
-                                    { text: 'Assinatura do Funcionario', fontSize: 7, color: '#888', alignment: 'center' }
-                                ],
-                                alignment: 'center'
-                            },
-                            { width: 40, text: '' },
-                            {
-                                width: '*',
-                                stack: [
-                                    { text: '', margin: [0, signatureData && signatureData.image ? 60 : 0] },
-                                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1 }] },
-                                    { text: 'IMOBILIARIA JARDIM DO LAGO', margin: [0, 5], alignment: 'center', fontSize: 9 },
-                                    { text: 'Assinatura da Empresa', fontSize: 7, color: '#888', alignment: 'center' }
-                                ],
-                                alignment: 'center'
-                            }
+                            { width: '*', text: '' },
+                            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 250, y2: 0, lineWidth: 1 }] },
+                            { width: '*', text: '' }
                         ]
-                    }
+                    },
+                    { text: user.nome, alignment: 'center', fontSize: 9, bold: true, margin: [0, 5, 0, 0] },
+                    { text: 'Assinatura do Funcionario', fontSize: 7, color: '#888', alignment: 'center' },
+
+                    { text: '', margin: [0, 25] },
+
+                    // Assinatura da empresa (centralizada)
+                    { text: '', margin: [0, 20] },
+                    {
+                        columns: [
+                            { width: '*', text: '' },
+                            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 250, y2: 0, lineWidth: 1 }] },
+                            { width: '*', text: '' }
+                        ]
+                    },
+                    { text: 'IMOBILIARIA JARDIM DO LAGO', alignment: 'center', fontSize: 9, bold: true, margin: [0, 5, 0, 0] },
+                    { text: 'Assinatura da Empresa', fontSize: 7, color: '#888', alignment: 'center' }
                 ]
             }
         ];
