@@ -122,6 +122,34 @@ class EspelhoController {
         };
       });
 
+      // Calcular horas esperadas (dias úteis - feriados)
+      const expectedDaily = 8; // padrão CLT
+      let feriadosDates = [];
+      try {
+        const ferRes = await db.query(
+          'SELECT date FROM holidays WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2',
+          [year, month]
+        );
+        feriadosDates = ferRes.rows.map(r => r.date.toISOString().split('T')[0]);
+      } catch (e) { /* ignora */ }
+
+      const hoje = new Date();
+      const ultimoDia = new Date(year, month, 0).getDate();
+      const diaLimite = (parseInt(year) === hoje.getFullYear() && parseInt(month) === hoje.getMonth() + 1)
+        ? hoje.getDate() : ultimoDia;
+
+      let diasUteis = 0;
+      for (let d = 1; d <= diaLimite; d++) {
+        const dateObj = new Date(year, month - 1, d);
+        const dow = dateObj.getDay();
+        const dateStr = dateObj.toISOString().split('T')[0];
+        if (dow !== 0 && dow !== 6 && !feriadosDates.includes(dateStr)) {
+          diasUteis++;
+        }
+      }
+      const horasEsperadas = diasUteis * expectedDaily;
+      const saldo = totalHoras - horasEsperadas;
+
       // Verificar se já assinou
       const sigRes = await db.query(
         'SELECT id, signed_at FROM espelho_signatures WHERE user_id = $1 AND year = $2 AND month = $3',
@@ -139,8 +167,11 @@ class EspelhoController {
           periodo: { mes: parseInt(month), ano: parseInt(year) },
           resumo: {
             total_horas: totalHoras.toFixed(2),
+            horas_esperadas: horasEsperadas.toFixed(2),
+            saldo: saldo.toFixed(2),
             dias_completos: diasCompletos,
             dias_incompletos: diasIncompletos,
+            dias_uteis: diasUteis,
             total_registros: detalhes.length
           },
           registros: detalhes,

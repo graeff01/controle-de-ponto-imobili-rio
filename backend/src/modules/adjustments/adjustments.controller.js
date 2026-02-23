@@ -1,5 +1,6 @@
 ﻿const adjustmentsService = require('./adjustments.service');
 const validators = require('../../utils/validators');
+const auditService = require('../../services/auditService');
 
 class AdjustmentsController {
 
@@ -75,6 +76,8 @@ class AdjustmentsController {
 
       const adjustment = await adjustmentsService.approveAdjustment(id, req.userId, req);
 
+      await auditService.log('approve_adjustment', req.userId, 'time_adjustments', id, null, { status: 'approved' }, req);
+
       return res.json({
         success: true,
         message: 'Ajuste aprovado com sucesso',
@@ -97,6 +100,8 @@ class AdjustmentsController {
       }
 
       const adjustment = await adjustmentsService.rejectAdjustment(id, req.userId, reason, req);
+
+      await auditService.log('reject_adjustment', req.userId, 'time_adjustments', id, null, { status: 'rejected', reason }, req);
 
       return res.json({
         success: true,

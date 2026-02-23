@@ -2,6 +2,7 @@
 const bcrypt = require('bcrypt');
 const logger = require('../../utils/logger');
 const { getSubordinateIds } = require('../../utils/subordinateHelper');
+const auditService = require('../../services/auditService');
 
 class UsersController {
 
@@ -277,6 +278,8 @@ class UsersController {
 
       logger.info('Usuário criado', { user_id: result.rows[0].id, matricula });
 
+      await auditService.log('create_user', req.userId, 'users', result.rows[0].id, null, { matricula, nome, role: role || 'employee' }, req);
+
       res.status(201).json({
         success: true,
         data: result.rows[0]
@@ -415,6 +418,8 @@ class UsersController {
 
       logger.info('Usuário atualizado', { user_id: id });
 
+      await auditService.log('update_user', req.userId, 'users', id, null, { fields_updated: updates.length }, req);
+
       res.json({
         success: true,
         data: result.rows[0]
@@ -438,6 +443,8 @@ class UsersController {
 
       logger.info('Usuário desativado', { user_id: id });
 
+      await auditService.log('deactivate_user', req.userId, 'users', id, { status: 'ativo' }, { status: 'inativo' }, req);
+
       res.json({ success: true, message: 'Usuário desativado com sucesso' });
     } catch (error) {
       logger.error('Erro ao desativar usuário', { error: error.message });
@@ -456,6 +463,8 @@ class UsersController {
       );
 
       logger.info('Usuário excluído', { user_id: id });
+
+      await auditService.log('delete_user', req.userId, 'users', id, null, { status: 'deleted' }, req);
 
       res.json({ success: true, message: 'Usuário excluído com sucesso' });
     } catch (error) {

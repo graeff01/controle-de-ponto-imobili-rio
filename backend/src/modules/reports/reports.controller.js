@@ -3,6 +3,7 @@ const logger = require('../../utils/logger');
 const reportsService = require('./reports.service');
 const pdfGenerator = require('../../services/pdfGeneratorService');
 const { getSubordinateIds } = require('../../utils/subordinateHelper');
+const auditService = require('../../services/auditService');
 
 // Função auxiliar para tempo relativo
 function getTempoRelativo(timestamp) {
@@ -448,7 +449,8 @@ class ReportsController {
       // 5. Buscar horas do banco (saldo)
       const bancoRes = await db.query(`
         SELECT COALESCE(SUM(hours_worked), 0) as total_trabalhado,
-               COALESCE(SUM(hours_expected), 0) as total_esperado
+               COALESCE(SUM(hours_expected), 0) as total_esperado,
+               COALESCE(SUM(balance), 0) as saldo
         FROM hours_bank
         WHERE user_id = $1
         AND EXTRACT(YEAR FROM date) = $2
@@ -456,6 +458,40 @@ class ReportsController {
       `, [userId, year, month]);
 
       const banco = bancoRes.rows[0];
+      let horasEsperadas = parseFloat(banco.total_esperado || 0);
+
+      // Se hours_bank estiver vazio, calcular baseado em dias úteis
+      if (horasEsperadas === 0 && detalhes.length > 0) {
+        const expectedDaily = parseFloat(user.expected_daily_hours || 8);
+        // Buscar feriados do mês
+        let feriadosDates = [];
+        try {
+          const ferRes = await db.query(
+            'SELECT date FROM holidays WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2',
+            [year, month]
+          );
+          feriadosDates = ferRes.rows.map(r => r.date.toISOString().split('T')[0]);
+        } catch (e) { /* ignora */ }
+
+        // Contar dias úteis até hoje no mês
+        const hoje = new Date();
+        const ultimoDia = new Date(year, month, 0).getDate();
+        const diaLimite = (parseInt(year) === hoje.getFullYear() && parseInt(month) === hoje.getMonth() + 1)
+          ? hoje.getDate() : ultimoDia;
+
+        let diasUteis = 0;
+        for (let d = 1; d <= diaLimite; d++) {
+          const dateObj = new Date(year, month - 1, d);
+          const dow = dateObj.getDay();
+          const dateStr = dateObj.toISOString().split('T')[0];
+          if (dow !== 0 && dow !== 6 && !feriadosDates.includes(dateStr)) {
+            diasUteis++;
+          }
+        }
+        horasEsperadas = diasUteis * expectedDaily;
+      }
+
+      const saldo = totalHoras - horasEsperadas;
 
       const reportData = {
         resumo: {
@@ -463,8 +499,8 @@ class ReportsController {
           dias_completos: diasCompletos,
           dias_incompletos: diasIncompletos,
           ausencias: 0,
-          horas_esperadas: parseFloat(banco.total_esperado || 0).toFixed(2),
-          saldo: (parseFloat(banco.total_trabalhado || 0) - parseFloat(banco.total_esperado || 0)).toFixed(2)
+          horas_esperadas: horasEsperadas.toFixed(2),
+          saldo: saldo.toFixed(2)
         },
         detalhes
       };
@@ -496,6 +532,8 @@ class ReportsController {
 
       // 6. Gerar PDF
       const pdfDoc = await pdfGenerator.generateTimeMirror(userData, reportData, signatureData);
+
+      await auditService.log('download_pdf', req.userId, 'espelho', null, null, { employee: user.nome, month, year, has_signature: !!signatureData }, req);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=espelho_${user.nome.replace(/\s/g, '_')}_${month}_${year}.pdf`);

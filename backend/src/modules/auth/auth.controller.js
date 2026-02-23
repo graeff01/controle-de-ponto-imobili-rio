@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const db = require('../../config/database');
 const { validatePassword } = require('../../utils/validationSchemas');
+const auditService = require('../../services/auditService');
 
 class AuthController {
 
@@ -18,6 +19,8 @@ class AuthController {
       }
 
       const result = await authService.login(matricula, password, req);
+
+      await auditService.log('login', result.user.id, 'users', result.user.id, null, { matricula }, req);
 
       return res.json({
         success: true,

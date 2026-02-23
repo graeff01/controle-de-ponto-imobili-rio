@@ -83,9 +83,10 @@ class TimeRecordsService {
       await auditService.log(
         'time_record_created',
         userId,
+        'time_records',
+        record.id,
         null,
-        `Registro de ponto: ${recordType}`,
-        { recordId: record.id, timestamp },
+        { record_type: recordType, timestamp },
         req
       );
 
@@ -107,12 +108,27 @@ class TimeRecordsService {
         [userId]
       );
       const user = userResult.rows[0];
-      const horasEsperadas = parseFloat(user?.expected_daily_hours || 8);
+      const horasEsperadasConfig = parseFloat(user?.expected_daily_hours || 8);
+
+      // Verificar se é fim de semana
+      const dateObj = new Date(dataFormatada + 'T12:00:00');
+      const diaSemana = dateObj.getDay();
+      const isFimDeSemana = diaSemana === 0 || diaSemana === 6;
+
+      // Verificar se é feriado
+      let isFeriado = false;
+      try {
+        const feriadoRes = await db.query('SELECT id FROM holidays WHERE date = $1', [dataFormatada]);
+        isFeriado = feriadoRes.rows.length > 0;
+      } catch (e) { /* tabela pode não existir */ }
+
+      // Horas esperadas = 0 em fds/feriado
+      const horasEsperadas = (isFimDeSemana || isFeriado) ? 0 : horasEsperadasConfig;
 
       // Buscar registros do dia (usando timezone correto)
       const registros = await db.query(`
-        SELECT record_type, timestamp 
-        FROM time_records 
+        SELECT record_type, timestamp
+        FROM time_records
         WHERE user_id = $1 AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
         ORDER BY timestamp ASC
       `, [userId, dataFormatada]);
@@ -142,18 +158,24 @@ class TimeRecordsService {
         }
       }
 
-      // Upsert no banco de horas
+      const balance = horasTrabalhadas - horasEsperadas;
+
+      // Upsert no banco de horas (com balance)
       await db.query(`
-        INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, date) 
-        DO UPDATE SET 
+        INSERT INTO hours_bank (user_id, date, hours_worked, hours_expected, balance)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (user_id, date)
+        DO UPDATE SET
           hours_worked = EXCLUDED.hours_worked,
           hours_expected = EXCLUDED.hours_expected,
+          balance = EXCLUDED.balance,
           updated_at = NOW()
-      `, [userId, dataFormatada, horasTrabalhadas.toFixed(2), horasEsperadas]);
+      `, [userId, dataFormatada, horasTrabalhadas.toFixed(2), horasEsperadas, balance.toFixed(2)]);
 
-      logger.info('Banco de horas processado', { userId, date: dataFormatada, total: horasTrabalhadas.toFixed(2) });
+      logger.info('Banco de horas processado', {
+        userId, date: dataFormatada,
+        worked: horasTrabalhadas.toFixed(2), expected: horasEsperadas, balance: balance.toFixed(2)
+      });
 
     } catch (error) {
       logger.error('Erro ao processar banco de horas no Service', { error: error.message });
@@ -239,11 +261,12 @@ class TimeRecordsService {
 
       // Log de auditoria
       await auditService.log(
-        'manual_time_record_created',
+        'manual_time_record',
         registeredBy,
-        userId,
-        `Registro manual de ponto: `,
-        { recordType, timestamp, reason },
+        'time_records',
+        record.id,
+        null,
+        { record_type: recordType, timestamp, reason, target_user: userId },
         req
       );
 
