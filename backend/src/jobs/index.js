@@ -1,6 +1,7 @@
 ﻿const cron = require('node-cron');
 const { checkLateArrivals, checkMissingExits } = require('./checkLateArrivals');
 const dailyClosing = require('./dailyClosing'); // ✅ Novo job Fase 4
+const databaseBackup = require('./databaseBackup');
 const runWeeklyDigest = require('./weeklyDigest');
 const logger = require('../utils/logger');
 
@@ -29,6 +30,12 @@ function startAllJobs() {
   cron.schedule('55 23 * * *', async () => {
     logger.info('Executando fechamento diário...');
     await dailyClosing();
+  });
+
+  // Backup Automático do Banco (02:00)
+  cron.schedule('0 2 * * *', async () => {
+    logger.info('Executando backup automático...');
+    await databaseBackup();
   });
 
   logger.success('✅ Jobs agendados iniciados');
