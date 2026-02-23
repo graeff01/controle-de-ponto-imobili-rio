@@ -448,12 +448,28 @@ class ReportsController {
 
       const userData = { user, period: { month, year } };
 
-      const signatureData = signature ? {
-        hash: 'ASSINATURA_DIGITAL_VIA_PAINEL',
-        date: new Date(),
-        ip: req.ip || 'N/A',
-        image: signature
-      } : null;
+      // Buscar assinatura do espelho (feita pelo funcionário via /espelho)
+      let signatureData = null;
+      const sigRes = await db.query(
+        'SELECT signature_data, signed_at, ip_address FROM espelho_signatures WHERE user_id = $1 AND year = $2 AND month = $3',
+        [userId, year, month]
+      );
+
+      if (sigRes.rows.length > 0) {
+        signatureData = {
+          hash: 'ASSINATURA_DIGITAL_FUNCIONARIO',
+          date: sigRes.rows[0].signed_at,
+          ip: sigRes.rows[0].ip_address || 'N/A',
+          image: sigRes.rows[0].signature_data
+        };
+      } else if (signature) {
+        signatureData = {
+          hash: 'ASSINATURA_DIGITAL_VIA_PAINEL',
+          date: new Date(),
+          ip: req.ip || 'N/A',
+          image: signature
+        };
+      }
 
       // 6. Gerar PDF
       const pdfDoc = await pdfGenerator.generateTimeMirror(userData, reportData, signatureData);
