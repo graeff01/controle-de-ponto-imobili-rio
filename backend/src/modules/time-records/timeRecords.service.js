@@ -57,18 +57,16 @@ class TimeRecordsService {
         photoData = photoFile.buffer;
       }
 
-      const timestamp = dateHelper.getNowInBR();
-
-      // Insere registro
+      // Usar NOW() do PostgreSQL para consistência timezone (servidor Railway é UTC)
+      // Igual ao tablet.controller.js — todos os registros armazenados em UTC
       const result = await db.query(`
-        INSERT INTO time_records 
+        INSERT INTO time_records
         (user_id, record_type, timestamp, photo_data, ip_address, user_agent, is_manual, registered_by)
-        VALUES ($1, $2, $3, $4, $5, $6, false, $1)
+        VALUES ($1, $2, NOW(), $3, $4, $5, false, $1)
         RETURNING id, user_id, record_type, timestamp
       `, [
         userId,
         recordType,
-        timestamp,
         photoData,
         req.ip,
         req.get('user-agent')
@@ -77,7 +75,7 @@ class TimeRecordsService {
       const record = result.rows[0];
 
       // 4. Atualizar banco de horas automaticamente
-      await this.atualizarBancoHoras(userId, timestamp);
+      await this.atualizarBancoHoras(userId, record.timestamp);
 
       // Log de auditoria
       await auditService.log(
@@ -185,13 +183,13 @@ class TimeRecordsService {
 
   async validateRecordSequence(userId, recordType) {
     try {
-      // Busca último registro do dia
+      // Busca último registro do dia (usando data BRT, não UTC)
       const result = await db.query(`
-        SELECT record_type 
-        FROM time_records 
-        WHERE user_id = $1 
-        AND DATE(timestamp) = CURRENT_DATE
-        ORDER BY timestamp DESC 
+        SELECT record_type
+        FROM time_records
+        WHERE user_id = $1
+        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
+        ORDER BY timestamp DESC
         LIMIT 1
       `, [userId]);
 
@@ -219,10 +217,10 @@ class TimeRecordsService {
       // ✅ Validação de Intervalo Mínimo de 1 Hora (apenas para retorno_intervalo)
       if (recordType === 'retorno_intervalo') {
         const lastTimestampResult = await db.query(`
-          SELECT timestamp FROM time_records 
-          WHERE user_id = $1 
+          SELECT timestamp FROM time_records
+          WHERE user_id = $1
           AND record_type = 'saida_intervalo'
-          AND DATE(timestamp) = CURRENT_DATE
+          AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
           ORDER BY timestamp DESC LIMIT 1
         `, [userId]);
 
@@ -351,8 +349,6 @@ class TimeRecordsService {
 
   async getTodayRecords() {
     try {
-      const today = new Date().toISOString().split('T')[0];
-
       const result = await db.query(`
       SELECT
         tr.id,
@@ -369,9 +365,9 @@ class TimeRecordsService {
         u.cargo
       FROM time_records tr
       JOIN users u ON tr.user_id = u.id
-      WHERE DATE(tr.timestamp) = $1
+      WHERE DATE(tr.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
       ORDER BY tr.timestamp ASC
-    `, [today]);
+    `);
 
       const rows = result.rows.map(row => ({
         ...row,

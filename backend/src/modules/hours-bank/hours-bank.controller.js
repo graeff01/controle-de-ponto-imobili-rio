@@ -26,16 +26,20 @@ class HoursBankController {
         feriadosDates = ferRes.rows.map(r => r.dt);
       } catch (e) { /* tabela pode não existir */ }
 
-      // Buscar TODOS os registros de ponto do mês (com hora local correta)
+      // Hoje em BRT (servidor Railway roda UTC)
+      const hojeStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+      const [hojeY, hojeM, hojeD] = hojeStr.split('-').map(Number);
+
+      // Buscar TODOS os registros de ponto do mês COM conversão timezone UTC→BRT
       const records = await db.query(`
         SELECT
           record_type,
-          to_char(timestamp, 'YYYY-MM-DD') as data,
-          to_char(timestamp, 'HH24:MI') as hora
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as data,
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI') as hora
         FROM time_records
         WHERE user_id = $1
-          AND EXTRACT(YEAR FROM timestamp) = $2
-          AND EXTRACT(MONTH FROM timestamp) = $3
+          AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+          AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $3
         ORDER BY timestamp ASC
       `, [userId, year, month]);
 
@@ -51,11 +55,10 @@ class HoursBankController {
       let totalTrabalhadas = 0;
       let totalEsperadas = 0;
 
-      // Iterar por todos os dias do mês (até hoje ou fim do mês)
-      const hoje = new Date();
+      // Iterar por todos os dias do mês (até hoje ou fim do mês, usando data BRT)
       const ultimoDia = new Date(year, month, 0).getDate();
-      const diaLimite = (parseInt(year) === hoje.getFullYear() && parseInt(month) === hoje.getMonth() + 1)
-        ? hoje.getDate() : ultimoDia;
+      const diaLimite = (parseInt(year) === hojeY && parseInt(month) === hojeM)
+        ? hojeD : ultimoDia;
 
       for (let d = 1; d <= diaLimite; d++) {
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -63,7 +66,10 @@ class HoursBankController {
         const dow = dateObj.getDay();
         const isFds = dow === 0 || dow === 6;
         const isFeriado = feriadosDates.includes(dateStr);
-        const esperadas = (isFds || isFeriado) ? 0 : expectedDaily;
+        const isHoje = (parseInt(year) === hojeY && parseInt(month) === hojeM && d === hojeD);
+
+        // Hoje: expected=0 (dia em andamento, não debitar ainda)
+        const esperadas = (isFds || isFeriado || isHoje) ? 0 : expectedDaily;
 
         const dia = porDia[dateStr] || {};
         let trabalhadas = 0;
@@ -85,9 +91,9 @@ class HoursBankController {
           trabalhadas = Math.max(0, totalMin / 60);
         }
 
-        // Só incluir dias que têm registro OU dias úteis passados
+        // Incluir: dias com registro, OU dias úteis passados (hoje sem registro não aparece)
         const temRegistro = Object.keys(dia).length > 0;
-        if (temRegistro || (!isFds && !isFeriado)) {
+        if (temRegistro || (!isFds && !isFeriado && !isHoje)) {
           const saldo = trabalhadas - esperadas;
           totalTrabalhadas += trabalhadas;
           totalEsperadas += esperadas;
@@ -102,7 +108,8 @@ class HoursBankController {
             hours_expected: esperadas.toFixed(2),
             balance: saldo.toFixed(2),
             is_fds: isFds,
-            is_feriado: isFeriado
+            is_feriado: isFeriado,
+            is_hoje: isHoje
           });
         }
       }
@@ -128,41 +135,114 @@ class HoursBankController {
   async getAllUsers(req, res, next) {
     try {
       const { month, year } = req.query;
-      const currentMonth = month || new Date().getMonth() + 1;
-      const currentYear = year || new Date().getFullYear();
+      const currentMonth = parseInt(month) || new Date().getMonth() + 1;
+      const currentYear = parseInt(year) || new Date().getFullYear();
       const subordinateIds = await getSubordinateIds(req.userId);
 
-      let query = `
-        SELECT
-          u.id,
-          u.nome,
-          u.matricula,
-          u.cargo,
-          COALESCE(SUM(hb.hours_worked), 0) as total_horas_trabalhadas,
-          COALESCE(SUM(hb.hours_expected), 0) as total_horas_esperadas,
-          COALESCE(SUM(hb.balance), 0) as saldo_total
-        FROM users u
-        LEFT JOIN hours_bank hb ON u.id = hb.user_id
-          AND EXTRACT(YEAR FROM hb.date) = $1
-          AND EXTRACT(MONTH FROM hb.date) = $2
-        WHERE u.status = 'ativo'
-      `;
-      let params = [currentYear, currentMonth];
+      // Hoje em BRT
+      const hojeStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+      const [hojeY, hojeM, hojeD] = hojeStr.split('-').map(Number);
+
+      // Buscar feriados do mês
+      let feriadosDates = [];
+      try {
+        const ferRes = await db.query('SELECT date::text as dt FROM holidays WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2', [currentYear, currentMonth]);
+        feriadosDates = ferRes.rows.map(r => r.dt);
+      } catch (e) {}
+
+      // Buscar usuários
+      let userQuery = 'SELECT id, nome, matricula, cargo, expected_daily_hours FROM users WHERE status = $1';
+      let userParams = ['ativo'];
 
       if (subordinateIds) {
-        const placeholders = subordinateIds.map((_, i) => `$${i + 3}`).join(', ');
-        query += ` AND u.id IN (${placeholders})`;
-        params = [...params, ...subordinateIds];
+        const placeholders = subordinateIds.map((_, i) => `$${i + 2}`).join(', ');
+        userQuery += ` AND id IN (${placeholders})`;
+        userParams = [...userParams, ...subordinateIds];
       }
 
-      query += ` GROUP BY u.id ORDER BY saldo_total DESC`;
+      userQuery += ' ORDER BY nome';
+      const usersResult = await db.query(userQuery, userParams);
 
-      const result = await db.query(query, params);
+      // Buscar todos os registros do mês com timezone UTC→BRT
+      const records = await db.query(`
+        SELECT
+          user_id,
+          record_type,
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as dia,
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI') as hora
+        FROM time_records
+        WHERE EXTRACT(YEAR FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $1
+          AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+        ORDER BY timestamp ASC
+      `, [currentYear, currentMonth]);
 
-      res.json({
-        success: true,
-        data: result.rows
+      // Agrupar registros por usuário e dia
+      const recordsByUser = {};
+      records.rows.forEach(r => {
+        if (!recordsByUser[r.user_id]) recordsByUser[r.user_id] = {};
+        if (!recordsByUser[r.user_id][r.dia]) recordsByUser[r.user_id][r.dia] = {};
+        recordsByUser[r.user_id][r.dia][r.record_type] = r.hora;
       });
+
+      // Calcular dias do período
+      const ultimoDia = new Date(currentYear, currentMonth, 0).getDate();
+      const diaLimite = (currentYear === hojeY && currentMonth === hojeM)
+        ? hojeD : ultimoDia;
+
+      // Calcular para cada usuário
+      const data = usersResult.rows.map(user => {
+        const expectedDaily = parseFloat(user.expected_daily_hours || 9);
+        const userRecords = recordsByUser[user.id] || {};
+        let totalWorked = 0;
+        let totalExpected = 0;
+
+        for (let d = 1; d <= diaLimite; d++) {
+          const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const dateObj = new Date(currentYear, currentMonth - 1, d);
+          const dow = dateObj.getDay();
+          const isFds = dow === 0 || dow === 6;
+          const isFeriado = feriadosDates.includes(dateStr);
+          const isHoje = (currentYear === hojeY && currentMonth === hojeM && d === hojeD);
+
+          const esperadas = (isFds || isFeriado || isHoje) ? 0 : expectedDaily;
+
+          const dia = userRecords[dateStr] || {};
+          let trabalhadas = 0;
+
+          if (dia.entrada && dia.saida_final) {
+            const [eh, em] = dia.entrada.split(':').map(Number);
+            const [sh, sm] = dia.saida_final.split(':').map(Number);
+            let totalMin = (sh * 60 + sm) - (eh * 60 + em);
+
+            if (dia.saida_intervalo && dia.retorno_intervalo) {
+              const [sih, sim] = dia.saida_intervalo.split(':').map(Number);
+              const [rih, rim] = dia.retorno_intervalo.split(':').map(Number);
+              const pausa = (rih * 60 + rim) - (sih * 60 + sim);
+              if (pausa > 0) totalMin -= pausa;
+            }
+
+            trabalhadas = Math.max(0, totalMin / 60);
+          }
+
+          totalWorked += trabalhadas;
+          totalExpected += esperadas;
+        }
+
+        const saldo = totalWorked - totalExpected;
+        return {
+          id: user.id,
+          nome: user.nome,
+          matricula: user.matricula,
+          cargo: user.cargo,
+          total_horas_trabalhadas: totalWorked.toFixed(2),
+          total_horas_esperadas: totalExpected.toFixed(2),
+          saldo_total: saldo.toFixed(2)
+        };
+      });
+
+      data.sort((a, b) => parseFloat(a.saldo_total) - parseFloat(b.saldo_total));
+
+      res.json({ success: true, data });
 
     } catch (error) {
       logger.error('Erro ao listar todos os usuários', { error: error.message });

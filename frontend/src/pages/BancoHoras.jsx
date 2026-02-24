@@ -159,13 +159,14 @@ export default function BancoHoras() {
                     const diasSemana = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
                     const label = `${diasSemana[dateObj.getDay()]}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
                     const isWeekend = reg.is_fds;
+                    const isToday = reg.is_hoje;
                     const noRecords = !reg.entrada && !reg.saida_final;
 
                     return (
-                      <tr key={reg.date} className={`hover:bg-slate-50 ${isWeekend ? 'bg-slate-50/50 text-slate-400' : ''} ${noRecords && !isWeekend ? 'bg-red-50/30' : ''}`}>
+                      <tr key={reg.date} className={`hover:bg-slate-50 ${isToday ? 'bg-blue-50/50 border-l-4 border-blue-500' : ''} ${isWeekend ? 'bg-slate-50/50 text-slate-400' : ''} ${noRecords && !isWeekend && !isToday ? 'bg-red-50/30' : ''}`}>
                         <td className="px-4 py-3">
-                          <span className={`font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-900'}`}>
-                            {label}
+                          <span className={`font-medium ${isToday ? 'text-blue-600' : isWeekend ? 'text-slate-400' : 'text-slate-900'}`}>
+                            {label} {isToday && '(hoje)'}
                           </span>
                         </td>
                         <td className="px-3 py-3 text-center">
