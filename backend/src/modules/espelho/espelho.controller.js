@@ -61,28 +61,26 @@ class EspelhoController {
 
       const user = userRes.rows[0];
 
-      // Buscar registros do mês
+      // Buscar registros do mês com conversão UTC→BRT
       const registros = await db.query(`
         SELECT
-          DATE(timestamp AT TIME ZONE 'America/Sao_Paulo') as data,
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as data,
           record_type,
-          timestamp AT TIME ZONE 'America/Sao_Paulo' as ts_local
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI') as hora_brt,
+          timestamp
         FROM time_records
         WHERE user_id = $1
-        AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'America/Sao_Paulo') = $2
-        AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'America/Sao_Paulo') = $3
+        AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+        AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $3
         ORDER BY timestamp ASC
       `, [user.id, year, month]);
 
       // Agrupar por dia
       const porDia = {};
       registros.rows.forEach(r => {
-        const dia = r.data.toISOString().split('T')[0];
-        if (!porDia[dia]) porDia[dia] = {};
-        const ts = new Date(r.ts_local);
-        const hora = ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-        porDia[dia][r.record_type] = hora;
-        porDia[dia][r.record_type + '_ts'] = ts;
+        if (!porDia[r.data]) porDia[r.data] = {};
+        porDia[r.data][r.record_type] = r.hora_brt;
+        porDia[r.data][r.record_type + '_ts'] = new Date(r.timestamp);
       });
 
       // Montar detalhes com cálculo de horas

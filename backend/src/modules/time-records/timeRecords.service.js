@@ -300,7 +300,7 @@ class TimeRecordsService {
                ip_address, created_at
         FROM time_records
         WHERE user_id = $1
-        AND DATE(timestamp) BETWEEN $2 AND $3
+        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') BETWEEN $2 AND $3
         ORDER BY timestamp ASC
       `, [userId, startDate, endDate]);
 
@@ -330,7 +330,7 @@ class TimeRecordsService {
         u.cargo
       FROM time_records tr
       JOIN users u ON tr.user_id = u.id
-      WHERE DATE(tr.timestamp) = $1
+      WHERE DATE(tr.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $1
       ORDER BY tr.timestamp ASC
     `, [date]);
 
@@ -514,18 +514,18 @@ class TimeRecordsService {
   async getStatistics(userId, startDate, endDate) {
     try {
       const result = await db.query(`
-        SELECT 
-          COUNT(DISTINCT DATE(timestamp)) as dias_com_registro,
+        SELECT
+          COUNT(DISTINCT DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')) as dias_com_registro,
           COUNT(*) FILTER (WHERE is_manual = true) as registros_manuais,
-          COUNT(DISTINCT DATE(timestamp)) FILTER (
-            WHERE DATE(timestamp) IN (
-              SELECT date FROM hours_worked_daily 
+          COUNT(DISTINCT DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')) FILTER (
+            WHERE DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') IN (
+              SELECT date FROM hours_worked_daily
               WHERE user_id = $1 AND status = 'completo'
             )
           ) as dias_completos
         FROM time_records
         WHERE user_id = $1
-        AND DATE(timestamp) BETWEEN $2 AND $3
+        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') BETWEEN $2 AND $3
       `, [userId, startDate, endDate]);
 
       const stats = result.rows[0];

@@ -21,7 +21,7 @@ class ReportsController {
 
   async getDashboard(req, res) {
     try {
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
       // 1. Chamar o Service para pegar todas as estatísticas calculadas
       const stats = await reportsService.getDashboardStats();
@@ -34,11 +34,11 @@ class ReportsController {
       for (let i = 6; i >= 0; i--) {
         const data = new Date();
         data.setDate(data.getDate() - i);
-        const dataStr = data.toISOString().split('T')[0];
+        const dataStr = data.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
         const presentesDia = await db.query(`
           SELECT (
-            SELECT COUNT(DISTINCT user_id) FROM time_records WHERE DATE(timestamp) = $1 AND record_type = 'entrada'
+            SELECT COUNT(DISTINCT user_id) FROM time_records WHERE DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $1 AND record_type = 'entrada'
           ) + (
             SELECT COUNT(DISTINCT user_id) FROM duty_shifts WHERE date = $1
           ) as total
@@ -70,7 +70,7 @@ class ReportsController {
             'clt' as tipo
           FROM time_records tr
           JOIN users u ON tr.user_id = u.id
-          WHERE DATE(tr.timestamp) = $1
+          WHERE DATE(tr.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $1
           ORDER BY tr.timestamp DESC
           LIMIT 5
         )
@@ -150,25 +150,24 @@ class ReportsController {
         }));
 
       } else {
-        // CLT: Buscar registros completos
+        // CLT: Buscar registros completos (com timezone BRT)
         const registros = await db.query(`
-          SELECT 
-            DATE(timestamp) as data,
+          SELECT
+            to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as data,
             record_type,
             timestamp
           FROM time_records
           WHERE user_id = $1
-          AND EXTRACT(YEAR FROM timestamp) = $2
-          AND EXTRACT(MONTH FROM timestamp) = $3
+          AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+          AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $3
           ORDER BY timestamp
         `, [userId, year, month]);
 
         // Agrupar por dia
         const porDia = {};
         registros.rows.forEach(r => {
-          const dia = r.data.toISOString().split('T')[0];
-          if (!porDia[dia]) porDia[dia] = {};
-          porDia[dia][r.record_type] = r.timestamp;
+          if (!porDia[r.data]) porDia[r.data] = {};
+          porDia[r.data][r.record_type] = r.timestamp;
         });
 
         dados = Object.keys(porDia).map(dia => ({
@@ -222,22 +221,21 @@ class ReportsController {
 
       for (const func of funcionarios.rows) {
         const registros = await db.query(`
-          SELECT 
-            DATE(timestamp) as data,
+          SELECT
+            to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as data,
             record_type,
             timestamp
           FROM time_records
           WHERE user_id = $1
-          AND EXTRACT(YEAR FROM timestamp) = $2
-          AND EXTRACT(MONTH FROM timestamp) = $3
+          AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+          AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $3
           ORDER BY timestamp
         `, [func.id, year, month]);
 
         const porDia = {};
         registros.rows.forEach(r => {
-          const dia = r.data.toISOString().split('T')[0];
-          if (!porDia[dia]) porDia[dia] = {};
-          porDia[dia][r.record_type] = r.timestamp;
+          if (!porDia[r.data]) porDia[r.data] = {};
+          porDia[r.data][r.record_type] = r.timestamp;
         });
 
         const dias = Object.keys(porDia).map(dia => ({
@@ -387,27 +385,26 @@ class ReportsController {
       if (userRes.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
       const user = userRes.rows[0];
 
-      // 2. Buscar registros diretamente de time_records (fonte confiável)
+      // 2. Buscar registros diretamente de time_records com conversão UTC→BRT
       const registros = await db.query(`
         SELECT
-          DATE(timestamp AT TIME ZONE 'America/Sao_Paulo') as data,
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') as data,
           record_type,
-          timestamp AT TIME ZONE 'America/Sao_Paulo' as ts_local
+          to_char(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI') as hora_brt,
+          timestamp
         FROM time_records
         WHERE user_id = $1
-        AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'America/Sao_Paulo') = $2
-        AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'America/Sao_Paulo') = $3
+        AND EXTRACT(YEAR FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
+        AND EXTRACT(MONTH FROM timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $3
         ORDER BY timestamp ASC
       `, [userId, year, month]);
 
       // 3. Agrupar por dia
       const porDia = {};
       registros.rows.forEach(r => {
-        const dia = r.data.toISOString().split('T')[0];
-        if (!porDia[dia]) porDia[dia] = {};
-        const hora = new Date(r.ts_local).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-        porDia[dia][r.record_type] = hora;
-        porDia[dia][r.record_type + '_ts'] = new Date(r.ts_local);
+        if (!porDia[r.data]) porDia[r.data] = {};
+        porDia[r.data][r.record_type] = r.hora_brt;
+        porDia[r.data][r.record_type + '_ts'] = new Date(r.timestamp);
       });
 
       // 4. Montar detalhes com cálculo de horas

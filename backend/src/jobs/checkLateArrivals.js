@@ -3,13 +3,13 @@ const logger = require('../utils/logger');
 
 async function checkLateArrivals() {
   try {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().split(' ')[0];
+    // Usar horário de Brasília
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    const currentTime = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     // Buscar usuários que deveriam ter entrado mas não entraram
     const lateUsers = await db.query(`
-      SELECT 
+      SELECT
         u.id,
         u.nome,
         u.matricula,
@@ -21,7 +21,7 @@ async function checkLateArrivals() {
       AND NOT EXISTS (
         SELECT 1 FROM time_records tr
         WHERE tr.user_id = u.id
-        AND DATE(tr.timestamp) = $2
+        AND DATE(tr.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
         AND tr.record_type = 'entrada'
       )
     `, [currentTime, today]);
@@ -51,13 +51,13 @@ async function checkLateArrivals() {
 
 async function checkMissingExits() {
   try {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().split(' ')[0];
+    // Usar horário de Brasília
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    const currentTime = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     // Buscar usuários que entraram mas não saíram
     const missingExits = await db.query(`
-      SELECT 
+      SELECT
         u.id,
         u.nome,
         u.matricula,
@@ -66,13 +66,13 @@ async function checkMissingExits() {
       FROM users u
       JOIN time_records tr ON tr.user_id = u.id
       WHERE u.status = 'ativo'
-      AND DATE(tr.timestamp) = $1
+      AND DATE(tr.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $1
       AND tr.record_type = 'entrada'
       AND u.work_hours_end < $2
       AND NOT EXISTS (
         SELECT 1 FROM time_records tr2
         WHERE tr2.user_id = u.id
-        AND DATE(tr2.timestamp) = $1
+        AND DATE(tr2.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $1
         AND tr2.record_type = 'saida_final'
       )
     `, [today, currentTime]);

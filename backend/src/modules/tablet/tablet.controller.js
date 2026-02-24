@@ -58,7 +58,7 @@ class TabletController {
         SELECT id, timestamp, record_type
         FROM time_records
         WHERE user_id = $1
-        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') < CURRENT_DATE
+        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') < (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
         ORDER BY timestamp DESC
         LIMIT 1
       `, [user.id]);
@@ -79,11 +79,9 @@ class TabletController {
       // --- VERIFICAR SE PRECISA ASSINAR ESPELHO (último dia útil do mês) ---
       let pendingEspelho = null;
       try {
-        const hoje = new Date();
-        const anoAtual = hoje.getFullYear();
-        const mesAtual = hoje.getMonth() + 1;
+        const hojeBRT = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+        const [anoAtual, mesAtual, diaHoje] = hojeBRT.split('-').map(Number);
         const ultimoDiaMes = new Date(anoAtual, mesAtual, 0).getDate();
-        const diaHoje = hoje.getDate();
 
         // Verificar se estamos nos últimos 2 dias úteis do mês
         let diasAteOFim = ultimoDiaMes - diaHoje;
@@ -170,15 +168,15 @@ class TabletController {
       }
 
       // ============================================
-      // VALIDAÇÕES DE SEQUÊNCIA (parametrizadas)
+      // VALIDAÇÕES DE SEQUÊNCIA (usando data BRT)
       // ============================================
-      const validationDate = timestamp ? new Date(timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      const validationDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
       if (record_type === 'retorno_intervalo') {
         const lastIntervalExit = await db.query(`
           SELECT timestamp FROM time_records
           WHERE user_id = $1 AND record_type = 'saida_intervalo'
-            AND DATE(timestamp) = $2
+            AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
           ORDER BY timestamp DESC LIMIT 1
         `, [user.id, validationDate]);
 
@@ -207,7 +205,7 @@ class TabletController {
         const temEntrada = await db.query(`
           SELECT id FROM time_records
           WHERE user_id = $1 AND record_type = 'entrada'
-            AND DATE(timestamp) = $2
+            AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
           LIMIT 1
         `, [user.id, validationDate]);
 
@@ -223,7 +221,7 @@ class TabletController {
         const jaTemEntrada = await db.query(`
           SELECT id FROM time_records
           WHERE user_id = $1 AND record_type = 'entrada'
-            AND DATE(timestamp) = $2
+            AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
           LIMIT 1
         `, [user.id, validationDate]);
 
@@ -239,7 +237,7 @@ class TabletController {
         const temEntrada = await db.query(`
           SELECT id FROM time_records
           WHERE user_id = $1 AND record_type = 'entrada'
-            AND DATE(timestamp) = $2
+            AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
           LIMIT 1
         `, [user.id, validationDate]);
 
@@ -254,7 +252,7 @@ class TabletController {
         const saiuIntervalo = await db.query(`
           SELECT id FROM time_records
           WHERE user_id = $1 AND record_type = 'saida_intervalo'
-            AND DATE(timestamp) = $2
+            AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
           LIMIT 1
         `, [user.id, validationDate]);
 
@@ -262,7 +260,7 @@ class TabletController {
           const voltouIntervalo = await db.query(`
             SELECT id FROM time_records
             WHERE user_id = $1 AND record_type = 'retorno_intervalo'
-              AND DATE(timestamp) = $2
+              AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
             LIMIT 1
           `, [user.id, validationDate]);
 
@@ -353,11 +351,11 @@ class TabletController {
 
       // --- VERIFICAR PONTOS ESQUECIDOS (INCONSISTÊNCIAS) ---
       const inconsistencia = await db.query(`
-        SELECT id, timestamp, record_type 
-        FROM time_records 
-        WHERE user_id = $1 
-        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') < CURRENT_DATE
-        ORDER BY timestamp DESC 
+        SELECT id, timestamp, record_type
+        FROM time_records
+        WHERE user_id = $1
+        AND DATE(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') < (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
+        ORDER BY timestamp DESC
         LIMIT 1
       `, [user.id]);
 
@@ -406,8 +404,8 @@ class TabletController {
       if (recordResult.rows.length === 0) return res.status(404).json({ error: 'Registro não encontrado' });
       const original = recordResult.rows[0];
 
-      // 2. Cria a data ajustada (mesmo dia do registro original, mas com a hora informada)
-      const datePart = new Date(original.timestamp).toISOString().split('T')[0];
+      // 2. Cria a data ajustada (mesmo dia do registro original em BRT, mas com a hora informada)
+      const datePart = new Date(original.timestamp).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
       const adjustedTimestamp = `${datePart}T${adjusted_time}:00`;
 
       // 3. Insere na tabela de ajustes como PENDENTE (e marca como ADIÇÃO)
@@ -486,14 +484,14 @@ class TabletController {
       // ============================================
       // VALIDAÇÕES DE SEQUÊNCIA (mesmas do registro normal)
       // ============================================
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
       // Buscar registros existentes hoje (aprovados + pendentes)
       const registrosHoje = await db.query(`
         SELECT adjusted_type as record_type, status
         FROM time_adjustments
         WHERE user_id = $1
-        AND DATE(adjusted_timestamp) = $2
+        AND DATE(adjusted_timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') = $2
         AND is_addition = true
         ORDER BY adjusted_timestamp
       `, [user.id, hoje]);

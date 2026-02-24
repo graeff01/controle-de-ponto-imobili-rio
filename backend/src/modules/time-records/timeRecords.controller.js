@@ -281,7 +281,7 @@ class TimeRecordsController {
         'clt' as user_category
       FROM time_records tr
       JOIN users u ON tr.user_id = u.id
-      WHERE DATE(tr.timestamp) >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE DATE(tr.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - INTERVAL '30 days'
       ${subFilter}
       ORDER BY tr.timestamp DESC
     `, cltParams);
