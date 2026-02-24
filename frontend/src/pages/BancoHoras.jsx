@@ -142,34 +142,66 @@ export default function BancoHoras() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Data</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Trabalhadas</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Esperadas</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Saldo</th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-slate-600 uppercase">Data</th>
+                    <th className="px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase">Entrada</th>
+                    <th className="px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase">Saída Int.</th>
+                    <th className="px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase">Retorno</th>
+                    <th className="px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase">Saída</th>
+                    <th className="px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase">Trab.</th>
+                    <th className="px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase">Esper.</th>
+                    <th className="px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase">Saldo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {detalhes.registros.map((reg) => (
-                    <tr key={reg.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4">
-                        <span className="font-medium text-slate-900">
-                          {new Date(reg.date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-blue-600">
-                        {parseFloat(reg.hours_worked).toFixed(2)}h
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">
-                        {parseFloat(reg.hours_expected).toFixed(2)}h
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className={`inline-flex items-center gap-1 font-bold ${getSaldoColor(reg.balance)}`}>
-                          {getSaldoIcon(reg.balance)}
-                          {parseFloat(reg.balance) > 0 ? '+' : ''}{parseFloat(reg.balance).toFixed(2)}h
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {detalhes.registros.map((reg) => {
+                    const [y, m, d] = reg.date.split('-').map(Number);
+                    const dateObj = new Date(y, m - 1, d);
+                    const diasSemana = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
+                    const label = `${diasSemana[dateObj.getDay()]}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+                    const isWeekend = reg.is_fds;
+                    const noRecords = !reg.entrada && !reg.saida_final;
+
+                    return (
+                      <tr key={reg.date} className={`hover:bg-slate-50 ${isWeekend ? 'bg-slate-50/50 text-slate-400' : ''} ${noRecords && !isWeekend ? 'bg-red-50/30' : ''}`}>
+                        <td className="px-4 py-3">
+                          <span className={`font-medium ${isWeekend ? 'text-slate-400' : 'text-slate-900'}`}>
+                            {label}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`text-sm font-mono ${reg.entrada ? 'text-emerald-600 font-semibold' : 'text-slate-300'}`}>
+                            {reg.entrada || '--:--'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`text-sm font-mono ${reg.saida_intervalo ? 'text-orange-500' : 'text-slate-300'}`}>
+                            {reg.saida_intervalo || '--:--'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`text-sm font-mono ${reg.retorno_intervalo ? 'text-orange-500' : 'text-slate-300'}`}>
+                            {reg.retorno_intervalo || '--:--'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`text-sm font-mono ${reg.saida_final ? 'text-red-500 font-semibold' : 'text-slate-300'}`}>
+                            {reg.saida_final || '--:--'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-center font-semibold text-blue-600">
+                          {parseFloat(reg.hours_worked).toFixed(2)}h
+                        </td>
+                        <td className="px-3 py-3 text-center text-slate-600">
+                          {parseFloat(reg.hours_expected).toFixed(2)}h
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex items-center gap-1 font-bold text-sm ${getSaldoColor(reg.balance)}`}>
+                            {parseFloat(reg.balance) > 0 ? '+' : ''}{parseFloat(reg.balance).toFixed(2)}h
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
