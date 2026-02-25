@@ -406,7 +406,8 @@ class TabletController {
 
       // 2. Cria a data ajustada (mesmo dia do registro original em BRT, mas com a hora informada)
       const datePart = new Date(original.timestamp).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
-      const adjustedTimestamp = `${datePart}T${adjusted_time}:00`;
+      // O usuário informa horário em BRT (-03:00) → converter para UTC antes de armazenar
+      const adjustedTimestamp = new Date(`${datePart}T${adjusted_time}:00.000-03:00`);
 
       // 3. Insere na tabela de ajustes como PENDENTE (e marca como ADIÇÃO)
       const result = await db.query(`

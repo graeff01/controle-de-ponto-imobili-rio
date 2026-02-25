@@ -134,11 +134,14 @@ class TimeRecordsController {
         });
       }
 
+      // Horário informado pelo gestor está em BRT (fuso de Brasília, -03:00)
+      // Converter para UTC antes de armazenar — consistência com registros do tablet
+      const timestampUTC = new Date(timestamp + '.000-03:00');
+
       // Verificar se o mês está fechado
-      const tsDate = new Date(timestamp);
       const closedCheck = await db.query(
         'SELECT id FROM monthly_closings WHERE year = $1 AND month = $2',
-        [tsDate.getFullYear(), tsDate.getMonth() + 1]
+        [timestampUTC.getFullYear(), timestampUTC.getMonth() + 1]
       );
       if (closedCheck.rows.length > 0) {
         return res.status(400).json({
@@ -149,7 +152,7 @@ class TimeRecordsController {
       const record = await timeRecordsService.createManualRecord(
         user_id,
         record_type,
-        new Date(timestamp),
+        timestampUTC,
         reason,
         req.userId,
         req
