@@ -57,9 +57,10 @@ class TimeRecordsController {
       const userRes = await db.query('SELECT cargo FROM users WHERE id = $1', [userId]);
       const cargo = userRes.rows[0]?.cargo?.toLowerCase() || '';
 
-      if (!cargo.includes('consultor')) {
+      const allowedExternal = ['consultor', 'captador', 'captadora', 'gestor', 'gestora'];
+      if (!allowedExternal.some(role => cargo.includes(role))) {
         return res.status(403).json({
-          error: 'Apenas consultoras podem realizar registro de ponto externo.'
+          error: 'Seu cargo não tem permissão para registro de ponto externo.'
         });
       }
 

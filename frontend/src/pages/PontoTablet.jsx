@@ -330,7 +330,7 @@ export default function Tablet() {
       const user = response.data.data;
 
       const cargo = user.cargo?.toLowerCase() || '';
-      const isConsultor = cargo.includes('consultor') || cargo.includes('consutor');
+      const isConsultor = cargo.includes('consultor') || cargo.includes('consutor') || cargo.includes('captador') || cargo.includes('captadora') || cargo.includes('gestor');
 
       // Detalhes do dispositivo autorizado
       const deviceInfoStr = localStorage.getItem('device_info');
