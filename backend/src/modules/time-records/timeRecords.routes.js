@@ -3,10 +3,12 @@ const router = express.Router();
 const timeRecordsController = require('./timeRecords.controller');
 const authMiddleware = require('../../middleware/auth');
 const checkRole = require('../../middleware/rbac');
+const requireTerms = require('../../middleware/requireTerms');
 const upload = require('../../config/upload');
 
-// Todas as rotas requerem autenticação
+// Todas as rotas requerem autenticação + termos aceitos
 router.use(authMiddleware);
+router.use(requireTerms);
 
 // Rotas para funcionários (próprios registros)
 router.post('/', upload.single('photo'), timeRecordsController.create);

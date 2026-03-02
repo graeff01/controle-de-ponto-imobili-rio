@@ -136,6 +136,7 @@ app.use('/api/monthly-closing', require('./modules/monthly-closing/monthlyClosin
 app.use('/api/espelho', require('./modules/espelho/espelho.routes'));
 app.use('/api/admin', migrationRoutes);
 app.use('/api/admin/backups', require('./modules/admin/backup.routes'));
+app.use('/api/terms', require('./modules/terms/terms.routes'));
 
 // ============================================
 // ROTA 404

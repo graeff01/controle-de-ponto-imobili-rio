@@ -28,6 +28,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Termo de compromisso pendente
+    if (error.response?.status === 403 && error.response?.data?.code === 'TERMS_NOT_ACCEPTED') {
+      window.location.href = '/termos';
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401) {
       // Não redirecionar se for uma rota de tablet
       const isTabletRoute = error.config?.url?.includes('/tablet');

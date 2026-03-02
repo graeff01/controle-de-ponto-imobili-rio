@@ -18,9 +18,10 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PontoExterno from './pages/PontoExterno';
 import EspelhoPonto from './pages/EspelhoPonto';
+import TermosAceite from './pages/TermosAceite';
 
 // Componente para proteger rotas
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, skipTermsCheck }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -31,7 +32,14 @@ function ProtectedRoute({ children }) {
     );
   }
 
-  return user ? children : <Navigate to="/login" />;
+  if (!user) return <Navigate to="/login" />;
+
+  // Redirecionar para termos se não aceitos
+  if (!skipTermsCheck && !user.terms_accepted_at) {
+    return <Navigate to="/termos" />;
+  }
+
+  return children;
 }
 
 function App() {
@@ -143,6 +151,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Termo de Compromisso - requer login mas sem exigir termos */}
+            <Route
+              path="/termos"
+              element={
+                <ProtectedRoute skipTermsCheck>
+                  <TermosAceite />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Rota pública - Espelho de Ponto (funcionário acessa sem login) */}
             <Route path="/espelho" element={<EspelhoPonto />} />
 

@@ -64,7 +64,8 @@ class AuthService {
           nome: user.nome,
           email: user.email,
           cargo: user.cargo,
-          role: role
+          role: role,
+          terms_accepted_at: user.terms_accepted_at
         }
       };
 

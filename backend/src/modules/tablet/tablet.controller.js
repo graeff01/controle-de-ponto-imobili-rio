@@ -109,6 +109,7 @@ class TabletController {
         success: true,
         data: {
           ...user,
+          termsRequired: !user.terms_accepted_at,
           pendingInconsistency,
           pendingEspelho
         }

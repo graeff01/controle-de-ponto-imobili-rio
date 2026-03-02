@@ -384,7 +384,7 @@ export default function Tablet() {
       if (user.pendingInconsistency) {
         setInconsistencyData(user.pendingInconsistency);
         setShowCamera(false);
-      } else if (!user.terms_accepted_at) {
+      } else if (user.termsRequired) {
         setShowTerms(true);
         setShowCamera(false);
       } else {
@@ -527,15 +527,10 @@ export default function Tablet() {
     }
   };
 
-  const aceitarTermos = async () => {
-    try {
-      await api.post(`/users/${userData.id}/accept-terms`);
-      setUserData({ ...userData, terms_accepted_at: new Date() });
-      setShowTerms(false);
-      setShowCamera(true);
-    } catch (err) {
-      showMessage('Erro ao aceitar termos', 'error');
-    }
+  const fecharTermos = () => {
+    setShowTerms(false);
+    setMatricula('');
+    setUserData(null);
   };
 
   const marcarPresenca = async () => {
@@ -1576,41 +1571,28 @@ export default function Tablet() {
             <motion.div
               initial={{ y: 50 }}
               animate={{ y: 0 }}
-              className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl"
+              className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl text-center"
             >
-              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
-                <Cloud size={32} />
+              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <AlertCircle size={32} />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-4">Termos de Uso e Privacidade</h2>
-              <div className="bg-slate-50 rounded-xl p-4 mb-6 max-h-64 overflow-y-auto text-sm text-slate-600 leading-relaxed border border-slate-200">
-                <p className="mb-4 font-bold text-slate-800">CONSENTIMENTO PARA REGISTRO DE PONTO POR MEIO DE DISPOSITIVO COMPARTILHADO (TOTEM)</p>
-                <p className="mb-3">
-                  1. Ao utilizar este dispositivo para o registro de sua jornada de trabalho, você declara estar ciente e concorda com a captura de sua imagem (fotografia) para fins exclusivos de autenticação, segurança e conformidade com a Portaria 671/MTE.
-                </p>
-                <p className="mb-3">
-                  2. Os dados coletados (foto, data, hora e geolocalização do tablet) são processados de forma segura e utilizados estritamente para fins de gestão de jornada, cálculo de banco de horas e obrigações legais da empresa.
-                </p>
-                <p className="mb-3">
-                  3. Em conformidade com a LGPD (Lei Geral de Proteção de Dados), a empresa garante a proteção de suas informações e o acesso apenas a pessoas autorizadas do RH e Gestão.
-                </p>
-                <p>
-                  Ao clicar em "Concordar e Continuar", você autoriza expressamente este procedimento para todos os futuros registros.
-                </p>
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">Termo de Compromisso Pendente</h2>
+              <p className="text-slate-600 mb-4">
+                Para utilizar o sistema de ponto, é necessário ler e assinar o Termo de Compromisso e Responsabilidade.
+              </p>
+              <p className="font-bold text-slate-800 mb-3">Acesse o portal web para ler e assinar:</p>
+              <div className="bg-slate-100 rounded-xl p-4 mb-6 font-mono text-sm text-slate-700 select-all">
+                jardimdolagoponto.up.railway.app/termos
               </div>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={aceitarTermos}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all"
-                >
-                  Concordar e Continuar
-                </button>
-                <button
-                  onClick={resetForm}
-                  className="w-full text-slate-500 font-semibold py-2"
-                >
-                  Sair
-                </button>
-              </div>
+              <p className="text-xs text-slate-500 mb-6">
+                Após assinar o termo no portal, volte aqui e registre seu ponto normalmente.
+              </p>
+              <button
+                onClick={fecharTermos}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg transition-all"
+              >
+                Voltar
+              </button>
             </motion.div>
           </motion.div>
         )}

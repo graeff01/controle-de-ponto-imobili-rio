@@ -295,9 +295,16 @@ export default function Usuarios() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
-                              {usuario.status}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
+                                {usuario.status}
+                              </Badge>
+                              {usuario.terms_accepted_at ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-center">Termo</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-center">Sem termo</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             {user?.role === 'admin' && (
@@ -398,9 +405,16 @@ export default function Usuarios() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
-                              {usuario.status}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
+                                {usuario.status}
+                              </Badge>
+                              {usuario.terms_accepted_at ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-center">Termo</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-center">Sem termo</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             {user?.role === 'admin' && (
@@ -502,9 +516,16 @@ export default function Usuarios() {
                             <p className="text-xs text-slate-500 mt-1">{usuario.expected_daily_hours || 9}h/dia</p>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
-                              {usuario.status}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
+                                {usuario.status}
+                              </Badge>
+                              {usuario.terms_accepted_at ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-center">Termo</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-center">Sem termo</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             {user?.role === 'admin' && (
@@ -604,9 +625,16 @@ export default function Usuarios() {
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
-                              {usuario.status}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={usuario.status === 'ativo' ? 'success' : 'danger'}>
+                                {usuario.status}
+                              </Badge>
+                              {usuario.terms_accepted_at ? (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-center">Termo</span>
+                              ) : (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-center">Sem termo</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             {user?.role === 'admin' && (

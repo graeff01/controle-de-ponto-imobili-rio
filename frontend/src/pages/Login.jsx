@@ -18,8 +18,8 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(formData.matricula, formData.password);
-      navigate('/dashboard');
+      const userData = await login(formData.matricula, formData.password);
+      navigate(userData.terms_accepted_at ? '/dashboard' : '/termos');
     } catch (err) {
       setError(err.response?.data?.error || 'Erro ao fazer login. Verifique suas credenciais.');
     } finally {

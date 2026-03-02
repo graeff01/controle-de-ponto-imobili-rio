@@ -114,7 +114,7 @@ class AuthController {
 
       const result = await db.query(`
         SELECT u.id, u.matricula, u.cpf, u.nome, u.email, u.cargo, u.departamento,
-               u.status, u.role, u.data_admissao, u.created_at
+               u.status, u.role, u.data_admissao, u.created_at, u.terms_accepted_at
         FROM users u
         WHERE u.id = $1
       `, [userId]);

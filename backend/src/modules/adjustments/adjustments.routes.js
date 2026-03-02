@@ -3,9 +3,11 @@ const router = express.Router();
 const adjustmentsController = require('./adjustments.controller');
 const authMiddleware = require('../../middleware/auth');
 const checkRole = require('../../middleware/rbac');
+const requireTerms = require('../../middleware/requireTerms');
 
-// Todas as rotas requerem autenticação
+// Todas as rotas requerem autenticação + termos aceitos
 router.use(authMiddleware);
+router.use(requireTerms);
 
 // Apenas gestores e admins podem criar ajustes
 router.post('/', checkRole(['gestor', 'admin']), adjustmentsController.create);

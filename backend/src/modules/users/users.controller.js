@@ -133,6 +133,7 @@ class UsersController {
           expected_daily_hours,
           user_type,
           is_duty_shift_only,
+          terms_accepted_at,
           created_at
         FROM users
         WHERE status != 'deleted'

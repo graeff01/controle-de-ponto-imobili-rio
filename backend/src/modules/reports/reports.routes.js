@@ -2,8 +2,10 @@
 const router = express.Router();
 const reportsController = require('./reports.controller');
 const authMiddleware = require('../../middleware/auth');
+const requireTerms = require('../../middleware/requireTerms');
 
 router.use(authMiddleware);
+router.use(requireTerms);
 
 router.get('/dashboard', reportsController.getDashboard);
 router.get('/weekly', reportsController.getWeekly);
