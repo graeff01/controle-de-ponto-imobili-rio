@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, FileText, CheckCircle, Clock, ArrowLeft, PenTool, Trash2 } from 'lucide-react';
+import { Search, FileText, CheckCircle, Clock, ArrowLeft, PenTool, Trash2, AlertTriangle, ScrollText } from 'lucide-react';
 import ReactSignatureCanvas from 'react-signature-canvas';
 import api from '../services/api';
+import TermosCompromisso, { TERMS_VERSION } from '../components/terms/TermosCompromisso';
 
 const meses = [
   '', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -10,7 +11,7 @@ const meses = [
 ];
 
 export default function EspelhoPonto() {
-  const [step, setStep] = useState('matricula'); // matricula | espelho | assinatura | sucesso
+  const [step, setStep] = useState('matricula'); // matricula | termos | espelho | assinatura | sucesso
   const [matricula, setMatricula] = useState('');
   const [usuario, setUsuario] = useState(null);
   const [espelho, setEspelho] = useState(null);
@@ -19,7 +20,12 @@ export default function EspelhoPonto() {
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
   const sigCanvas = useRef({});
+  const termosSigCanvas = useRef({});
   const [sigEmpty, setSigEmpty] = useState(true);
+  const [termosSigEmpty, setTermosSigEmpty] = useState(true);
+  const [termosLidos, setTermosLidos] = useState(false);
+  const [termosScrolled, setTermosScrolled] = useState(false);
+  const termosRef = useRef(null);
 
   const verificarMatricula = async () => {
     if (!matricula.trim()) {
@@ -31,10 +37,49 @@ export default function EspelhoPonto() {
     try {
       const res = await api.post('/espelho/verificar', { matricula: matricula.trim() });
       setUsuario(res.data.data);
-      // Carregar espelho automaticamente
-      await carregarEspelho(res.data.data);
+
+      // Se termos pendentes, mostrar tela de termos antes do espelho
+      if (res.data.data.termsRequired) {
+        setTermosLidos(false);
+        setTermosScrolled(false);
+        setTermosSigEmpty(true);
+        setStep('termos');
+      } else {
+        // Carregar espelho automaticamente
+        await carregarEspelho(res.data.data);
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Matrícula não encontrada');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTermosScroll = () => {
+    const el = termosRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 50) {
+      setTermosScrolled(true);
+    }
+  };
+
+  const assinarTermos = async () => {
+    if (termosSigEmpty || !termosLidos) return;
+    const signatureData = termosSigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+    setLoading(true);
+    setError('');
+    try {
+      await api.post('/espelho/aceitar-termos', {
+        matricula: matricula.trim(),
+        signature: signatureData,
+        terms_version: TERMS_VERSION
+      });
+      // Atualizar usuario local
+      setUsuario(prev => ({ ...prev, termsRequired: false }));
+      // Carregar espelho normalmente
+      await carregarEspelho();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao aceitar termos');
     } finally {
       setLoading(false);
     }
@@ -88,6 +133,9 @@ export default function EspelhoPonto() {
     else if (step === 'espelho') {
       setStep('matricula');
       setEspelho(null);
+      setUsuario(null);
+    } else if (step === 'termos') {
+      setStep('matricula');
       setUsuario(null);
     }
   };
@@ -175,6 +223,130 @@ export default function EspelhoPonto() {
                   {loading ? 'Buscando...' : 'Consultar Espelho'}
                 </button>
               </div>
+            </motion.div>
+          )}
+
+          {/* STEP TERMOS: Leitura e aceite do Termo de Compromisso */}
+          {step === 'termos' && usuario && (
+            <motion.div
+              key="termos"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              {/* Header */}
+              <div className="bg-white rounded-2xl shadow-xl p-6 mb-4">
+                <div className="flex items-center gap-3">
+                  <button onClick={voltar} className="p-2 hover:bg-slate-100 rounded-lg">
+                    <ArrowLeft size={20} className="text-slate-600" />
+                  </button>
+                  <div className="flex-1 text-center">
+                    <h2 className="text-lg font-bold text-slate-800">{usuario.nome}</h2>
+                    <p className="text-sm text-slate-500">Mat: {usuario.matricula}</p>
+                  </div>
+                  <div className="w-10" />
+                </div>
+              </div>
+
+              {/* Aviso */}
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 mb-4 flex items-start gap-4">
+                <AlertTriangle size={28} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-amber-900 text-base">Termo de Compromisso Pendente</p>
+                  <p className="text-amber-800 text-sm mt-1">
+                    Para utilizar o sistema de ponto, leia integralmente o Termo de Compromisso e Responsabilidade abaixo e assine ao final.
+                  </p>
+                </div>
+              </div>
+
+              {/* Documento do Termo — área scrollável */}
+              <div className="bg-white rounded-2xl shadow-xl p-6 mb-4">
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b">
+                  <ScrollText size={20} className="text-slate-700" />
+                  <h3 className="font-bold text-slate-800">Documento Legal</h3>
+                </div>
+                <div
+                  ref={termosRef}
+                  onScroll={handleTermosScroll}
+                  className="max-h-[400px] overflow-y-auto pr-2 border border-slate-200 rounded-xl p-4"
+                  style={{ scrollBehavior: 'smooth' }}
+                >
+                  <TermosCompromisso />
+                </div>
+                {!termosScrolled && (
+                  <p className="text-xs text-amber-600 text-center mt-3 font-medium animate-pulse">
+                    Role ate o final do documento para habilitar o aceite
+                  </p>
+                )}
+              </div>
+
+              {/* Checkbox de leitura */}
+              <div className="bg-white rounded-2xl shadow-xl p-6 mb-4">
+                <label className={`flex items-start gap-3 cursor-pointer ${!termosScrolled ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={termosLidos}
+                    onChange={(e) => setTermosLidos(e.target.checked)}
+                    disabled={!termosScrolled}
+                    className="mt-1 w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                  />
+                  <span className="text-sm text-slate-700 leading-relaxed">
+                    <strong>Declaro que li integralmente</strong> o Termo de Compromisso e Responsabilidade acima, <strong>compreendi</strong> todas as condições e <strong>concordo</strong> com todos os termos estabelecidos.
+                  </span>
+                </label>
+              </div>
+
+              {/* Assinatura digital */}
+              {termosLidos && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white rounded-2xl shadow-xl p-6 mb-4"
+                >
+                  <h3 className="font-bold text-slate-800 mb-1">Assinatura Digital</h3>
+                  <p className="text-sm text-slate-500 mb-4">Faca sua rubrica no quadro abaixo para confirmar o aceite:</p>
+
+                  <div className="border-2 border-slate-300 rounded-xl bg-white shadow-inner overflow-hidden mx-auto" style={{ maxWidth: 460 }}>
+                    <ReactSignatureCanvas
+                      ref={termosSigCanvas}
+                      penColor="black"
+                      canvasProps={{
+                        width: 450,
+                        height: 200,
+                        className: 'signature-canvas w-full'
+                      }}
+                      onBegin={() => setTermosSigEmpty(false)}
+                    />
+                  </div>
+
+                  <div className="flex justify-between mt-4 gap-3">
+                    <button
+                      onClick={() => { termosSigCanvas.current.clear(); setTermosSigEmpty(true); }}
+                      className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium"
+                    >
+                      <Trash2 size={18} />
+                      Limpar
+                    </button>
+
+                    <button
+                      onClick={assinarTermos}
+                      disabled={termosSigEmpty || loading}
+                      className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-white text-lg transition-all
+                        ${termosSigEmpty || loading ? 'bg-slate-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-lg'}
+                      `}
+                    >
+                      <CheckCircle size={22} />
+                      {loading ? 'Enviando...' : 'Aceitar e Assinar Termo'}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {error && (
+                <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm text-center">
+                  {error}
+                </div>
+              )}
             </motion.div>
           )}
 

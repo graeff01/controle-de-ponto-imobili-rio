@@ -1580,12 +1580,15 @@ export default function Tablet() {
               <p className="text-slate-600 mb-4">
                 Para utilizar o sistema de ponto, é necessário ler e assinar o Termo de Compromisso e Responsabilidade.
               </p>
-              <p className="font-bold text-slate-800 mb-3">Acesse o portal web para ler e assinar:</p>
-              <div className="bg-slate-100 rounded-xl p-4 mb-6 font-mono text-sm text-slate-700 select-all">
-                jardimdolagoponto.up.railway.app/termos
+              <p className="font-bold text-slate-800 mb-3">Acesse pelo seu computador ou celular:</p>
+              <div className="bg-slate-100 rounded-xl p-4 mb-3 font-mono text-base text-slate-900 text-center font-bold select-none">
+                jardimdolagoponto.up.railway.app/espelho
               </div>
+              <p className="text-sm text-slate-600 mb-2">
+                Digite sua matrícula no Espelho de Ponto e siga as instruções para ler e assinar o termo.
+              </p>
               <p className="text-xs text-slate-500 mb-6">
-                Após assinar o termo no portal, volte aqui e registre seu ponto normalmente.
+                Após assinar o termo, volte aqui e registre seu ponto normalmente.
               </p>
               <button
                 onClick={fecharTermos}

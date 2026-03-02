@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
+const { generateAndStorePdf } = require('../../services/termsPdfService');
 
 class EspelhoController {
 
@@ -13,7 +14,7 @@ class EspelhoController {
       }
 
       const result = await db.query(
-        'SELECT id, nome, matricula, cargo, is_duty_shift_only FROM users WHERE matricula = $1 AND status = $2',
+        'SELECT id, nome, matricula, cargo, is_duty_shift_only, terms_accepted_at FROM users WHERE matricula = $1 AND status = $2',
         [matricula.trim(), 'ativo']
       );
 
@@ -30,7 +31,8 @@ class EspelhoController {
           nome: user.nome,
           matricula: user.matricula,
           cargo: user.cargo,
-          is_plantonista: user.is_duty_shift_only
+          is_plantonista: user.is_duty_shift_only,
+          termsRequired: !user.terms_accepted_at
         }
       });
 
@@ -250,7 +252,99 @@ class EspelhoController {
     }
   }
 
-  // 4. Verificar status da assinatura
+  // 4. Aceitar Termo de Compromisso (público — sem JWT)
+  async aceitarTermos(req, res) {
+    try {
+      const { matricula, signature, terms_version } = req.body;
+
+      if (!matricula || !signature || !terms_version) {
+        return res.status(400).json({ error: 'Matrícula, assinatura e versão do termo são obrigatórios' });
+      }
+
+      // Buscar usuário
+      const userRes = await db.query(
+        'SELECT id, nome, matricula, cargo, terms_accepted_at FROM users WHERE matricula = $1 AND status = $2',
+        [matricula.trim(), 'ativo']
+      );
+
+      if (userRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Matrícula não encontrada' });
+      }
+
+      const user = userRes.rows[0];
+
+      // Verificar se já aceitou esta versão
+      const existing = await db.query(
+        'SELECT id FROM terms_acceptances WHERE user_id = $1 AND terms_version = $2',
+        [user.id, terms_version]
+      );
+
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: 'Termo já foi aceito anteriormente' });
+      }
+
+      const ip = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || req.ip;
+      const userAgent = req.headers['user-agent'] || '';
+
+      // Inserir aceite na tabela de termos
+      const result = await db.query(
+        `INSERT INTO terms_acceptances (user_id, terms_version, signature_data, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, accepted_at`,
+        [user.id, terms_version, signature, ip, userAgent]
+      );
+
+      // Atualizar flag no usuário
+      await db.query(
+        'UPDATE users SET terms_accepted_at = NOW() WHERE id = $1',
+        [user.id]
+      );
+
+      // Audit log
+      try {
+        const auditService = require('../../services/auditService');
+        await auditService.log('accept_terms', user.id, 'terms_acceptances', result.rows[0].id, null, {
+          terms_version,
+          ip_address: ip,
+          channel: 'espelho'
+        }, req);
+      } catch (e) {
+        logger.error('Erro ao logar aceite de termos no audit', { error: e.message });
+      }
+
+      logger.info('Termo de compromisso aceito via espelho', {
+        userId: user.id,
+        nome: user.nome,
+        terms_version,
+        ip
+      });
+
+      // Gerar e armazenar PDF do termo assinado (assíncrono, não bloqueia resposta)
+      generateAndStorePdf(
+        result.rows[0].id,
+        user,
+        signature,
+        ip,
+        userAgent,
+        result.rows[0].accepted_at
+      ).catch(e => logger.error('Falha ao gerar PDF do termo', { error: e.message }));
+
+      res.json({
+        success: true,
+        message: `Termo aceito com sucesso por ${user.nome}`,
+        data: {
+          accepted_at: result.rows[0].accepted_at,
+          terms_version
+        }
+      });
+
+    } catch (error) {
+      logger.error('Erro ao aceitar termos via espelho', { error: error.message });
+      res.status(500).json({ error: 'Erro ao registrar aceite do termo' });
+    }
+  }
+
+  // 5. Verificar status da assinatura
   async statusAssinatura(req, res) {
     try {
       const { matricula, year, month } = req.body;

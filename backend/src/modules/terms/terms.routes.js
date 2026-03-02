@@ -13,4 +13,7 @@ router.get('/status', termsController.getStatus);
 // Relatório de aceites - admin e gestor
 router.get('/report', checkRole(['admin', 'gestor']), termsController.getReport);
 
+// Download PDF do termo assinado - admin e gestor
+router.get('/pdf/:userId', checkRole(['admin', 'gestor']), termsController.downloadPdf);
+
 module.exports = router;

@@ -21,7 +21,7 @@ import EspelhoPonto from './pages/EspelhoPonto';
 import TermosAceite from './pages/TermosAceite';
 
 // Componente para proteger rotas
-function ProtectedRoute({ children, skipTermsCheck }) {
+function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -33,11 +33,6 @@ function ProtectedRoute({ children, skipTermsCheck }) {
   }
 
   if (!user) return <Navigate to="/login" />;
-
-  // Redirecionar para termos se não aceitos
-  if (!skipTermsCheck && !user.terms_accepted_at) {
-    return <Navigate to="/termos" />;
-  }
 
   return children;
 }
@@ -151,11 +146,11 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            {/* Termo de Compromisso - requer login mas sem exigir termos */}
+            {/* Termo de Compromisso - mantido como rota protegida para uso administrativo */}
             <Route
               path="/termos"
               element={
-                <ProtectedRoute skipTermsCheck>
+                <ProtectedRoute>
                   <TermosAceite />
                 </ProtectedRoute>
               }

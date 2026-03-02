@@ -11,6 +11,9 @@ router.post('/verificar', controller.verificarMatricula);
 // Visualizar espelho de ponto do mês
 router.post('/visualizar', controller.visualizarEspelho);
 
+// Aceitar Termo de Compromisso (público)
+router.post('/aceitar-termos', controller.aceitarTermos);
+
 // Assinar espelho de ponto
 router.post('/assinar', controller.assinarEspelho);
 

@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const logger = require('../../utils/logger');
 const auditService = require('../../services/auditService');
+const { generateAndStorePdf } = require('../../services/termsPdfService');
 
 const CURRENT_TERMS_VERSION = '1.0.0';
 
@@ -64,6 +65,23 @@ class TermsController {
       }
 
       logger.info('Termo de compromisso aceito', { userId, terms_version });
+
+      // Gerar PDF assíncrono
+      try {
+        const userData = await db.query('SELECT id, nome, matricula, cargo FROM users WHERE id = $1', [userId]);
+        if (userData.rows[0]) {
+          generateAndStorePdf(
+            result.rows[0].id,
+            userData.rows[0],
+            signature,
+            ip,
+            userAgent,
+            result.rows[0].accepted_at
+          ).catch(e => logger.error('Falha ao gerar PDF do termo', { error: e.message }));
+        }
+      } catch (e) {
+        logger.error('Erro ao buscar dados para PDF', { error: e.message });
+      }
 
       return res.json({
         success: true,
@@ -131,6 +149,39 @@ class TermsController {
           users: result.rows
         }
       });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // GET /api/terms/pdf/:userId (admin/gestor) - Download PDF do termo assinado
+  async downloadPdf(req, res, next) {
+    try {
+      const { userId } = req.params;
+      const zlib = require('zlib');
+
+      const result = await db.query(
+        `SELECT ta.pdf_data, ta.terms_version, ta.accepted_at, u.nome, u.matricula
+         FROM terms_acceptances ta
+         JOIN users u ON ta.user_id = u.id
+         WHERE ta.user_id = $1 AND ta.pdf_data IS NOT NULL
+         ORDER BY ta.accepted_at DESC LIMIT 1`,
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'PDF do termo não encontrado para este funcionário' });
+      }
+
+      const row = result.rows[0];
+      const pdfBuffer = zlib.gunzipSync(row.pdf_data);
+
+      const filename = `Termo_${row.matricula}_${row.nome.replace(/\s+/g, '_')}_v${row.terms_version}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.send(pdfBuffer);
 
     } catch (error) {
       next(error);
