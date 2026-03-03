@@ -1580,12 +1580,11 @@ export default function Tablet() {
               <p className="text-slate-600 mb-4">
                 Para utilizar o sistema de ponto, é necessário ler e assinar o Termo de Compromisso e Responsabilidade.
               </p>
-              <p className="font-bold text-slate-800 mb-3">Acesse pelo seu computador ou celular:</p>
-              <div className="bg-slate-100 rounded-xl p-4 mb-3 font-mono text-base text-slate-900 text-center font-bold select-none">
-                jardimdolagoponto.up.railway.app/espelho
-              </div>
-              <p className="text-sm text-slate-600 mb-2">
-                Digite sua matrícula no Espelho de Ponto e siga as instruções para ler e assinar o termo.
+              <p className="text-slate-700 mb-4 text-sm leading-relaxed">
+                Acesse a <strong>Consulta de Espelho de Ponto</strong> pelo seu computador ou celular pessoal, digite sua matrícula e siga as instruções para ler e assinar o termo.
+              </p>
+              <p className="text-slate-600 text-sm mb-2">
+                Caso não saiba como acessar, solicite o link ao seu gestor.
               </p>
               <p className="text-xs text-slate-500 mb-6">
                 Após assinar o termo, volte aqui e registre seu ponto normalmente.
