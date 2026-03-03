@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, LogIn, Coffee, RotateCcw, LogOut, Clock, Wifi, WifiOff, Cloud, FileText } from 'lucide-react';
+import { Camera, LogIn, Coffee, RotateCcw, LogOut, Clock, Wifi, WifiOff, Cloud, FileText, AlertCircle } from 'lucide-react';
 import api from '../services/api';
 import { useSync } from '../services/syncService';
 import { offlineStorage } from '../services/offlineStorage';
