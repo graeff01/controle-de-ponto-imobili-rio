@@ -130,7 +130,7 @@ class TermsController {
     try {
       const result = await db.query(`
         SELECT u.id, u.matricula, u.nome, u.cargo, u.terms_accepted_at,
-               ta.terms_version, ta.accepted_at, ta.ip_address
+               ta.terms_version, ta.accepted_at, ta.ip_address, ta.integrity_hash
         FROM users u
         LEFT JOIN terms_acceptances ta ON u.id = ta.user_id AND ta.terms_version = $1
         WHERE u.status = 'ativo'
@@ -149,6 +149,61 @@ class TermsController {
           users: result.rows
         }
       });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // GET /api/terms/export (admin/gestor) - Exportar relatório Excel
+  async exportReport(req, res, next) {
+    try {
+      const XLSX = require('xlsx');
+
+      const result = await db.query(`
+        SELECT u.matricula, u.nome, u.cargo,
+               ta.terms_version, ta.accepted_at, ta.ip_address, ta.integrity_hash
+        FROM users u
+        LEFT JOIN terms_acceptances ta ON u.id = ta.user_id AND ta.terms_version = $1
+        WHERE u.status = 'ativo'
+        ORDER BY ta.accepted_at IS NULL DESC, u.nome ASC
+      `, [CURRENT_TERMS_VERSION]);
+
+      const rows = result.rows.map(r => ({
+        'Matrícula': r.matricula,
+        'Nome': r.nome,
+        'Cargo': r.cargo || '',
+        'Status': r.accepted_at ? 'Assinado' : 'Pendente',
+        'Versão Termo': r.terms_version || '',
+        'Data Aceite': r.accepted_at ? new Date(r.accepted_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '',
+        'IP': r.ip_address || '',
+        'Hash Integridade': r.integrity_hash || ''
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      // Ajustar largura das colunas
+      ws['!cols'] = [
+        { wch: 12 }, // Matrícula
+        { wch: 35 }, // Nome
+        { wch: 20 }, // Cargo
+        { wch: 12 }, // Status
+        { wch: 12 }, // Versão
+        { wch: 22 }, // Data
+        { wch: 18 }, // IP
+        { wch: 66 }, // Hash
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Termos de Compromisso');
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+      const dataAtual = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="Relatorio_Termos_${dataAtual}.xlsx"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
 
     } catch (error) {
       next(error);
@@ -194,7 +249,7 @@ class TermsController {
       const { userId } = req.params;
 
       const result = await db.query(
-        `SELECT ta.signature_data, ta.terms_version, ta.accepted_at, ta.ip_address, ta.user_agent,
+        `SELECT ta.signature_data, ta.terms_version, ta.accepted_at, ta.ip_address, ta.user_agent, ta.integrity_hash,
                 u.nome, u.matricula, u.cargo
          FROM terms_acceptances ta
          JOIN users u ON ta.user_id = u.id

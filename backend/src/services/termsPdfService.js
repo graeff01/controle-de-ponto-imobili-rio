@@ -1,4 +1,5 @@
 const PDFDocument = require('pdfkit');
+const crypto = require('crypto');
 const db = require('../config/database');
 const logger = require('../utils/logger');
 const zlib = require('zlib');
@@ -174,7 +175,7 @@ async function generateTermsPdf({ nome, matricula, cargo, termsVersion, signatur
       doc.moveDown(2);
       doc.fontSize(7).fillColor('#999999');
       doc.text('Documento gerado automaticamente pelo Sistema de Controle de Presença - Auxiliadora Predial', { align: 'center' });
-      doc.text(`Hash de verificação: ${Buffer.from(`${nome}|${matricula}|${termsVersion}|${acceptedAt.toISOString()}`).toString('base64').substring(0, 32)}`, { align: 'center' });
+      doc.text('Hash SHA-256 de integridade será inserido após geração do documento', { align: 'center' });
 
       doc.end();
     } catch (err) {
@@ -199,23 +200,27 @@ async function generateAndStorePdf(acceptanceId, userData, signatureDataUrl, ipA
       acceptedAt: acceptedAt || new Date()
     });
 
+    // Calcular SHA-256 do PDF para prova de integridade
+    const integrityHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
+
     // Comprimir com gzip para economia de espaço
     const compressed = zlib.gzipSync(pdfBuffer);
 
-    // Salvar no banco
+    // Salvar no banco com hash de integridade
     await db.query(
-      'UPDATE terms_acceptances SET pdf_data = $1 WHERE id = $2',
-      [compressed, acceptanceId]
+      'UPDATE terms_acceptances SET pdf_data = $1, integrity_hash = $2 WHERE id = $3',
+      [compressed, integrityHash, acceptanceId]
     );
 
     logger.info('PDF do termo gerado e armazenado', {
       acceptanceId,
       userId: userData.id,
       pdfSize: pdfBuffer.length,
-      compressedSize: compressed.length
+      compressedSize: compressed.length,
+      integrityHash
     });
 
-    return { pdfSize: pdfBuffer.length, compressedSize: compressed.length };
+    return { pdfSize: pdfBuffer.length, compressedSize: compressed.length, integrityHash };
   } catch (err) {
     logger.error('Erro ao gerar/armazenar PDF do termo', { error: err.message, acceptanceId });
     // Não lançar erro — o aceite já foi registrado, PDF é bônus

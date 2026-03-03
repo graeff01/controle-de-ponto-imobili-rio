@@ -16,6 +16,7 @@ const TABLES_TO_BACKUP = [
   { name: 'manager_subordinates' },
   { name: 'devices' },
   { name: 'espelho_signatures', exclude: ['signature_data'] },
+  { name: 'terms_acceptances', exclude: ['signature_data', 'pdf_data'] },
   { name: 'monthly_closing' },
   { name: 'alerts' },
   { name: 'audit_logs' }

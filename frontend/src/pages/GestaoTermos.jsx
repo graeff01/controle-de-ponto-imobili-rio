@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, CheckCircle, AlertTriangle, RefreshCw, Download, Eye, X, ScrollText } from 'lucide-react';
+import { Users, CheckCircle, AlertTriangle, RefreshCw, Download, Eye, X, ScrollText, FileSpreadsheet, ShieldCheck } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import StatCard from '../components/ui/StatCard';
 import Card from '../components/ui/Card';
@@ -15,6 +15,7 @@ export default function GestaoTermos() {
   const [sigData, setSigData] = useState(null);
   const [sigLoading, setSigLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const carregarDados = async () => {
     setLoading(true);
@@ -71,6 +72,24 @@ export default function GestaoTermos() {
     }
   };
 
+  const exportarExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/terms/export', { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Relatorio_Termos_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Erro ao exportar relatório');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Layout title="Gestão de Termos" subtitle="Termos de Compromisso e Responsabilidade">
 
@@ -112,6 +131,18 @@ export default function GestaoTermos() {
           <option value="assinados">Apenas assinados</option>
           <option value="pendentes">Apenas pendentes</option>
         </select>
+        <button
+          onClick={exportarExcel}
+          disabled={exporting}
+          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-2 font-medium transition-colors"
+        >
+          {exporting ? (
+            <RefreshCw size={18} className="animate-spin" />
+          ) : (
+            <FileSpreadsheet size={18} />
+          )}
+          Exportar Excel
+        </button>
         <button
           onClick={carregarDados}
           disabled={loading}
@@ -312,6 +343,17 @@ export default function GestaoTermos() {
                         <p className="font-semibold text-slate-900 font-mono text-xs">{sigData.ip_address}</p>
                       </div>
                     </div>
+
+                    {/* Hash de integridade */}
+                    {sigData.integrity_hash && (
+                      <div className="bg-emerald-50 rounded-xl p-3 flex items-start gap-2">
+                        <ShieldCheck size={16} className="text-emerald-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-emerald-700 text-xs font-semibold mb-1">Hash de Integridade (SHA-256)</p>
+                          <p className="text-xs text-emerald-800 font-mono break-all">{sigData.integrity_hash}</p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* User Agent */}
                     {sigData.user_agent && (

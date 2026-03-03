@@ -19,4 +19,7 @@ router.get('/pdf/:userId', checkRole(['admin', 'gestor']), termsController.downl
 // Ver assinatura e metadados - admin e gestor
 router.get('/signature/:userId', checkRole(['admin', 'gestor']), termsController.getSignature);
 
+// Exportar relatório Excel - admin e gestor
+router.get('/export', checkRole(['admin', 'gestor']), termsController.exportReport);
+
 module.exports = router;
