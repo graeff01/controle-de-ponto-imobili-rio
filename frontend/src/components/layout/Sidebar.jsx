@@ -10,6 +10,7 @@ import {
   Settings,
   Calendar,
   Shield,
+  ScrollText,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -54,7 +55,8 @@ export default function Sidebar({ isOpen, onClose }) {
         { path: '/ajustes', icon: Settings, label: 'Ajustes', roles: ['admin'] }, // Apenas Admin
         { path: '/aprovacoes', icon: CheckCircle, label: 'Aprovações', roles: ['admin', 'manager'] },
         { path: '/feriados', icon: Calendar, label: 'Feriados', roles: ['admin'] }, // Apenas Admin
-        { path: '/relatorio-mensal', icon: Calendar, label: 'Relatório Mensal', roles: ['admin', 'manager'] }
+        { path: '/relatorio-mensal', icon: Calendar, label: 'Relatório Mensal', roles: ['admin', 'manager'] },
+        { path: '/gestao-termos', icon: ScrollText, label: 'Termos', roles: ['admin', 'manager'] }
       ]
     },
     {

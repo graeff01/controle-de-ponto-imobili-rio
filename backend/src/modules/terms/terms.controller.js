@@ -187,6 +187,35 @@ class TermsController {
       next(error);
     }
   }
+
+  // GET /api/terms/signature/:userId (admin/gestor) - Ver assinatura e metadados
+  async getSignature(req, res, next) {
+    try {
+      const { userId } = req.params;
+
+      const result = await db.query(
+        `SELECT ta.signature_data, ta.terms_version, ta.accepted_at, ta.ip_address, ta.user_agent,
+                u.nome, u.matricula, u.cargo
+         FROM terms_acceptances ta
+         JOIN users u ON ta.user_id = u.id
+         WHERE ta.user_id = $1
+         ORDER BY ta.accepted_at DESC LIMIT 1`,
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Aceite de termo não encontrado para este funcionário' });
+      }
+
+      return res.json({
+        success: true,
+        data: result.rows[0]
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new TermsController();

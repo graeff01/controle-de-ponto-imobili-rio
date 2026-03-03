@@ -16,4 +16,7 @@ router.get('/report', checkRole(['admin', 'gestor']), termsController.getReport)
 // Download PDF do termo assinado - admin e gestor
 router.get('/pdf/:userId', checkRole(['admin', 'gestor']), termsController.downloadPdf);
 
+// Ver assinatura e metadados - admin e gestor
+router.get('/signature/:userId', checkRole(['admin', 'gestor']), termsController.getSignature);
+
 module.exports = router;

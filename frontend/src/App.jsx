@@ -19,6 +19,7 @@ import ResetPassword from './pages/ResetPassword';
 import PontoExterno from './pages/PontoExterno';
 import EspelhoPonto from './pages/EspelhoPonto';
 import TermosAceite from './pages/TermosAceite';
+import GestaoTermos from './pages/GestaoTermos';
 
 // Componente para proteger rotas
 function ProtectedRoute({ children }) {
@@ -143,6 +144,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <PontoExterno />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/gestao-termos"
+              element={
+                <ProtectedRoute>
+                  <GestaoTermos />
                 </ProtectedRoute>
               }
             />
